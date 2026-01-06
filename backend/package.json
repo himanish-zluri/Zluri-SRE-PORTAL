@@ -1,0 +1,29 @@
+{
+    "compilerOptions": {
+        "target": "ES2020",
+        "module": "CommonJS",
+        "moduleResolution": "node",
+        "rootDir": "src",
+        "outDir": "dist",
+        "esModuleInterop": true,
+        "forceConsistentCasingInFileNames": true,
+        "strict": true,
+        "verbatimModuleSyntax": false,
+        "types": [
+            "node"
+        ]
+    },
+    "devDependencies": {
+        "@types/node": "^20.19.27",
+        "@types/pg": "^8.16.0"
+    },
+    "scripts": {
+        "dev": "ts-node src/server.ts",
+        "test": "jest",
+        "build": "tsc",
+        "start": "node dist/server.js"
+    },
+    "dependencies": {
+        "pg": "^8.16.3"
+    }
+}
