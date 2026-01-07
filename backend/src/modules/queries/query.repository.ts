@@ -1,6 +1,58 @@
 import { pool } from '../../config/db';
 
 export class QueryRepository {
+
+    static async findById(id: string) {
+        const result = await pool.query(
+          `SELECT * FROM query_requests WHERE id = $1`,
+          [id]
+        );
+      
+        return result.rows[0] || null;
+      }      
+
+    static findPendingByManager(managerId: string) {
+        return pool.query(`
+          SELECT qr.*
+          FROM query_requests qr
+          JOIN pods p ON p.id = qr.pod_id
+          WHERE p.manager_id = $1
+            AND qr.status = 'PENDING'
+          ORDER BY qr.created_at DESC
+        `, [managerId]).then(r => r.rows);
+      }
+      
+      static isManagerOfPod(managerId: string, podId: string) {
+        return pool.query(
+          `SELECT 1 FROM pods WHERE id = $1 AND manager_id = $2`,
+          [podId, managerId]
+        ).then(r => (r.rowCount ?? 0) > 0);
+      }
+      
+      static updateStatus(queryId: string, status: string, managerId: string) {
+        return pool.query(
+          `UPDATE query_requests
+           SET status = $1, approved_by = $2, updated_at = now()
+           WHERE id = $3
+           RETURNING *`,
+          [status, managerId, queryId]
+        ).then(r => r.rows[0]);
+      }
+      
+      static reject(queryId: string, managerId: string, reason?: string) {
+        return pool.query(
+          `UPDATE query_requests
+           SET status = 'REJECTED',
+               approved_by = $1,
+               rejection_reason = $2,
+               updated_at = now()
+           WHERE id = $3
+           RETURNING *`,
+          [managerId, reason || null, queryId]
+        ).then(r => r.rows[0]);
+      }
+      
+
   static async create(data: {
     requesterId: string;
     instanceId: string;

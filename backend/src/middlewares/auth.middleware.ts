@@ -13,41 +13,50 @@ export interface AuthenticatedRequest extends Request {
 }
 
 export const requireAuth = async (
-  req: AuthenticatedRequest,
-  res: Response,
-  next: NextFunction
-) => {
-  try {
-    const authHeader = req.headers.authorization;
-
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ) => {
+    console.log('AUTH HEADER:', req.headers.authorization);
+  
+    try {
+      const authHeader = req.headers.authorization;
+  
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        console.log('❌ No auth header or does not start with Bearer');
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+  
+      const token = authHeader.split(' ')[1];
+      console.log('🔑 Token extracted:', token.substring(0, 20) + '...');
+  
+      const payload = jwt.verify(token, JWT_SECRET) as {
+        userId: string;
+        role: string;
+      };
+      console.log('✅ Token verified, userId:', payload.userId);
+  
+      const user = await UserRepository.findById(payload.userId);
+      console.log('👤 User found:', user ? user.email : 'NULL');
+  
+      if (!user) {
+        console.log('❌ User not found in database');
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+  
+      req.user = {
+        id: user.id,
+        email: user.email,
+        role: user.role
+      };
+  
+      console.log('✅ Auth successful for:', user.email);
+      next();
+    } catch (error) {
+      console.log('❌ Auth error:', error);
       return res.status(401).json({ message: 'Unauthorized' });
     }
-
-    const token = authHeader.split(' ')[1];
-
-    const payload = jwt.verify(token, JWT_SECRET) as {
-      userId: string;
-      role: string;
-    };
-
-    const user = await UserRepository.findById(payload.userId);
-
-    if (!user) {
-      return res.status(401).json({ message: 'Unauthorized' });
-    }
-
-    req.user = {
-      id: user.id,
-      email: user.email,
-      role: user.role
-    };
-
-    next();
-  } catch (error) {
-    return res.status(401).json({ message: 'Unauthorized' });
-  }
-};
+  };
 
 
 export const requireManager = (
