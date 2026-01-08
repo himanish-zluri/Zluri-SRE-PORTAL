@@ -90,4 +90,17 @@ export class QueryRepository {
 
     return result.rows[0];
   }
+
+  static async findByRequester(userId: string) {
+    const result = await pool.query(
+      `SELECT *
+       FROM query_requests
+       WHERE requester_id = $1
+       ORDER BY created_at DESC`,
+      [userId]
+    );
+  
+    return result.rows;
+  }
+  
 }

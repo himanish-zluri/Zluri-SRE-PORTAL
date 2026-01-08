@@ -28,6 +28,13 @@ router.get(
     requireManager,
     QueryController.reject
   );
+
+  router.get(
+    '/mine',
+    requireAuth,
+    QueryController.getMyQueries
+  );
+  
   
 
 export default router;

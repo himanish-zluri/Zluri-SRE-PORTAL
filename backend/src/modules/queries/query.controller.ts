@@ -56,5 +56,14 @@ export class QueryController {
     const result = await QueryService.rejectQuery(queryId, managerId, reason);
     res.json(result);
   }
+
+  static async getMyQueries(req: AuthenticatedRequest, res: Response) {
+    const userId = req.user!.id;
+  
+    const queries = await QueryService.getMyQueries(userId);
+  
+    res.json(queries);
+  }
+  
   
 }

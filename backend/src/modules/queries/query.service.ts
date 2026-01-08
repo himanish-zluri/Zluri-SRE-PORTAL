@@ -61,4 +61,9 @@ export class QueryService {
 
     return QueryRepository.reject(queryId, managerId, reason);
   }
+
+  static async getMyQueries(userId: string) {
+    return QueryRepository.findByRequester(userId);
+  }
+  
 }
