@@ -2,11 +2,19 @@ import { Router } from 'express';
 import { requireAuth } from '../../middlewares/auth.middleware';
 import { QueryController } from './query.controller';
 import { requireManager } from '../../middlewares/auth.middleware';
+import { uploadScript } from '../../middlewares/upload.middleware';
 
 const router = Router();
 
 // POST /api/queries
-router.post('/', requireAuth, QueryController.submit);
+// router.post('/', requireAuth, QueryController.submit);
+
+router.post(
+  '/',
+  requireAuth,
+  uploadScript.single('script'),
+  QueryController.submit
+);
 
 router.get(
     '/pending',

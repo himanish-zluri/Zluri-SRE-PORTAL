@@ -7,15 +7,43 @@ import { QueryService } from './query.service';
 export class QueryController {
   static async submit(req: AuthenticatedRequest, res: Response) {
     try {
-      const { instanceId, databaseName, queryText, podId, comments } = req.body;
+      console.log('📝 Query submission request received');
+      console.log('📋 Body:', req.body);
+      console.log('📁 File:', req.file);
+      console.log('👤 User:', req.user);
+      
+      const {
+        instanceId,
+        databaseName,
+        queryText,
+        podId,
+        comments,
+        submissionType
+      } = req.body;
 
-      // Basic validation (HTTP-level)
-      if (!instanceId || !databaseName || !queryText || !podId || !comments) {
-        return res.status(400).json({
-          message: 'Missing required fields'
-        });
+      console.log('🔍 Extracted fields:', {
+        instanceId,
+        databaseName,
+        queryText,
+        podId,
+        comments,
+        submissionType
+      });
+
+      // 🔴 STEP 1: Validate SCRIPT submission
+      if (submissionType === 'SCRIPT') {
+        if (!req.file) {
+          console.log('❌ No file uploaded for SCRIPT submission');
+          return res
+            .status(400)
+            .json({ message: 'Script file required for SCRIPT submission' });
+        }
+        console.log('✅ File uploaded for SCRIPT submission:', req.file.path);
       }
 
+      console.log('🚀 Calling QueryService.submitQuery...');
+      
+      // 🔴 STEP 2: Call service and pass scriptPath
       const query = await QueryService.submitQuery({
         requesterId: req.user!.id,
         instanceId,
@@ -23,14 +51,16 @@ export class QueryController {
         queryText,
         podId,
         comments,
-        submissionType: 'QUERY'
+        submissionType,
+        scriptPath: req.file?.path // ✅ THIS IS THE LINE YOU ASKED ABOUT
       });
 
+      console.log('✅ Query submitted successfully:', query);
       return res.status(201).json(query);
-    } catch (error) {
-      return res.status(500).json({
-        message: 'Failed to submit query'
-      });
+    } catch (error: any) {
+      console.error('❌ Query submission error:', error);
+      console.error('❌ Error stack:', error.stack);
+      return res.status(500).json({ message: 'Failed to submit query', error: error.message });
     }
   }
 

@@ -60,35 +60,45 @@ export class QueryRepository {
     queryText: string;
     podId: string;
     comments: string;
-    submissionType: 'QUERY';
+    submissionType: 'QUERY' | 'SCRIPT';
+    scriptPath?: string;
   }) {
-    const result = await pool.query(
-      `
-      INSERT INTO query_requests (
-        requester_id,
-        instance_id,
-        database_name,
-        query_text,
-        pod_id,
-        comments,
-        submission_type,
-        status
-      )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, 'PENDING')
-      RETURNING *
-      `,
-      [
-        data.requesterId,
-        data.instanceId,
-        data.databaseName,
-        data.queryText,
-        data.podId,
-        data.comments,
-        data.submissionType
-      ]
-    );
+    console.log('📝 QueryRepository.create called with:', data);
+    try {
+      const result = await pool.query(
+        `
+        INSERT INTO query_requests (
+          requester_id,
+          instance_id,
+          database_name,
+          query_text,
+          pod_id,
+          comments,
+          submission_type,
+          script_path,
+          status
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'PENDING')
+        RETURNING *
+        `,
+        [
+          data.requesterId,
+          data.instanceId,
+          data.databaseName,
+          data.queryText,
+          data.podId,
+          data.comments,
+          data.submissionType,
+          data.scriptPath || null
+        ]
+      );
 
-    return result.rows[0];
+      console.log('✅ Query created:', result.rows[0]);
+      return result.rows[0];
+    } catch (error) {
+      console.error('❌ Database error in create:', error);
+      throw error;
+    }
   }
 
   static async findByRequester(userId: string) {

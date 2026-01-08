@@ -1,0 +1,5 @@
+
+> dev
+> ts-node src/server.ts
+
+Server running on port 3000
