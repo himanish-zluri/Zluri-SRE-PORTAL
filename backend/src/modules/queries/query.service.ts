@@ -2,7 +2,7 @@ import { QueryRepository } from './query.repository';
 import { executePostgresQuery } from '../../execution/postgres.executor';
 import { executeScript } from '../../execution/script.executor';
 import { DbInstanceRepository } from '../db-instances/dbInstance.repository';
-
+import { executeMongoQuery } from '../../execution/mongo.executor';
 export class QueryService {
   static async submitQuery(input: {
     requesterId: string;
@@ -28,47 +28,24 @@ export class QueryService {
 
   static async approveQuery(queryId: string, managerId: string) {
     const query = await QueryRepository.findById(queryId);
-
     if (!query) {
       throw new Error('Query not found');
     }
-
+  
     if (query.status !== 'PENDING') {
       throw new Error('Query already processed');
     }
-
+  
     const instance = await DbInstanceRepository.findById(query.instance_id);
-
     if (!instance) {
       throw new Error('DB instance not found');
     }
-
-    // Only Postgres supported for now
-    if (instance.type !== 'POSTGRES') {
-      throw new Error(`Unsupported database type: ${instance.type}`);
-    }
-
+  
     try {
       let result: any;
-
-      if (query.submission_type === 'SCRIPT') {
-        if (!query.script_path) {
-          throw new Error('Script path not found for SCRIPT submission');
-        }
-
-        // ✅ Script execution uses ENV variables (NOT PostgresConnection)
-        const scriptEnv: Record<string, string> = {
-          PG_HOST: instance.host,
-          PG_PORT: String(instance.port),
-          PG_USER: instance.username,
-          PG_PASSWORD: instance.password,
-          PG_DATABASE: query.database_name,
-        };
-
-        result = await executeScript(query.script_path, scriptEnv);
-
-      } else {
-        // ✅ Query execution uses Postgres connection config
+  
+      // 🔹 POSTGRES execution
+      if (instance.type === 'POSTGRES') {
         result = await executePostgresQuery(
           {
             host: instance.host,
@@ -80,16 +57,34 @@ export class QueryService {
           query.query_text
         );
       }
-
+  
+      // 🔹 MONGODB execution
+      else if (instance.type === 'MONGODB') {
+        if (!instance.mongo_uri) {
+          throw new Error('Mongo URI not configured');
+        }
+  
+        result = await executeMongoQuery(
+          instance.mongo_uri,
+          query.database_name,
+          query.query_text
+        );
+      }
+  
+      // 🔹 Safety fallback (should never hit)
+      else {
+        throw new Error(`Unsupported database type: ${instance.type}`);
+      }
+  
       await QueryRepository.markExecuted(queryId, managerId, result);
-
       return { status: 'EXECUTED', result };
-
+  
     } catch (error: any) {
       await QueryRepository.markFailed(queryId, managerId, error.message);
       throw error;
     }
   }
+  
 
   static async rejectQuery(queryId: string, managerId: string, reason?: string) {
     const query = await QueryRepository.findById(queryId);
