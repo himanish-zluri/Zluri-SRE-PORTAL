@@ -12,7 +12,7 @@ export class DbInstanceDatabaseRepository {
       [instanceId]
     );
 
-    return result.rows;
+    return result.rows[0] || null;
   }
 
   static async exists(instanceId: string, databaseName: string) {

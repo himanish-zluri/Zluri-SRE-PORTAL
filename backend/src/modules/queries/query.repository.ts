@@ -102,5 +102,42 @@ export class QueryRepository {
   
     return result.rows;
   }
+
+  static async markExecuted(
+    queryId: string,
+    managerId: string,
+    result: any
+  ) {
+    await pool.query(
+      `
+      UPDATE query_requests
+      SET status = 'EXECUTED',
+          approved_by = $2,
+          execution_result = $3,
+          updated_at = now()
+      WHERE id = $1
+      `,
+      [queryId, managerId, JSON.stringify(result)]
+    );
+  }
+  
+  static async markFailed(
+    queryId: string,
+    managerId: string,
+    error: string
+  ) {
+    await pool.query(
+      `
+      UPDATE query_requests
+      SET status = 'FAILED',
+          approved_by = $2,
+          execution_result = $3,
+          updated_at = now()
+      WHERE id = $1
+      `,
+      [queryId, managerId, JSON.stringify({ error })]
+    );
+  }
+  
   
 }
