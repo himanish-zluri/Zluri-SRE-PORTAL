@@ -2,7 +2,13 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { UserRepository } from '../modules/users/user.repository';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret';
+// const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret';
+// const JWT_SECRET = process.env.JWT_SECRET;
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET is not defined');
+}
 
 export interface AuthenticatedRequest extends Request {
   user?: {
