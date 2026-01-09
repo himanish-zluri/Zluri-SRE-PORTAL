@@ -4,10 +4,10 @@ import { requireAuth } from '../../middlewares/auth.middleware';
 
 const router = Router();
 
-router.get(
-  '/:instanceId/databases',
-  requireAuth,
-  DbInstanceController.listDatabases
-);
+// GET /api/instance?type=POSTGRES
+router.get('/instance', requireAuth, DbInstanceController.listInstances);
+
+// GET /api/database?instanceId=xxx
+router.get('/database', requireAuth, DbInstanceController.listDatabases);
 
 export default router;

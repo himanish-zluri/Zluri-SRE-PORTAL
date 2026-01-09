@@ -63,42 +63,35 @@ export class QueryRepository {
     submissionType: 'QUERY' | 'SCRIPT';
     scriptPath?: string;
   }) {
-    console.log('📝 QueryRepository.create called with:', data);
-    try {
-      const result = await pool.query(
-        `
-        INSERT INTO query_requests (
-          requester_id,
-          instance_id,
-          database_name,
-          query_text,
-          pod_id,
-          comments,
-          submission_type,
-          script_path,
-          status
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'PENDING')
-        RETURNING *
-        `,
-        [
-          data.requesterId,
-          data.instanceId,
-          data.databaseName,
-          data.queryText,
-          data.podId,
-          data.comments,
-          data.submissionType,
-          data.scriptPath || null
-        ]
-      );
+    const result = await pool.query(
+      `
+      INSERT INTO query_requests (
+        requester_id,
+        instance_id,
+        database_name,
+        query_text,
+        pod_id,
+        comments,
+        submission_type,
+        script_path,
+        status
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'PENDING')
+      RETURNING *
+      `,
+      [
+        data.requesterId,
+        data.instanceId,
+        data.databaseName,
+        data.queryText || '[SCRIPT SUBMISSION]',
+        data.podId,
+        data.comments,
+        data.submissionType,
+        data.scriptPath || null
+      ]
+    );
 
-      console.log('✅ Query created:', result.rows[0]);
-      return result.rows[0];
-    } catch (error) {
-      console.error('❌ Database error in create:', error);
-      throw error;
-    }
+    return result.rows[0];
   }
 
   static async findByRequester(userId: string) {
@@ -110,6 +103,41 @@ export class QueryRepository {
       [userId]
     );
   
+    return result.rows;
+  }
+
+  static async findByRequesterWithStatus(userId: string, statusFilter?: string[]) {
+    let query = `SELECT * FROM query_requests WHERE requester_id = $1`;
+    const params: any[] = [userId];
+
+    if (statusFilter && statusFilter.length > 0) {
+      query += ` AND status = ANY($2)`;
+      params.push(statusFilter);
+    }
+
+    query += ` ORDER BY created_at DESC`;
+
+    const result = await pool.query(query, params);
+    return result.rows;
+  }
+
+  static async findByManagerWithStatus(managerId: string, statusFilter?: string[]) {
+    let query = `
+      SELECT qr.*
+      FROM query_requests qr
+      JOIN pods p ON p.id = qr.pod_id
+      WHERE p.manager_id = $1
+    `;
+    const params: any[] = [managerId];
+
+    if (statusFilter && statusFilter.length > 0) {
+      query += ` AND qr.status = ANY($2)`;
+      params.push(statusFilter);
+    }
+
+    query += ` ORDER BY qr.created_at DESC`;
+
+    const result = await pool.query(query, params);
     return result.rows;
   }
 

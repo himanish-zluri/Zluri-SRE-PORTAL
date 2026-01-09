@@ -3,6 +3,7 @@ import { executePostgresQuery } from '../../execution/postgres.executor';
 import { executeScript } from '../../execution/script.executor';
 import { DbInstanceRepository } from '../db-instances/dbInstance.repository';
 import { executeMongoQuery } from '../../execution/mongo.executor';
+import { executeMongoScript } from '../../execution/mongo-script.executor';
 export class QueryService {
   static async submitQuery(input: {
     requesterId: string;
@@ -44,34 +45,71 @@ export class QueryService {
     try {
       let result: any;
   
-      // 🔹 POSTGRES execution
+      /* =========================
+         POSTGRES
+         ========================= */
       if (instance.type === 'POSTGRES') {
-        result = await executePostgresQuery(
-          {
-            host: instance.host,
-            port: instance.port,
-            username: instance.username,
-            password: instance.password,
-            database: query.database_name,
-          },
-          query.query_text
-        );
+        if (query.submission_type === 'SCRIPT') {
+          if (!query.script_path) {
+            throw new Error('Postgres script path missing');
+          }
+  
+          result = await executeScript(
+            query.script_path,
+            {
+              PG_HOST: instance.host,
+              PG_PORT: String(instance.port),
+              PG_USER: instance.username,
+              PG_PASSWORD: instance.password,
+              PG_DATABASE: query.database_name,
+            }
+          );
+        } else {
+          // QUERY
+          result = await executePostgresQuery(
+            {
+              host: instance.host,
+              port: instance.port,
+              username: instance.username,
+              password: instance.password,
+              database: query.database_name,
+            },
+            query.query_text
+          );
+        }
       }
   
-      // 🔹 MONGODB execution
+      /* =========================
+         MONGODB
+         ========================= */
       else if (instance.type === 'MONGODB') {
         if (!instance.mongo_uri) {
           throw new Error('Mongo URI not configured');
         }
   
-        result = await executeMongoQuery(
-          instance.mongo_uri,
-          query.database_name,
-          query.query_text
-        );
+        if (query.submission_type === 'SCRIPT') {
+          if (!query.script_path) {
+            throw new Error('Mongo script path missing');
+          }
+  
+          result = await executeMongoScript(
+            query.script_path,
+            instance.mongo_uri,
+            query.database_name
+          );
+        } else {
+          // QUERY
+          result = await executeMongoQuery(
+            instance.mongo_uri,
+            query.database_name,
+            query.query_text
+          );
+        }
       }
   
-      // 🔹 Safety fallback (should never hit)
+      /* =========================
+         SAFETY
+         ========================= */
       else {
         throw new Error(`Unsupported database type: ${instance.type}`);
       }
@@ -84,6 +122,7 @@ export class QueryService {
       throw error;
     }
   }
+  
   
 
   static async rejectQuery(queryId: string, managerId: string, reason?: string) {
@@ -105,5 +144,13 @@ export class QueryService {
 
   static async getMyQueries(userId: string) {
     return QueryRepository.findByRequester(userId);
+  }
+
+  static async getQueriesByUser(userId: string, statusFilter?: string[]) {
+    return QueryRepository.findByRequesterWithStatus(userId, statusFilter);
+  }
+
+  static async getQueriesForManager(managerId: string, statusFilter?: string[]) {
+    return QueryRepository.findByManagerWithStatus(managerId, statusFilter);
   }
 }

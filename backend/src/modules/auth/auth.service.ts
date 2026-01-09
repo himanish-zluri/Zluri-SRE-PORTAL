@@ -2,16 +2,15 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { UserRepository } from '../users/user.repository';
 
-const JWT_SECRET_ENV = process.env.JWT_SECRET;
-
-if (!JWT_SECRET_ENV) {
-  throw new Error('JWT_SECRET is not defined');
-}
-
-// After the check above, we know JWT_SECRET_ENV is string
-const JWT_SECRET: string = JWT_SECRET_ENV;
-
 const JWT_EXPIRES_IN = '1h';
+
+const getJwtSecret = (): string => {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error('JWT_SECRET is not defined');
+  }
+  return secret;
+};
 //checks if pw is correct or not
 export class AuthService {
   static async login(email: string, password: string) {
@@ -32,7 +31,7 @@ export class AuthService {
         userId: user.id,
         role: user.role
       },
-      JWT_SECRET,
+      getJwtSecret(),
       { expiresIn: JWT_EXPIRES_IN }
     );
 

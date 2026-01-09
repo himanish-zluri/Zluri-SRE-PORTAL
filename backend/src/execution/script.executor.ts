@@ -5,7 +5,7 @@ export function executeScript(
   env: Record<string, string>
 ): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
-    const child = spawn('node', [scriptPath], {
+    const child = spawn('node', ['--no-warnings', scriptPath], {
       env: {
         ...process.env,
         ...env

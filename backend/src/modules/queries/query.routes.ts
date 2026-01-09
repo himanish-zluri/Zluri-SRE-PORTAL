@@ -1,48 +1,17 @@
 import { Router } from 'express';
-import { requireAuth } from '../../middlewares/auth.middleware';
+import { requireAuth, requireRole } from '../../middlewares/auth.middleware';
 import { QueryController } from './query.controller';
-import { requireManager } from '../../middlewares/auth.middleware';
 import { uploadScript } from '../../middlewares/upload.middleware';
 
 const router = Router();
 
-// POST /api/queries
-// router.post('/', requireAuth, QueryController.submit);
+// ============ GET ROUTES ============
+// GET /api/queries?user=me&status=PENDING,APPROVED,REJECTED,EXECUTED,FAILED
+router.get('/', requireAuth, QueryController.getQueries);
 
-router.post(
-  '/',
-  requireAuth,
-  uploadScript.single('script'),
-  QueryController.submit
-);
-
-router.get(
-    '/pending',
-    requireAuth,
-    requireManager,
-    QueryController.getPendingForManager
-  );
-  
-  router.post(
-    '/:id/approve',
-    requireAuth,
-    requireManager,
-    QueryController.approve
-  );
-  
-  router.post(
-    '/:id/reject',
-    requireAuth,
-    requireManager,
-    QueryController.reject
-  );
-
-  router.get(
-    '/mine',
-    requireAuth,
-    QueryController.getMyQueries
-  );
-  
-  
+// ============ POST ROUTES ============
+router.post('/', requireAuth, uploadScript.single('script'), QueryController.submit);
+router.post('/:id/approve', requireAuth, requireRole(['MANAGER', 'ADMIN']), QueryController.approve);
+router.post('/:id/reject', requireAuth, requireRole(['MANAGER', 'ADMIN']), QueryController.reject);
 
 export default router;

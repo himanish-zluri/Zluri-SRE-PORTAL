@@ -3,20 +3,15 @@ import authRoutes from './modules/auth/auth.routes';
 import testRoutes from './routes/test.routes';
 import queryRoutes from './modules/queries/query.routes';
 import dbInstanceRoutes from './modules/db-instances/dbInstance.routes';
-
+import podsRoutes from './modules/pods/pods.routes';
 
 const app = express();
 
-// Add request logging
-app.use((req, res, next) => {
-  console.log(`${req.method} ${req.path}`);
-  next();
-});
-
-//making every incoming request in a json formats
 app.use(express.json());
 
-app.use('/api/db-instances', dbInstanceRoutes);
+// Routes
+app.use('/api', dbInstanceRoutes);
+app.use('/api/pods', podsRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/test', testRoutes);
 app.use('/api/queries', queryRoutes);
