@@ -1,6 +1,7 @@
 import { QueryService } from '../../../src/modules/queries/query.service';
 import { QueryRepository } from '../../../src/modules/queries/query.repository';
 import { DbInstanceRepository } from '../../../src/modules/db-instances/dbInstance.repository';
+import { AuditRepository } from '../../../src/modules/audit/audit.repository';
 import { executePostgresQuery } from '../../../src/execution/postgres.executor';
 import { executeScript } from '../../../src/execution/script.executor';
 import { executeMongoQuery } from '../../../src/execution/mongo.executor';
@@ -8,6 +9,7 @@ import { executeMongoScript } from '../../../src/execution/mongo-script.executor
 
 jest.mock('../../../src/modules/queries/query.repository');
 jest.mock('../../../src/modules/db-instances/dbInstance.repository');
+jest.mock('../../../src/modules/audit/audit.repository');
 jest.mock('../../../src/execution/postgres.executor');
 jest.mock('../../../src/execution/script.executor');
 jest.mock('../../../src/execution/mongo.executor');
@@ -16,6 +18,7 @@ jest.mock('../../../src/execution/mongo-script.executor');
 describe('QueryService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    (AuditRepository.log as jest.Mock).mockResolvedValue(undefined);
   });
 
   describe('submitQuery', () => {
@@ -284,6 +287,28 @@ describe('QueryService', () => {
       const result = await QueryService.getQueriesForManager('manager-1', ['PENDING']);
 
       expect(QueryRepository.findByManagerWithStatus).toHaveBeenCalledWith('manager-1', ['PENDING']);
+      expect(result).toEqual(mockQueries);
+    });
+  });
+
+  describe('getAllQueries', () => {
+    it('should return all queries', async () => {
+      const mockQueries = [{ id: 'q1' }, { id: 'q2' }];
+      (QueryRepository.findAllWithStatus as jest.Mock).mockResolvedValue(mockQueries);
+
+      const result = await QueryService.getAllQueries();
+
+      expect(QueryRepository.findAllWithStatus).toHaveBeenCalledWith(undefined);
+      expect(result).toEqual(mockQueries);
+    });
+
+    it('should return all queries with status filter', async () => {
+      const mockQueries = [{ id: 'q1', status: 'PENDING' }];
+      (QueryRepository.findAllWithStatus as jest.Mock).mockResolvedValue(mockQueries);
+
+      const result = await QueryService.getAllQueries(['PENDING', 'APPROVED']);
+
+      expect(QueryRepository.findAllWithStatus).toHaveBeenCalledWith(['PENDING', 'APPROVED']);
       expect(result).toEqual(mockQueries);
     });
   });

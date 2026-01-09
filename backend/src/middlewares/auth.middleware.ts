@@ -86,51 +86,51 @@ export const requireAuth = async (
 //     next();
 //   };
 
-export const requireManager = (
-  req: AuthenticatedRequest,
-  res: Response,
-  next: NextFunction
-) => {
-  if (!req.user) {
-    return res.status(401).json({ message: 'Unauthorized' });
-  }
+// export const requireManager = (
+//   req: AuthenticatedRequest,
+//   res: Response,
+//   next: NextFunction
+// ) => {
+//   if (!req.user) {
+//     return res.status(401).json({ message: 'Unauthorized' });
+//   }
 
-  if (req.user.role !== 'MANAGER') {
-    return res.status(403).json({ message: 'Forbidden' });
-  }
+//   if (req.user.role !== 'MANAGER') {
+//     return res.status(403).json({ message: 'Forbidden' });
+//   }
 
-  next();
-};
+//   next();
+// };
 
-export const requireAdmin = (
-  req: AuthenticatedRequest,
-  res: Response,
-  next: NextFunction
-) => {
-  if (!req.user) {
-    return res.status(401).json({ message: 'Unauthorized' });
-  }
+// export const requireAdmin = (
+//   req: AuthenticatedRequest,
+//   res: Response,
+//   next: NextFunction
+// ) => {
+//   if (!req.user) {
+//     return res.status(401).json({ message: 'Unauthorized' });
+//   }
 
-  if (req.user.role !== 'ADMIN') {
-    return res.status(403).json({ message: 'Forbidden: Admin access required' });
-  }
+//   if (req.user.role !== 'ADMIN') {
+//     return res.status(403).json({ message: 'Forbidden: Admin access required' });
+//   }
 
-  next();
-};
+//   next();
+// };
 
-export const requireManagerOrAdmin = (
-  req: AuthenticatedRequest,
-  res: Response,
-  next: NextFunction
-) => {
-  if (!req.user) {
-    return res.status(401).json({ message: 'Unauthorized' });
-  }
+// export const requireManagerOrAdmin = (
+//   req: AuthenticatedRequest,
+//   res: Response,
+//   next: NextFunction
+// ) => {
+//   if (!req.user) {
+//     return res.status(401).json({ message: 'Unauthorized' });
+//   }
 
-  if (req.user.role !== 'MANAGER' && req.user.role !== 'ADMIN') {
-    return res.status(403).json({ message: 'Forbidden: Manager or Admin access required' });
-  }
+//   if (req.user.role !== 'MANAGER' && req.user.role !== 'ADMIN') {
+//     return res.status(403).json({ message: 'Forbidden: Manager or Admin access required' });
+//   }
 
-  next();
-};
+//   next();
+// };
   

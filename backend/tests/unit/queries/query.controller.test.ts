@@ -228,9 +228,24 @@ describe('QueryController', () => {
       expect(QueryService.getQueriesForManager).toHaveBeenCalledWith('manager-1', undefined);
     });
 
-    it('should return manager queries when role is ADMIN', async () => {
-      const mockQueries = [{ id: 'q1' }];
-      (QueryService.getQueriesForManager as jest.Mock).mockResolvedValue(mockQueries);
+    it('should return all queries when role is ADMIN', async () => {
+      const mockQueries = [{ id: 'q1' }, { id: 'q2' }];
+      (QueryService.getAllQueries as jest.Mock).mockResolvedValue(mockQueries);
+
+      mockRequest = {
+        user: { id: 'admin-1', email: 'admin@test.com', role: 'ADMIN' },
+        query: {}
+      };
+
+      await QueryController.getQueries(mockRequest as AuthenticatedRequest, mockResponse as Response);
+
+      expect(QueryService.getAllQueries).toHaveBeenCalledWith(undefined);
+      expect(jsonMock).toHaveBeenCalledWith(mockQueries);
+    });
+
+    it('should return all queries with status filter for ADMIN', async () => {
+      const mockQueries = [{ id: 'q1', status: 'PENDING' }];
+      (QueryService.getAllQueries as jest.Mock).mockResolvedValue(mockQueries);
 
       mockRequest = {
         user: { id: 'admin-1', email: 'admin@test.com', role: 'ADMIN' },
@@ -239,7 +254,35 @@ describe('QueryController', () => {
 
       await QueryController.getQueries(mockRequest as AuthenticatedRequest, mockResponse as Response);
 
-      expect(QueryService.getQueriesForManager).toHaveBeenCalledWith('admin-1', ['PENDING']);
+      expect(QueryService.getAllQueries).toHaveBeenCalledWith(['PENDING']);
+    });
+
+    it('should return own queries for ADMIN when user=me', async () => {
+      const mockQueries = [{ id: 'q1' }];
+      (QueryService.getQueriesByUser as jest.Mock).mockResolvedValue(mockQueries);
+
+      mockRequest = {
+        user: { id: 'admin-1', email: 'admin@test.com', role: 'ADMIN' },
+        query: { user: 'me' }
+      };
+
+      await QueryController.getQueries(mockRequest as AuthenticatedRequest, mockResponse as Response);
+
+      expect(QueryService.getQueriesByUser).toHaveBeenCalledWith('admin-1', undefined);
+    });
+
+    it('should return own queries for DEVELOPER', async () => {
+      const mockQueries = [{ id: 'q1' }];
+      (QueryService.getQueriesByUser as jest.Mock).mockResolvedValue(mockQueries);
+
+      mockRequest = {
+        user: { id: 'dev-1', email: 'dev@test.com', role: 'DEVELOPER' },
+        query: {}
+      };
+
+      await QueryController.getQueries(mockRequest as AuthenticatedRequest, mockResponse as Response);
+
+      expect(QueryService.getQueriesByUser).toHaveBeenCalledWith('dev-1', undefined);
     });
 
     it('should return 500 on error', async () => {
@@ -253,38 +296,6 @@ describe('QueryController', () => {
       await QueryController.getQueries(mockRequest as AuthenticatedRequest, mockResponse as Response);
 
       expect(statusMock).toHaveBeenCalledWith(500);
-    });
-  });
-
-  describe('getMyQueries', () => {
-    it('should return user queries', async () => {
-      const mockQueries = [{ id: 'q1' }];
-      (QueryService.getMyQueries as jest.Mock).mockResolvedValue(mockQueries);
-
-      mockRequest = {
-        user: { id: 'user-1', email: 'test@test.com', role: 'DEVELOPER' }
-      };
-
-      await QueryController.getMyQueries(mockRequest as AuthenticatedRequest, mockResponse as Response);
-
-      expect(QueryService.getMyQueries).toHaveBeenCalledWith('user-1');
-      expect(jsonMock).toHaveBeenCalledWith(mockQueries);
-    });
-  });
-
-  describe('getPendingForManager', () => {
-    it('should return pending queries for manager', async () => {
-      const mockQueries = [{ id: 'q1', status: 'PENDING' }];
-      (QueryService.getPendingForManager as jest.Mock).mockResolvedValue(mockQueries);
-
-      mockRequest = {
-        user: { id: 'manager-1', email: 'manager@test.com', role: 'MANAGER' }
-      };
-
-      await QueryController.getPendingForManager(mockRequest as AuthenticatedRequest, mockResponse as Response);
-
-      expect(QueryService.getPendingForManager).toHaveBeenCalledWith('manager-1');
-      expect(jsonMock).toHaveBeenCalledWith(mockQueries);
     });
   });
 });

@@ -1,10 +1,5 @@
 import dotenv from 'dotenv';
-dotenv.config();
+import path from 'path';
 
-// Set test environment variables
-process.env.JWT_SECRET = 'test-secret-key';
-process.env.DB_HOST = 'localhost';
-process.env.DB_PORT = '5432';
-process.env.DB_USER = 'test';
-process.env.DB_PASSWORD = 'test';
-process.env.DB_NAME = 'test_db';
+// Load test environment variables from .env.test
+dotenv.config({ path: path.resolve(__dirname, '../.env.test') });

@@ -1,4 +1,28 @@
 import { pool } from '../../config/db';
+import { decrypt } from '../../utils/crypto';
+
+interface DbInstance {
+  id: string;
+  name: string;
+  type: string;
+  host?: string;
+  port?: number;
+  username?: string;
+  password?: string;
+  mongo_uri?: string;
+  created_at: Date;
+}
+
+function decryptInstance(row: any): DbInstance | null {
+  if (!row) return null;
+  
+  return {
+    ...row,
+    username: row.username ? decrypt(row.username) : undefined,
+    password: row.password ? decrypt(row.password) : undefined,
+    mongo_uri: row.mongo_uri ? decrypt(row.mongo_uri) : undefined,
+  };
+}
 
 export class DbInstanceRepository {
   static async findById(instanceId: string) {
@@ -9,7 +33,7 @@ export class DbInstanceRepository {
       [instanceId]
     );
 
-    return result.rows[0] || null;
+    return decryptInstance(result.rows[0]);
   }
 
   static async findByType(type: string) {

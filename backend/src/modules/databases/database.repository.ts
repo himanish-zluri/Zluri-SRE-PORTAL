@@ -1,6 +1,6 @@
 import { pool } from '../../config/db';
 
-export class DbInstanceDatabaseRepository {
+export class DatabaseRepository {
   static async findByInstanceId(instanceId: string) {
     const result = await pool.query(
       `

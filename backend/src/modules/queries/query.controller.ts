@@ -3,8 +3,6 @@ import { AuthenticatedRequest } from '../../middlewares/auth.middleware';
 import { QueryService } from './query.service';
 import { hasElevatedAccess, Role } from '../../constants/roles';
 
-
-
 export class QueryController {
   static async submit(req: AuthenticatedRequest, res: Response) {
     try {
@@ -40,12 +38,6 @@ export class QueryController {
     }
   }
 
-  static async getPendingForManager(req: AuthenticatedRequest, res: Response) {
-    const managerId = req.user!.id;
-    const queries = await QueryService.getPendingForManager(managerId);
-    res.json(queries);
-  }
-  
   static async approve(req: AuthenticatedRequest, res: Response) {
     try {
       const queryId = req.params.id;
@@ -87,12 +79,18 @@ export class QueryController {
 
       let queries;
 
-      if (user === 'me' || !hasElevatedAccess(userRole)) {
-        // user=me OR non-elevated roles: always get own queries only
+      if (user === 'me') {
+        // user=me: always get own queries only
         queries = await QueryService.getQueriesByUser(userId, statusFilter);
-      } else {
-        // Elevated roles without user=me: get queries for their PODs
+      } else if (userRole === 'ADMIN') {
+        // Admin: get ALL queries across the system
+        queries = await QueryService.getAllQueries(statusFilter);
+      } else if (hasElevatedAccess(userRole)) {
+        // Manager: get queries for their PODs only
         queries = await QueryService.getQueriesForManager(userId, statusFilter);
+      } else {
+        // Non-elevated roles: get own queries only
+        queries = await QueryService.getQueriesByUser(userId, statusFilter);
       }
 
       res.json(queries);
@@ -100,12 +98,4 @@ export class QueryController {
       res.status(500).json({ message: 'Failed to get queries', error: error.message });
     }
   }
-
-  static async getMyQueries(req: AuthenticatedRequest, res: Response) {
-    const userId = req.user!.id;
-    const queries = await QueryService.getMyQueries(userId);
-    res.json(queries);
-  }
-  
-  
 }

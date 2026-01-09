@@ -1,71 +1,61 @@
 import { executeScript } from '../../../src/execution/script.executor';
-import { spawn } from 'child_process';
-import { EventEmitter } from 'events';
+import fs from 'fs';
 
-jest.mock('child_process');
+jest.mock('fs');
+
+// Mock vm2 module
+const mockVm = {
+  on: jest.fn(),
+  run: jest.fn()
+};
+
+jest.mock('vm2', () => ({
+  NodeVM: jest.fn().mockImplementation(() => mockVm)
+}));
 
 describe('ScriptExecutor', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockVm.on.mockClear();
+    mockVm.run.mockClear();
   });
 
   describe('executeScript', () => {
     it('should execute script and return stdout/stderr', async () => {
-      const mockStdout = new EventEmitter();
-      const mockStderr = new EventEmitter();
-      const mockProcess = new EventEmitter() as any;
-      mockProcess.stdout = mockStdout;
-      mockProcess.stderr = mockStderr;
+      (fs.readFileSync as jest.Mock).mockReturnValue('console.log("Hello World");');
+      mockVm.run.mockResolvedValue(undefined);
 
-      (spawn as jest.Mock).mockReturnValue(mockProcess);
+      const result = await executeScript('/path/to/script.js', { PG_HOST: 'localhost' });
 
-      const resultPromise = executeScript('/path/to/script.js', { PG_HOST: 'localhost' });
-
-      // Simulate output
-      mockStdout.emit('data', Buffer.from('Hello '));
-      mockStdout.emit('data', Buffer.from('World'));
-      mockStderr.emit('data', Buffer.from('Warning'));
-      mockProcess.emit('close', 0);
-
-      const result = await resultPromise;
-
-      expect(spawn).toHaveBeenCalledWith('node', ['/path/to/script.js'], expect.objectContaining({
-        env: expect.objectContaining({ PG_HOST: 'localhost' })
-      }));
-      expect(result).toEqual({ stdout: 'Hello World', stderr: 'Warning' });
+      expect(fs.readFileSync).toHaveBeenCalledWith('/path/to/script.js', 'utf-8');
+      expect(result).toEqual({ stdout: '', stderr: '' });
     });
 
-    it('should reject on non-zero exit code', async () => {
-      const mockStdout = new EventEmitter();
-      const mockStderr = new EventEmitter();
-      const mockProcess = new EventEmitter() as any;
-      mockProcess.stdout = mockStdout;
-      mockProcess.stderr = mockStderr;
+    it('should throw error on script execution failure', async () => {
+      (fs.readFileSync as jest.Mock).mockReturnValue('throw new Error("Script error");');
+      mockVm.run.mockRejectedValue(new Error('Script error'));
 
-      (spawn as jest.Mock).mockReturnValue(mockProcess);
-
-      const resultPromise = executeScript('/path/to/script.js', {});
-
-      mockStderr.emit('data', Buffer.from('Error: Something went wrong'));
-      mockProcess.emit('close', 1);
-
-      await expect(resultPromise).rejects.toThrow('Error: Something went wrong');
+      await expect(executeScript('/path/to/script.js', {}))
+        .rejects.toThrow('Script error');
     });
 
-    it('should reject with default message on non-zero exit without stderr', async () => {
-      const mockStdout = new EventEmitter();
-      const mockStderr = new EventEmitter();
-      const mockProcess = new EventEmitter() as any;
-      mockProcess.stdout = mockStdout;
-      mockProcess.stderr = mockStderr;
+    it('should throw default error message when error has no message', async () => {
+      (fs.readFileSync as jest.Mock).mockReturnValue('invalid code');
+      mockVm.run.mockRejectedValue({});
 
-      (spawn as jest.Mock).mockReturnValue(mockProcess);
+      await expect(executeScript('/path/to/script.js', {}))
+        .rejects.toThrow('Script execution failed');
+    });
 
-      const resultPromise = executeScript('/path/to/script.js', {});
+    it('should register console event handlers', async () => {
+      (fs.readFileSync as jest.Mock).mockReturnValue('console.log("test");');
+      mockVm.run.mockResolvedValue(undefined);
 
-      mockProcess.emit('close', 1);
+      await executeScript('/path/to/script.js', {});
 
-      await expect(resultPromise).rejects.toThrow('Script execution failed');
+      expect(mockVm.on).toHaveBeenCalledWith('console.log', expect.any(Function));
+      expect(mockVm.on).toHaveBeenCalledWith('console.error', expect.any(Function));
+      expect(mockVm.on).toHaveBeenCalledWith('console.warn', expect.any(Function));
     });
   });
 });
