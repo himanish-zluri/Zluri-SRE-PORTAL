@@ -94,6 +94,26 @@ describe('Auth Middleware', () => {
       expect(statusMock).toHaveBeenCalledWith(401);
       expect(jsonMock).toHaveBeenCalledWith({ message: 'Unauthorized' });
     });
+
+    it('should return 401 when JWT_SECRET is not defined', async () => {
+      const originalSecret = process.env.JWT_SECRET;
+      delete process.env.JWT_SECRET;
+
+      mockRequest = {
+        headers: { authorization: 'Bearer some-token' }
+      };
+
+      // jwt.verify will throw because getJwtSecret throws
+      (jwt.verify as jest.Mock).mockImplementation(() => {
+        throw new Error('JWT_SECRET is not defined');
+      });
+
+      await requireAuth(mockRequest as AuthenticatedRequest, mockResponse as Response, nextFunction);
+
+      expect(statusMock).toHaveBeenCalledWith(401);
+      
+      process.env.JWT_SECRET = originalSecret;
+    });
   });
 
   describe('requireRole', () => {

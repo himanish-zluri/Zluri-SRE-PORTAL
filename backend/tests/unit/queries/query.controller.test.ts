@@ -196,7 +196,7 @@ describe('QueryController', () => {
 
       await QueryController.getQueries(mockRequest as AuthenticatedRequest, mockResponse as Response);
 
-      expect(QueryService.getQueriesByUser).toHaveBeenCalledWith('user-1', undefined);
+      expect(QueryService.getQueriesByUser).toHaveBeenCalledWith('user-1', undefined, undefined);
       expect(jsonMock).toHaveBeenCalledWith(mockQueries);
     });
 
@@ -211,7 +211,21 @@ describe('QueryController', () => {
 
       await QueryController.getQueries(mockRequest as AuthenticatedRequest, mockResponse as Response);
 
-      expect(QueryService.getQueriesByUser).toHaveBeenCalledWith('user-1', ['PENDING', 'APPROVED']);
+      expect(QueryService.getQueriesByUser).toHaveBeenCalledWith('user-1', ['PENDING', 'APPROVED'], undefined);
+    });
+
+    it('should return user queries with type filter', async () => {
+      const mockQueries = [{ id: 'q1' }];
+      (QueryService.getQueriesByUser as jest.Mock).mockResolvedValue(mockQueries);
+
+      mockRequest = {
+        user: { id: 'user-1', email: 'test@test.com', role: 'DEVELOPER' },
+        query: { user: 'me', type: 'POSTGRES' }
+      };
+
+      await QueryController.getQueries(mockRequest as AuthenticatedRequest, mockResponse as Response);
+
+      expect(QueryService.getQueriesByUser).toHaveBeenCalledWith('user-1', undefined, 'POSTGRES');
     });
 
     it('should return manager queries when role is MANAGER', async () => {
@@ -225,7 +239,21 @@ describe('QueryController', () => {
 
       await QueryController.getQueries(mockRequest as AuthenticatedRequest, mockResponse as Response);
 
-      expect(QueryService.getQueriesForManager).toHaveBeenCalledWith('manager-1', undefined);
+      expect(QueryService.getQueriesForManager).toHaveBeenCalledWith('manager-1', undefined, undefined);
+    });
+
+    it('should return manager queries with type filter', async () => {
+      const mockQueries = [{ id: 'q1' }];
+      (QueryService.getQueriesForManager as jest.Mock).mockResolvedValue(mockQueries);
+
+      mockRequest = {
+        user: { id: 'manager-1', email: 'manager@test.com', role: 'MANAGER' },
+        query: { type: 'MONGODB' }
+      };
+
+      await QueryController.getQueries(mockRequest as AuthenticatedRequest, mockResponse as Response);
+
+      expect(QueryService.getQueriesForManager).toHaveBeenCalledWith('manager-1', undefined, 'MONGODB');
     });
 
     it('should return all queries when role is ADMIN', async () => {
@@ -239,7 +267,7 @@ describe('QueryController', () => {
 
       await QueryController.getQueries(mockRequest as AuthenticatedRequest, mockResponse as Response);
 
-      expect(QueryService.getAllQueries).toHaveBeenCalledWith(undefined);
+      expect(QueryService.getAllQueries).toHaveBeenCalledWith(undefined, undefined);
       expect(jsonMock).toHaveBeenCalledWith(mockQueries);
     });
 
@@ -254,7 +282,21 @@ describe('QueryController', () => {
 
       await QueryController.getQueries(mockRequest as AuthenticatedRequest, mockResponse as Response);
 
-      expect(QueryService.getAllQueries).toHaveBeenCalledWith(['PENDING']);
+      expect(QueryService.getAllQueries).toHaveBeenCalledWith(['PENDING'], undefined);
+    });
+
+    it('should return all queries with type filter for ADMIN', async () => {
+      const mockQueries = [{ id: 'q1' }];
+      (QueryService.getAllQueries as jest.Mock).mockResolvedValue(mockQueries);
+
+      mockRequest = {
+        user: { id: 'admin-1', email: 'admin@test.com', role: 'ADMIN' },
+        query: { type: 'POSTGRES' }
+      };
+
+      await QueryController.getQueries(mockRequest as AuthenticatedRequest, mockResponse as Response);
+
+      expect(QueryService.getAllQueries).toHaveBeenCalledWith(undefined, 'POSTGRES');
     });
 
     it('should return own queries for ADMIN when user=me', async () => {
@@ -268,7 +310,7 @@ describe('QueryController', () => {
 
       await QueryController.getQueries(mockRequest as AuthenticatedRequest, mockResponse as Response);
 
-      expect(QueryService.getQueriesByUser).toHaveBeenCalledWith('admin-1', undefined);
+      expect(QueryService.getQueriesByUser).toHaveBeenCalledWith('admin-1', undefined, undefined);
     });
 
     it('should return own queries for DEVELOPER', async () => {
@@ -282,7 +324,7 @@ describe('QueryController', () => {
 
       await QueryController.getQueries(mockRequest as AuthenticatedRequest, mockResponse as Response);
 
-      expect(QueryService.getQueriesByUser).toHaveBeenCalledWith('dev-1', undefined);
+      expect(QueryService.getQueriesByUser).toHaveBeenCalledWith('dev-1', undefined, undefined);
     });
 
     it('should return 500 on error', async () => {

@@ -66,6 +66,37 @@ describe('AuditRepository', () => {
     });
   });
 
+  describe('findByUserId', () => {
+    it('should return audit logs for a specific user', async () => {
+      const mockLogs = [
+        { id: 'log-1', action: 'SUBMITTED', performed_by: 'user-1', performed_by_name: 'User One' },
+        { id: 'log-2', action: 'APPROVED', performed_by: 'user-1', performed_by_name: 'User One' }
+      ];
+      (pool.query as jest.Mock).mockResolvedValue({ rows: mockLogs });
+
+      const result = await AuditRepository.findByUserId('user-1');
+
+      expect(pool.query).toHaveBeenCalledWith(
+        expect.stringContaining('WHERE qal.performed_by = $1'),
+        ['user-1', 100, 0]
+      );
+      expect(result).toEqual(mockLogs);
+    });
+
+    it('should return audit logs with custom pagination', async () => {
+      const mockLogs = [{ id: 'log-1' }];
+      (pool.query as jest.Mock).mockResolvedValue({ rows: mockLogs });
+
+      const result = await AuditRepository.findByUserId('user-1', 50, 10);
+
+      expect(pool.query).toHaveBeenCalledWith(
+        expect.stringContaining('LIMIT $2 OFFSET $3'),
+        ['user-1', 50, 10]
+      );
+      expect(result).toEqual(mockLogs);
+    });
+  });
+
   describe('findAll', () => {
     it('should return all audit logs with pagination', async () => {
       const mockLogs = [{ id: 'log-1' }, { id: 'log-2' }];

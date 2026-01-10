@@ -4,9 +4,9 @@ import { MongoClient } from 'mongodb';
 jest.mock('mongodb');
 
 // Import after mocking
-import { executeMongoQuery } from '../../../src/execution/mongo.executor';
+import { executeMongoQuery } from '../../../src/execution/mongo-query.executor';
 
-describe('MongoExecutor', () => {
+describe('MongoQueryExecutor', () => {
   let mockDb: any;
   let mockClient: any;
 

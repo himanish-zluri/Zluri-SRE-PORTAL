@@ -1,10 +1,29 @@
 import { QueryRepository } from './query.repository';
-import { executePostgresQuery } from '../../execution/postgres.executor';
-import { executeScript } from '../../execution/script.executor';
+import { executePostgresQuery } from '../../execution/postgres-query.executor';
+import { executePostgresScriptSandboxed } from '../../execution/sandbox/executor';
 import { DbInstanceRepository } from '../db-instances/dbInstance.repository';
-import { executeMongoQuery } from '../../execution/mongo.executor';
-import { executeMongoScript } from '../../execution/mongo-script.executor';
+import { executeMongoQuery } from '../../execution/mongo-query.executor';
+import { executeMongoScriptSandboxed } from '../../execution/sandbox/executor';
 import { AuditRepository } from '../audit/audit.repository';
+import fs from 'fs';
+
+// Helper to read script content safely
+function readScriptContent(scriptPath: string | null): string | null {
+  if (!scriptPath) return null;
+  try {
+    return fs.readFileSync(scriptPath, 'utf-8');
+  } catch {
+    return null;
+  }
+}
+
+// Helper to add script content to queries
+function enrichWithScriptContent(queries: any[]): any[] {
+  return queries.map(q => ({
+    ...q,
+    script_content: q.submission_type === 'SCRIPT' ? readScriptContent(q.script_path) : null
+  }));
+}
 
 export class QueryService {
   static async submitQuery(input: {
@@ -58,7 +77,7 @@ export class QueryService {
             throw new Error('Postgres script path missing');
           }
   
-          result = await executeScript(
+          result = await executePostgresScriptSandboxed(
             query.script_path,
             {
               PG_HOST: instance.host,
@@ -90,7 +109,7 @@ export class QueryService {
             throw new Error('Mongo script path missing');
           }
   
-          result = await executeMongoScript(
+          result = await executeMongoScriptSandboxed(
             query.script_path,
             instance.mongo_uri,
             query.database_name
@@ -160,15 +179,18 @@ export class QueryService {
     return result;
   }
 
-  static async getQueriesByUser(userId: string, statusFilter?: string[]) {
-    return QueryRepository.findByRequesterWithStatus(userId, statusFilter);
+  static async getQueriesByUser(userId: string, statusFilter?: string[], typeFilter?: string) {
+    const queries = await QueryRepository.findByRequesterWithStatus(userId, statusFilter, typeFilter);
+    return enrichWithScriptContent(queries);
   }
 
-  static async getQueriesForManager(managerId: string, statusFilter?: string[]) {
-    return QueryRepository.findByManagerWithStatus(managerId, statusFilter);
+  static async getQueriesForManager(managerId: string, statusFilter?: string[], typeFilter?: string) {
+    const queries = await QueryRepository.findByManagerWithStatus(managerId, statusFilter, typeFilter);
+    return enrichWithScriptContent(queries);
   }
 
-  static async getAllQueries(statusFilter?: string[]) {
-    return QueryRepository.findAllWithStatus(statusFilter);
+  static async getAllQueries(statusFilter?: string[], typeFilter?: string) {
+    const queries = await QueryRepository.findAllWithStatus(statusFilter, typeFilter);
+    return enrichWithScriptContent(queries);
   }
 }

@@ -37,4 +37,34 @@ describe('DatabaseRepository', () => {
       expect(result).toEqual([]);
     });
   });
+
+  describe('exists', () => {
+    it('should return true when database exists', async () => {
+      (pool.query as jest.Mock).mockResolvedValue({ rowCount: 1 });
+
+      const result = await DatabaseRepository.exists('inst-1', 'mydb');
+
+      expect(pool.query).toHaveBeenCalledWith(
+        expect.stringContaining('WHERE instance_id = $1 AND database_name = $2'),
+        ['inst-1', 'mydb']
+      );
+      expect(result).toBe(true);
+    });
+
+    it('should return false when database does not exist', async () => {
+      (pool.query as jest.Mock).mockResolvedValue({ rowCount: 0 });
+
+      const result = await DatabaseRepository.exists('inst-1', 'nonexistent');
+
+      expect(result).toBe(false);
+    });
+
+    it('should return false when rowCount is null', async () => {
+      (pool.query as jest.Mock).mockResolvedValue({ rowCount: null });
+
+      const result = await DatabaseRepository.exists('inst-1', 'mydb');
+
+      expect(result).toBe(false);
+    });
+  });
 });

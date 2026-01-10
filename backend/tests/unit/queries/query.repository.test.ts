@@ -163,7 +163,7 @@ describe('QueryRepository', () => {
       const result = await QueryRepository.findByRequesterWithStatus('user-1');
 
       expect(pool.query).toHaveBeenCalledWith(
-        expect.stringContaining('WHERE requester_id = $1'),
+        expect.stringContaining('WHERE qr.requester_id = $1'),
         ['user-1']
       );
       expect(result).toEqual(mockQueries);
@@ -176,7 +176,7 @@ describe('QueryRepository', () => {
       const result = await QueryRepository.findByRequesterWithStatus('user-1', ['PENDING', 'APPROVED']);
 
       expect(pool.query).toHaveBeenCalledWith(
-        expect.stringContaining('AND status = ANY($2)'),
+        expect.stringContaining('AND qr.status = ANY($2)'),
         ['user-1', ['PENDING', 'APPROVED']]
       );
       expect(result).toEqual(mockQueries);
@@ -188,8 +188,34 @@ describe('QueryRepository', () => {
       await QueryRepository.findByRequesterWithStatus('user-1', []);
 
       expect(pool.query).toHaveBeenCalledWith(
-        expect.not.stringContaining('AND status = ANY'),
+        expect.not.stringContaining('AND qr.status = ANY'),
         ['user-1']
+      );
+    });
+
+    it('should filter by type', async () => {
+      (pool.query as jest.Mock).mockResolvedValue({ rows: [] });
+
+      await QueryRepository.findByRequesterWithStatus('user-1', undefined, 'POSTGRES');
+
+      expect(pool.query).toHaveBeenCalledWith(
+        expect.stringContaining('AND di.type = $2'),
+        ['user-1', 'POSTGRES']
+      );
+    });
+
+    it('should filter by both status and type', async () => {
+      (pool.query as jest.Mock).mockResolvedValue({ rows: [] });
+
+      await QueryRepository.findByRequesterWithStatus('user-1', ['PENDING'], 'MONGODB');
+
+      expect(pool.query).toHaveBeenCalledWith(
+        expect.stringContaining('AND qr.status = ANY($2)'),
+        ['user-1', ['PENDING'], 'MONGODB']
+      );
+      expect(pool.query).toHaveBeenCalledWith(
+        expect.stringContaining('AND di.type = $3'),
+        ['user-1', ['PENDING'], 'MONGODB']
       );
     });
   });
@@ -218,6 +244,28 @@ describe('QueryRepository', () => {
         ['manager-1', ['PENDING']]
       );
     });
+
+    it('should filter by type', async () => {
+      (pool.query as jest.Mock).mockResolvedValue({ rows: [] });
+
+      await QueryRepository.findByManagerWithStatus('manager-1', undefined, 'POSTGRES');
+
+      expect(pool.query).toHaveBeenCalledWith(
+        expect.stringContaining('AND di.type = $2'),
+        ['manager-1', 'POSTGRES']
+      );
+    });
+
+    it('should filter by both status and type', async () => {
+      (pool.query as jest.Mock).mockResolvedValue({ rows: [] });
+
+      await QueryRepository.findByManagerWithStatus('manager-1', ['PENDING'], 'MONGODB');
+
+      expect(pool.query).toHaveBeenCalledWith(
+        expect.stringContaining('AND di.type = $3'),
+        ['manager-1', ['PENDING'], 'MONGODB']
+      );
+    });
   });
 
   describe('findAllWithStatus', () => {
@@ -228,7 +276,7 @@ describe('QueryRepository', () => {
       const result = await QueryRepository.findAllWithStatus();
 
       expect(pool.query).toHaveBeenCalledWith(
-        expect.stringContaining('SELECT * FROM query_requests'),
+        expect.stringContaining('SELECT qr.*'),
         []
       );
       expect(result).toEqual(mockQueries);
@@ -240,8 +288,34 @@ describe('QueryRepository', () => {
       await QueryRepository.findAllWithStatus(['EXECUTED', 'FAILED']);
 
       expect(pool.query).toHaveBeenCalledWith(
-        expect.stringContaining('WHERE status = ANY($1)'),
+        expect.stringContaining('WHERE qr.status = ANY($1)'),
         [['EXECUTED', 'FAILED']]
+      );
+    });
+
+    it('should filter by type', async () => {
+      (pool.query as jest.Mock).mockResolvedValue({ rows: [] });
+
+      await QueryRepository.findAllWithStatus(undefined, 'MONGODB');
+
+      expect(pool.query).toHaveBeenCalledWith(
+        expect.stringContaining('WHERE di.type = $1'),
+        ['MONGODB']
+      );
+    });
+
+    it('should filter by both status and type', async () => {
+      (pool.query as jest.Mock).mockResolvedValue({ rows: [] });
+
+      await QueryRepository.findAllWithStatus(['PENDING'], 'POSTGRES');
+
+      expect(pool.query).toHaveBeenCalledWith(
+        expect.stringContaining('WHERE qr.status = ANY($1)'),
+        [['PENDING'], 'POSTGRES']
+      );
+      expect(pool.query).toHaveBeenCalledWith(
+        expect.stringContaining('AND di.type = $2'),
+        [['PENDING'], 'POSTGRES']
       );
     });
   });

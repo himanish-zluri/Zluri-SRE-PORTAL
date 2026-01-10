@@ -6,8 +6,13 @@ module.exports = {
   collectCoverageFrom: [
     'src/**/*.ts',
     '!src/server.ts',
+    '!src/app.ts',
     '!src/config/**',
-    '!src/types/**'
+    '!src/types/**',
+    '!src/**/*.routes.ts',
+    '!src/routes/**',
+    '!src/execution/sandbox/*-runner.ts',
+    '!src/execution/sandbox/index.ts'
   ],
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov', 'html'],

@@ -30,6 +30,19 @@ export class AuditRepository {
     return result.rows;
   }
 
+  static async findByUserId(userId: string, limit = 100, offset = 0) {
+    const result = await pool.query(
+      `SELECT qal.*, u.name as performed_by_name, u.email as performed_by_email
+       FROM query_audit_log qal
+       JOIN users u ON u.id = qal.performed_by
+       WHERE qal.performed_by = $1
+       ORDER BY qal.created_at DESC
+       LIMIT $2 OFFSET $3`,
+      [userId, limit, offset]
+    );
+    return result.rows;
+  }
+
   static async findAll(limit = 100, offset = 0) {
     const result = await pool.query(
       `SELECT qal.*, u.name as performed_by_name, u.email as performed_by_email

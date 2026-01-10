@@ -11,8 +11,15 @@ jest.mock('bcrypt');
 jest.mock('jsonwebtoken');
 
 describe('AuthService', () => {
+  const originalEnv = process.env;
+
   beforeEach(() => {
     jest.clearAllMocks();
+    process.env = { ...originalEnv, JWT_SECRET: 'test-secret' };
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
   });
 
   const mockUser = {
@@ -132,6 +139,15 @@ describe('AuthService', () => {
       expect(token).toBeDefined();
       expect(typeof token).toBe('string');
       expect(token.length).toBe(80); // 40 bytes = 80 hex chars
+    });
+  });
+
+  describe('getJwtSecret', () => {
+    it('should throw error when JWT_SECRET is not defined', () => {
+      delete process.env.JWT_SECRET;
+
+      expect(() => AuthService.generateAccessToken('user-123', 'DEVELOPER'))
+        .toThrow('JWT_SECRET is not defined');
     });
   });
 });

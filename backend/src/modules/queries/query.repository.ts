@@ -71,33 +71,25 @@ export class QueryRepository {
     return result.rows[0];
   }
 
-  static async findByRequesterWithStatus(userId: string, statusFilter?: string[]) {
-    let query = `SELECT * FROM query_requests WHERE requester_id = $1`;
+  static async findByRequesterWithStatus(userId: string, statusFilter?: string[], typeFilter?: string) {
+    let query = `
+      SELECT qr.* 
+      FROM query_requests qr
+      JOIN db_instances di ON di.id = qr.instance_id
+      WHERE qr.requester_id = $1
+    `;
     const params: any[] = [userId];
+    let paramIndex = 2;
 
     if (statusFilter && statusFilter.length > 0) {
-      query += ` AND status = ANY($2)`;
+      query += ` AND qr.status = ANY($${paramIndex})`;
       params.push(statusFilter);
+      paramIndex++;
     }
 
-    query += ` ORDER BY created_at DESC`;
-
-    const result = await pool.query(query, params);
-    return result.rows;
-  }
-
-  static async findByManagerWithStatus(managerId: string, statusFilter?: string[]) {
-    let query = `
-      SELECT qr.*
-      FROM query_requests qr
-      JOIN pods p ON p.id = qr.pod_id
-      WHERE p.manager_id = $1
-    `;
-    const params: any[] = [managerId];
-
-    if (statusFilter && statusFilter.length > 0) {
-      query += ` AND qr.status = ANY($2)`;
-      params.push(statusFilter);
+    if (typeFilter) {
+      query += ` AND di.type = $${paramIndex}`;
+      params.push(typeFilter);
     }
 
     query += ` ORDER BY qr.created_at DESC`;
@@ -106,16 +98,60 @@ export class QueryRepository {
     return result.rows;
   }
 
-  static async findAllWithStatus(statusFilter?: string[]) {
-    let query = `SELECT * FROM query_requests`;
-    const params: any[] = [];
+  static async findByManagerWithStatus(managerId: string, statusFilter?: string[], typeFilter?: string) {
+    let query = `
+      SELECT qr.*
+      FROM query_requests qr
+      JOIN pods p ON p.id = qr.pod_id
+      JOIN db_instances di ON di.id = qr.instance_id
+      WHERE p.manager_id = $1
+    `;
+    const params: any[] = [managerId];
+    let paramIndex = 2;
 
     if (statusFilter && statusFilter.length > 0) {
-      query += ` WHERE status = ANY($1)`;
+      query += ` AND qr.status = ANY($${paramIndex})`;
       params.push(statusFilter);
+      paramIndex++;
     }
 
-    query += ` ORDER BY created_at DESC`;
+    if (typeFilter) {
+      query += ` AND di.type = $${paramIndex}`;
+      params.push(typeFilter);
+    }
+
+    query += ` ORDER BY qr.created_at DESC`;
+
+    const result = await pool.query(query, params);
+    return result.rows;
+  }
+
+  static async findAllWithStatus(statusFilter?: string[], typeFilter?: string) {
+    let query = `
+      SELECT qr.* 
+      FROM query_requests qr
+      JOIN db_instances di ON di.id = qr.instance_id
+    `;
+    const params: any[] = [];
+    let paramIndex = 1;
+    const conditions: string[] = [];
+
+    if (statusFilter && statusFilter.length > 0) {
+      conditions.push(`qr.status = ANY($${paramIndex})`);
+      params.push(statusFilter);
+      paramIndex++;
+    }
+
+    if (typeFilter) {
+      conditions.push(`di.type = $${paramIndex}`);
+      params.push(typeFilter);
+    }
+
+    if (conditions.length > 0) {
+      query += ` WHERE ${conditions.join(' AND ')}`;
+    }
+
+    query += ` ORDER BY qr.created_at DESC`;
 
     const result = await pool.query(query, params);
     return result.rows;

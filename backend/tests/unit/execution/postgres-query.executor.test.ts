@@ -8,9 +8,9 @@ jest.mock('pg', () => {
   return { Pool: jest.fn(() => mockPool) };
 });
 
-import { executePostgresQuery } from '../../../src/execution/postgres.executor';
+import { executePostgresQuery } from '../../../src/execution/postgres-query.executor';
 
-describe('PostgresExecutor', () => {
+describe('PostgresQueryExecutor', () => {
   let mockPool: any;
 
   beforeEach(() => {

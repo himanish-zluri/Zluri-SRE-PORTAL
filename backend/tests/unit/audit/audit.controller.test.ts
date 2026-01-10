@@ -51,6 +51,36 @@ describe('AuditController', () => {
       expect(AuditRepository.findAll).toHaveBeenCalledWith(50, 10);
     });
 
+    it('should filter by queryId when provided', async () => {
+      const mockLogs = [{ id: 'log-1', query_request_id: 'query-1' }];
+      (AuditRepository.findByQueryId as jest.Mock).mockResolvedValue(mockLogs);
+
+      mockRequest = {
+        user: { id: 'admin-1', email: 'admin@test.com', role: 'ADMIN' },
+        query: { queryId: 'query-1' }
+      };
+
+      await AuditController.getAuditLogs(mockRequest as AuthenticatedRequest, mockResponse as Response);
+
+      expect(AuditRepository.findByQueryId).toHaveBeenCalledWith('query-1');
+      expect(jsonMock).toHaveBeenCalledWith(mockLogs);
+    });
+
+    it('should filter by userId when provided', async () => {
+      const mockLogs = [{ id: 'log-1', performed_by: 'user-1' }];
+      (AuditRepository.findByUserId as jest.Mock).mockResolvedValue(mockLogs);
+
+      mockRequest = {
+        user: { id: 'admin-1', email: 'admin@test.com', role: 'ADMIN' },
+        query: { userId: 'user-1', limit: '50', offset: '10' }
+      };
+
+      await AuditController.getAuditLogs(mockRequest as AuthenticatedRequest, mockResponse as Response);
+
+      expect(AuditRepository.findByUserId).toHaveBeenCalledWith('user-1', 50, 10);
+      expect(jsonMock).toHaveBeenCalledWith(mockLogs);
+    });
+
     it('should return 500 on error', async () => {
       (AuditRepository.findAll as jest.Mock).mockRejectedValue(new Error('DB error'));
 

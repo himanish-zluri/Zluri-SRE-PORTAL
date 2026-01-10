@@ -73,24 +73,25 @@ export class QueryController {
     try {
       const userId = req.user!.id;
       const userRole = req.user!.role as Role;
-      const { user, status } = req.query;
+      const { user, status, type } = req.query;
 
       const statusFilter = status ? (status as string).split(',') : undefined;
+      const typeFilter = type as string | undefined;
 
       let queries;
 
       if (user === 'me') {
         // user=me: always get own queries only
-        queries = await QueryService.getQueriesByUser(userId, statusFilter);
+        queries = await QueryService.getQueriesByUser(userId, statusFilter, typeFilter);
       } else if (userRole === 'ADMIN') {
         // Admin: get ALL queries across the system
-        queries = await QueryService.getAllQueries(statusFilter);
+        queries = await QueryService.getAllQueries(statusFilter, typeFilter);
       } else if (hasElevatedAccess(userRole)) {
         // Manager: get queries for their PODs only
-        queries = await QueryService.getQueriesForManager(userId, statusFilter);
+        queries = await QueryService.getQueriesForManager(userId, statusFilter, typeFilter);
       } else {
         // Non-elevated roles: get own queries only
-        queries = await QueryService.getQueriesByUser(userId, statusFilter);
+        queries = await QueryService.getQueriesByUser(userId, statusFilter, typeFilter);
       }
 
       res.json(queries);
