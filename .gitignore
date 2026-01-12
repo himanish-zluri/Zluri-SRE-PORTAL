@@ -4,6 +4,7 @@ dist/
 
 # Env
 .env
+.env.*
 
 # Logs
 npm-debug.log*
@@ -11,3 +12,6 @@ yarn-debug.log*
 
 # OS
 .DS_Store
+
+# Test coverage
+coverage/

@@ -1,3 +1,3 @@
-// db is already injected
-const logs = await db.collection('logs').find({}).toArray();
-return logs;
+// db and collection() are pre-injected
+const logs = await db.collection('logs').find().toArray();
+console.log(logs);
