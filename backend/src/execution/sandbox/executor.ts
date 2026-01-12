@@ -151,7 +151,7 @@ export async function executePostgresScriptSandboxed(
     PG_DATABASE: string;
   },
   options?: ExecuteOptions
-): Promise<{ stdout: any; stderr: string }> {
+): Promise<any> {
   const runnerPath = getRunnerPath('postgres-script.executor');
   
   const config = {
@@ -165,10 +165,33 @@ export async function executePostgresScriptSandboxed(
     throw new Error(result.error || 'Script execution failed');
   }
 
-  return {
-    stdout: result.result ?? result.logs?.join('\n') ?? result.stdout,
-    stderr: result.stderr,
-  };
+  // Return the parsed result directly, not wrapped in stdout/stderr
+  // The result is already parsed from the child process JSON output
+  if (result.result !== undefined) {
+    return result.result;
+  }
+  
+  // If we have logs, try to parse them as JSON (scripts often console.log JSON data)
+  if (result.logs && result.logs.length > 0) {
+    const logValue = result.logs.length === 1 ? result.logs[0] : result.logs;
+    
+    // Try to parse single log entry as JSON
+    if (typeof logValue === 'string') {
+      try {
+        return JSON.parse(logValue);
+      } catch {
+        return logValue;
+      }
+    }
+    return logValue;
+  }
+
+  // Fallback: try to parse stdout as JSON
+  try {
+    return JSON.parse(result.stdout);
+  } catch {
+    return { output: result.stdout, stderr: result.stderr };
+  }
 }
 
 export async function executeMongoScriptSandboxed(

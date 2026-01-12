@@ -57,9 +57,10 @@ export class QueryController {
     try {
       const queryId = req.params.id;
       const managerId = req.user!.id;
+      const userRole = req.user!.role;
       const reason = req.body?.reason;
     
-      const result = await QueryService.rejectQuery(queryId, managerId, reason);
+      const result = await QueryService.rejectQuery(queryId, managerId, userRole, reason);
       res.json(result);
     } catch (error: any) {
       res.status(500).json({ 

@@ -223,7 +223,7 @@ describe('Sandbox Executor', () => {
   });
 
   describe('executePostgresScriptSandboxed', () => {
-    it('should call executeInSandbox with postgres config', async () => {
+    it('should call executeInSandbox with postgres config and return parsed result', async () => {
       const promise = executePostgresScriptSandboxed(
         '/script.js',
         {
@@ -240,8 +240,8 @@ describe('Sandbox Executor', () => {
 
       const result = await promise;
 
-      expect(result.stdout).toEqual({ rows: [] });
-      expect(result.stderr).toBe('');
+      // Now returns parsed result directly, not wrapped in stdout/stderr
+      expect(result).toEqual({ rows: [] });
     });
 
     it('should use .ts runner path when .js does not exist', async () => {
@@ -306,10 +306,11 @@ describe('Sandbox Executor', () => {
 
       const result = await promise;
 
-      expect(result.stdout).toBe('line1\nline2');
+      // Returns logs array when result is undefined
+      expect(result).toEqual(['line1', 'line2']);
     });
 
-    it('should use stdout when result and logs are undefined', async () => {
+    it('should parse stdout as JSON when result and logs are undefined', async () => {
       const promise = executePostgresScriptSandboxed(
         '/script.js',
         {
@@ -326,7 +327,8 @@ describe('Sandbox Executor', () => {
 
       const result = await promise;
 
-      expect(result.stdout).toBe('{"success":true}');
+      // Parses stdout as JSON when result and logs are undefined
+      expect(result).toEqual({ success: true });
     });
 
     it('should throw default error when no error message', async () => {

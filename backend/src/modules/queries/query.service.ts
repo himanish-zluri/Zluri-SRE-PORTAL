@@ -152,18 +152,21 @@ export class QueryService {
     }
   }
 
-  static async rejectQuery(queryId: string, managerId: string, reason?: string) {
+  static async rejectQuery(queryId: string, managerId: string, userRole: string, reason?: string) {
     const query = await QueryRepository.findById(queryId);
 
     if (!query) throw new Error('Query not found');
 
-    const ownsPod = await QueryRepository.isManagerOfPod(
-      managerId,
-      query.pod_id
-    );
+    // ADMINs can reject any query, MANAGERs can only reject queries for their PODs
+    if (userRole !== 'ADMIN') {
+      const ownsPod = await QueryRepository.isManagerOfPod(
+        managerId,
+        query.pod_id
+      );
 
-    if (!ownsPod) {
-      throw new Error('Not authorized to reject this request');
+      if (!ownsPod) {
+        throw new Error('Not authorized to reject this request');
+      }
     }
 
     const result = await QueryRepository.reject(queryId, managerId, reason);

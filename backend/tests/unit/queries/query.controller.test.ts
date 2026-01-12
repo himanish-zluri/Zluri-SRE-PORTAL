@@ -150,7 +150,7 @@ describe('QueryController', () => {
 
       await QueryController.reject(mockRequest as AuthenticatedRequest, mockResponse as Response);
 
-      expect(QueryService.rejectQuery).toHaveBeenCalledWith('query-1', 'manager-1', 'Not approved');
+      expect(QueryService.rejectQuery).toHaveBeenCalledWith('query-1', 'manager-1', 'MANAGER', 'Not approved');
       expect(jsonMock).toHaveBeenCalledWith(mockResult);
     });
 
@@ -166,7 +166,7 @@ describe('QueryController', () => {
 
       await QueryController.reject(mockRequest as AuthenticatedRequest, mockResponse as Response);
 
-      expect(QueryService.rejectQuery).toHaveBeenCalledWith('query-1', 'manager-1', undefined);
+      expect(QueryService.rejectQuery).toHaveBeenCalledWith('query-1', 'manager-1', 'MANAGER', undefined);
     });
 
     it('should return 500 on rejection error', async () => {

@@ -256,13 +256,13 @@ describe('QueryService', () => {
   });
 
   describe('rejectQuery', () => {
-    it('should reject query with reason', async () => {
+    it('should reject query with reason as MANAGER', async () => {
       const mockQuery = { id: 'query-1', pod_id: 'pod-a', status: 'PENDING' };
       (QueryRepository.findById as jest.Mock).mockResolvedValue(mockQuery);
       (QueryRepository.isManagerOfPod as jest.Mock).mockResolvedValue(true);
       (QueryRepository.reject as jest.Mock).mockResolvedValue({ ...mockQuery, status: 'REJECTED' });
 
-      const result = await QueryService.rejectQuery('query-1', 'manager-1', 'Not approved');
+      const result = await QueryService.rejectQuery('query-1', 'manager-1', 'MANAGER', 'Not approved');
 
       expect(QueryRepository.reject).toHaveBeenCalledWith('query-1', 'manager-1', 'Not approved');
     });
@@ -273,15 +273,26 @@ describe('QueryService', () => {
       (QueryRepository.isManagerOfPod as jest.Mock).mockResolvedValue(true);
       (QueryRepository.reject as jest.Mock).mockResolvedValue({ ...mockQuery, status: 'REJECTED' });
 
-      await QueryService.rejectQuery('query-1', 'manager-1');
+      await QueryService.rejectQuery('query-1', 'manager-1', 'MANAGER');
 
       expect(QueryRepository.reject).toHaveBeenCalledWith('query-1', 'manager-1', undefined);
+    });
+
+    it('should allow ADMIN to reject any query without POD check', async () => {
+      const mockQuery = { id: 'query-1', pod_id: 'pod-a' };
+      (QueryRepository.findById as jest.Mock).mockResolvedValue(mockQuery);
+      (QueryRepository.reject as jest.Mock).mockResolvedValue({ ...mockQuery, status: 'REJECTED' });
+
+      await QueryService.rejectQuery('query-1', 'admin-1', 'ADMIN', 'Admin rejection');
+
+      expect(QueryRepository.isManagerOfPod).not.toHaveBeenCalled();
+      expect(QueryRepository.reject).toHaveBeenCalledWith('query-1', 'admin-1', 'Admin rejection');
     });
 
     it('should throw error when query not found', async () => {
       (QueryRepository.findById as jest.Mock).mockResolvedValue(null);
 
-      await expect(QueryService.rejectQuery('invalid-id', 'manager-1'))
+      await expect(QueryService.rejectQuery('invalid-id', 'manager-1', 'MANAGER'))
         .rejects.toThrow('Query not found');
     });
 
@@ -290,7 +301,7 @@ describe('QueryService', () => {
       (QueryRepository.findById as jest.Mock).mockResolvedValue(mockQuery);
       (QueryRepository.isManagerOfPod as jest.Mock).mockResolvedValue(false);
 
-      await expect(QueryService.rejectQuery('query-1', 'manager-1'))
+      await expect(QueryService.rejectQuery('query-1', 'manager-1', 'MANAGER'))
         .rejects.toThrow('Not authorized to reject this request');
     });
   });
