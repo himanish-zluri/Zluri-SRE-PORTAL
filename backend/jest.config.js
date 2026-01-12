@@ -11,7 +11,7 @@ module.exports = {
     '!src/types/**',
     '!src/**/*.routes.ts',
     '!src/routes/**',
-    '!src/execution/sandbox/*-runner.ts',
+    '!src/execution/sandbox/*-script.executor.ts',
     '!src/execution/sandbox/index.ts'
   ],
   coverageDirectory: 'coverage',

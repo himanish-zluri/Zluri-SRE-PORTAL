@@ -265,7 +265,7 @@ describe('Sandbox Executor', () => {
 
       // Verify fork was called with .ts path
       expect(fork).toHaveBeenCalledWith(
-        expect.stringContaining('postgres-runner.ts'),
+        expect.stringContaining('postgres-script.executor.ts'),
         expect.any(Array),
         expect.any(Object)
       );
