@@ -122,4 +122,35 @@ describe('AuditRepository', () => {
       );
     });
   });
+
+  describe('findByDatabaseName', () => {
+    it('should return audit logs for a specific database', async () => {
+      const mockLogs = [
+        { id: 'log-1', action: 'SUBMITTED', database_name: 'production_db' },
+        { id: 'log-2', action: 'EXECUTED', database_name: 'production_db' }
+      ];
+      (pool.query as jest.Mock).mockResolvedValue({ rows: mockLogs });
+
+      const result = await AuditRepository.findByDatabaseName('production_db');
+
+      expect(pool.query).toHaveBeenCalledWith(
+        expect.stringContaining('WHERE qr.database_name = $1'),
+        ['production_db', 100, 0]
+      );
+      expect(result).toEqual(mockLogs);
+    });
+
+    it('should return audit logs with custom pagination', async () => {
+      const mockLogs = [{ id: 'log-1' }];
+      (pool.query as jest.Mock).mockResolvedValue({ rows: mockLogs });
+
+      const result = await AuditRepository.findByDatabaseName('staging_db', 50, 10);
+
+      expect(pool.query).toHaveBeenCalledWith(
+        expect.stringContaining('LIMIT $2 OFFSET $3'),
+        ['staging_db', 50, 10]
+      );
+      expect(result).toEqual(mockLogs);
+    });
+  });
 });

@@ -54,4 +54,19 @@ export class AuditRepository {
     );
     return result.rows;
   }
+
+  static async findByDatabaseName(databaseName: string, limit = 100, offset = 0) {
+    const result = await pool.query(
+      `SELECT qal.*, u.name as performed_by_name, u.email as performed_by_email,
+              qr.database_name, qr.instance_id
+       FROM query_audit_log qal
+       JOIN users u ON u.id = qal.performed_by
+       JOIN query_requests qr ON qr.id = qal.query_request_id
+       WHERE qr.database_name = $1
+       ORDER BY qal.created_at DESC
+       LIMIT $2 OFFSET $3`,
+      [databaseName, limit, offset]
+    );
+    return result.rows;
+  }
 }

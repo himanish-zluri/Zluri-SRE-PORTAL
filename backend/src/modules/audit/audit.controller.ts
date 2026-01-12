@@ -7,7 +7,7 @@ export class AuditController {
     try {
       const limit = parseInt(req.query.limit as string) || 100;
       const offset = parseInt(req.query.offset as string) || 0;
-      const { queryId, userId } = req.query;
+      const { queryId, userId, databaseName } = req.query;
 
       let logs;
 
@@ -15,6 +15,8 @@ export class AuditController {
         logs = await AuditRepository.findByQueryId(queryId as string);
       } else if (userId) {
         logs = await AuditRepository.findByUserId(userId as string, limit, offset);
+      } else if (databaseName) {
+        logs = await AuditRepository.findByDatabaseName(databaseName as string, limit, offset);
       } else {
         logs = await AuditRepository.findAll(limit, offset);
       }

@@ -81,6 +81,21 @@ describe('AuditController', () => {
       expect(jsonMock).toHaveBeenCalledWith(mockLogs);
     });
 
+    it('should filter by databaseName when provided', async () => {
+      const mockLogs = [{ id: 'log-1', database_name: 'production_db' }];
+      (AuditRepository.findByDatabaseName as jest.Mock).mockResolvedValue(mockLogs);
+
+      mockRequest = {
+        user: { id: 'admin-1', email: 'admin@test.com', role: 'ADMIN' },
+        query: { databaseName: 'production_db', limit: '50', offset: '10' }
+      };
+
+      await AuditController.getAuditLogs(mockRequest as AuthenticatedRequest, mockResponse as Response);
+
+      expect(AuditRepository.findByDatabaseName).toHaveBeenCalledWith('production_db', 50, 10);
+      expect(jsonMock).toHaveBeenCalledWith(mockLogs);
+    });
+
     it('should return 500 on error', async () => {
       (AuditRepository.findAll as jest.Mock).mockRejectedValue(new Error('DB error'));
 

@@ -359,6 +359,7 @@ List audit logs with optional filters.
 | offset | number | 0 | Records to skip |
 | userId | string | - | Filter by user who performed action |
 | queryId | string | - | Filter by query request |
+| databaseName | string | - | Filter by target database name |
 
 **Examples:**
 ```
@@ -367,6 +368,7 @@ GET /audit?limit=20&offset=0            # First 20 logs
 GET /audit?limit=20&offset=20           # Next 20 logs (page 2)
 GET /audit?userId=uuid                  # Logs by specific user
 GET /audit?queryId=uuid                 # Logs for specific query
+GET /audit?databaseName=production_db   # Logs for specific database
 ```
 
 **Response (200):**
