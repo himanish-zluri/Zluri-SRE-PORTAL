@@ -1,5 +1,17 @@
 import { pool } from '../../config/db';
 
+export interface PaginationOptions {
+  limit?: number;
+  offset?: number;
+}
+
+export interface PaginatedResult<T> {
+  data: T[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
 export class QueryRepository {
   static async findById(id: string) {
     const result = await pool.query(
@@ -71,7 +83,12 @@ export class QueryRepository {
     return result.rows[0];
   }
 
-  static async findByRequesterWithStatus(userId: string, statusFilter?: string[], typeFilter?: string) {
+  static async findByRequesterWithStatus(
+    userId: string, 
+    statusFilter?: string[], 
+    typeFilter?: string,
+    pagination?: PaginationOptions
+  ) {
     let query = `
       SELECT qr.* 
       FROM query_requests qr
@@ -90,15 +107,57 @@ export class QueryRepository {
     if (typeFilter) {
       query += ` AND di.type = $${paramIndex}`;
       params.push(typeFilter);
+      paramIndex++;
     }
 
     query += ` ORDER BY qr.created_at DESC`;
+
+    if (pagination?.limit !== undefined) {
+      query += ` LIMIT $${paramIndex}`;
+      params.push(pagination.limit);
+      paramIndex++;
+    }
+
+    if (pagination?.offset !== undefined) {
+      query += ` OFFSET $${paramIndex}`;
+      params.push(pagination.offset);
+    }
 
     const result = await pool.query(query, params);
     return result.rows;
   }
 
-  static async findByManagerWithStatus(managerId: string, statusFilter?: string[], typeFilter?: string) {
+  static async countByRequester(userId: string, statusFilter?: string[], typeFilter?: string) {
+    let query = `
+      SELECT COUNT(*) as total
+      FROM query_requests qr
+      JOIN db_instances di ON di.id = qr.instance_id
+      WHERE qr.requester_id = $1
+    `;
+    const params: any[] = [userId];
+    let paramIndex = 2;
+
+    if (statusFilter && statusFilter.length > 0) {
+      query += ` AND qr.status = ANY($${paramIndex})`;
+      params.push(statusFilter);
+      paramIndex++;
+    }
+
+    if (typeFilter) {
+      query += ` AND di.type = $${paramIndex}`;
+      params.push(typeFilter);
+    }
+
+    const result = await pool.query(query, params);
+    return parseInt(result.rows[0].total, 10);
+  }
+
+  static async findByManagerWithStatus(
+    managerId: string, 
+    statusFilter?: string[], 
+    typeFilter?: string,
+    pagination?: PaginationOptions
+  ) {
     let query = `
       SELECT qr.*
       FROM query_requests qr
@@ -118,17 +177,102 @@ export class QueryRepository {
     if (typeFilter) {
       query += ` AND di.type = $${paramIndex}`;
       params.push(typeFilter);
+      paramIndex++;
     }
 
     query += ` ORDER BY qr.created_at DESC`;
+
+    if (pagination?.limit !== undefined) {
+      query += ` LIMIT $${paramIndex}`;
+      params.push(pagination.limit);
+      paramIndex++;
+    }
+
+    if (pagination?.offset !== undefined) {
+      query += ` OFFSET $${paramIndex}`;
+      params.push(pagination.offset);
+    }
 
     const result = await pool.query(query, params);
     return result.rows;
   }
 
-  static async findAllWithStatus(statusFilter?: string[], typeFilter?: string) {
+  static async countByManager(managerId: string, statusFilter?: string[], typeFilter?: string) {
+    let query = `
+      SELECT COUNT(*) as total
+      FROM query_requests qr
+      JOIN pods p ON p.id = qr.pod_id
+      JOIN db_instances di ON di.id = qr.instance_id
+      WHERE p.manager_id = $1
+    `;
+    const params: any[] = [managerId];
+    let paramIndex = 2;
+
+    if (statusFilter && statusFilter.length > 0) {
+      query += ` AND qr.status = ANY($${paramIndex})`;
+      params.push(statusFilter);
+      paramIndex++;
+    }
+
+    if (typeFilter) {
+      query += ` AND di.type = $${paramIndex}`;
+      params.push(typeFilter);
+    }
+
+    const result = await pool.query(query, params);
+    return parseInt(result.rows[0].total, 10);
+  }
+
+  static async findAllWithStatus(
+    statusFilter?: string[], 
+    typeFilter?: string,
+    pagination?: PaginationOptions
+  ) {
     let query = `
       SELECT qr.* 
+      FROM query_requests qr
+      JOIN db_instances di ON di.id = qr.instance_id
+    `;
+    const params: any[] = [];
+    let paramIndex = 1;
+    const conditions: string[] = [];
+
+    if (statusFilter && statusFilter.length > 0) {
+      conditions.push(`qr.status = ANY($${paramIndex})`);
+      params.push(statusFilter);
+      paramIndex++;
+    }
+
+    if (typeFilter) {
+      conditions.push(`di.type = $${paramIndex}`);
+      params.push(typeFilter);
+      paramIndex++;
+    }
+
+    if (conditions.length > 0) {
+      query += ` WHERE ${conditions.join(' AND ')}`;
+    }
+
+    query += ` ORDER BY qr.created_at DESC`;
+
+    if (pagination?.limit !== undefined) {
+      query += ` LIMIT $${paramIndex}`;
+      params.push(pagination.limit);
+      paramIndex++;
+    }
+
+    if (pagination?.offset !== undefined) {
+      query += ` OFFSET $${paramIndex}`;
+      params.push(pagination.offset);
+    }
+
+    const result = await pool.query(query, params);
+    return result.rows;
+  }
+
+  static async countAll(statusFilter?: string[], typeFilter?: string) {
+    let query = `
+      SELECT COUNT(*) as total
       FROM query_requests qr
       JOIN db_instances di ON di.id = qr.instance_id
     `;
@@ -151,10 +295,8 @@ export class QueryRepository {
       query += ` WHERE ${conditions.join(' AND ')}`;
     }
 
-    query += ` ORDER BY qr.created_at DESC`;
-
     const result = await pool.query(query, params);
-    return result.rows;
+    return parseInt(result.rows[0].total, 10);
   }
 
   static async markExecuted(queryId: string, managerId: string, result: any) {

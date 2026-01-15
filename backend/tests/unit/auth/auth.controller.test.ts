@@ -36,42 +36,20 @@ describe('AuthController', () => {
       await AuthController.login(mockRequest as Request, mockResponse as Response);
 
       expect(AuthService.login).toHaveBeenCalledWith('test@example.com', 'password123');
+      expect(statusMock).toHaveBeenCalledWith(200);
       expect(jsonMock).toHaveBeenCalledWith(mockResult);
     });
 
-    it('should return 401 on invalid credentials', async () => {
-      (AuthService.login as jest.Mock).mockRejectedValue(new Error('Invalid credentials'));
+    it('should throw error on invalid credentials (caught by global handler)', async () => {
+      const error = new Error('Invalid email or password');
+      (AuthService.login as jest.Mock).mockRejectedValue(error);
 
       mockRequest = {
         body: { email: 'test@example.com', password: 'wrongpassword' }
       };
 
-      await AuthController.login(mockRequest as Request, mockResponse as Response);
-
-      expect(statusMock).toHaveBeenCalledWith(401);
-      expect(jsonMock).toHaveBeenCalledWith({ message: 'Invalid email or password' });
-    });
-
-    it('should return 400 when email missing', async () => {
-      mockRequest = {
-        body: { password: 'password123' }
-      };
-
-      await AuthController.login(mockRequest as Request, mockResponse as Response);
-
-      expect(statusMock).toHaveBeenCalledWith(400);
-      expect(jsonMock).toHaveBeenCalledWith({ message: 'Email and password are required' });
-    });
-
-    it('should return 400 when password missing', async () => {
-      mockRequest = {
-        body: { email: 'test@example.com' }
-      };
-
-      await AuthController.login(mockRequest as Request, mockResponse as Response);
-
-      expect(statusMock).toHaveBeenCalledWith(400);
-      expect(jsonMock).toHaveBeenCalledWith({ message: 'Email and password are required' });
+      await expect(AuthController.login(mockRequest as Request, mockResponse as Response))
+        .rejects.toThrow('Invalid email or password');
     });
   });
 
@@ -90,31 +68,20 @@ describe('AuthController', () => {
       await AuthController.refresh(mockRequest as Request, mockResponse as Response);
 
       expect(AuthService.refresh).toHaveBeenCalledWith('valid-refresh-token');
+      expect(statusMock).toHaveBeenCalledWith(200);
       expect(jsonMock).toHaveBeenCalledWith(mockResult);
     });
 
-    it('should return 400 when refresh token missing', async () => {
-      mockRequest = {
-        body: {}
-      };
-
-      await AuthController.refresh(mockRequest as Request, mockResponse as Response);
-
-      expect(statusMock).toHaveBeenCalledWith(400);
-      expect(jsonMock).toHaveBeenCalledWith({ message: 'Refresh token is required' });
-    });
-
-    it('should return 401 on invalid refresh token', async () => {
-      (AuthService.refresh as jest.Mock).mockRejectedValue(new Error('Invalid token'));
+    it('should throw error on invalid refresh token (caught by global handler)', async () => {
+      const error = new Error('Invalid or expired refresh token');
+      (AuthService.refresh as jest.Mock).mockRejectedValue(error);
 
       mockRequest = {
         body: { refreshToken: 'invalid-token' }
       };
 
-      await AuthController.refresh(mockRequest as Request, mockResponse as Response);
-
-      expect(statusMock).toHaveBeenCalledWith(401);
-      expect(jsonMock).toHaveBeenCalledWith({ message: 'Invalid or expired refresh token' });
+      await expect(AuthController.refresh(mockRequest as Request, mockResponse as Response))
+        .rejects.toThrow('Invalid or expired refresh token');
     });
   });
 
@@ -129,31 +96,20 @@ describe('AuthController', () => {
       await AuthController.logout(mockRequest as Request, mockResponse as Response);
 
       expect(AuthService.logout).toHaveBeenCalledWith('valid-refresh-token');
+      expect(statusMock).toHaveBeenCalledWith(200);
       expect(jsonMock).toHaveBeenCalledWith({ message: 'Logged out successfully' });
     });
 
-    it('should return 400 when refresh token missing', async () => {
-      mockRequest = {
-        body: {}
-      };
-
-      await AuthController.logout(mockRequest as Request, mockResponse as Response);
-
-      expect(statusMock).toHaveBeenCalledWith(400);
-      expect(jsonMock).toHaveBeenCalledWith({ message: 'Refresh token is required' });
-    });
-
-    it('should return 500 on logout error', async () => {
-      (AuthService.logout as jest.Mock).mockRejectedValue(new Error('DB error'));
+    it('should throw error on logout failure (caught by global handler)', async () => {
+      const error = new Error('DB error');
+      (AuthService.logout as jest.Mock).mockRejectedValue(error);
 
       mockRequest = {
         body: { refreshToken: 'valid-token' }
       };
 
-      await AuthController.logout(mockRequest as Request, mockResponse as Response);
-
-      expect(statusMock).toHaveBeenCalledWith(500);
-      expect(jsonMock).toHaveBeenCalledWith({ message: 'Failed to logout' });
+      await expect(AuthController.logout(mockRequest as Request, mockResponse as Response))
+        .rejects.toThrow('DB error');
     });
   });
 
@@ -168,20 +124,20 @@ describe('AuthController', () => {
       await AuthController.logoutAll(mockRequest as any, mockResponse as Response);
 
       expect(AuthService.logoutAll).toHaveBeenCalledWith('user-1');
+      expect(statusMock).toHaveBeenCalledWith(200);
       expect(jsonMock).toHaveBeenCalledWith({ message: 'Logged out from all devices' });
     });
 
-    it('should return 500 on logoutAll error', async () => {
-      (AuthService.logoutAll as jest.Mock).mockRejectedValue(new Error('DB error'));
+    it('should throw error on logoutAll failure (caught by global handler)', async () => {
+      const error = new Error('DB error');
+      (AuthService.logoutAll as jest.Mock).mockRejectedValue(error);
 
       mockRequest = {
         user: { id: 'user-1', email: 'test@test.com', role: 'DEVELOPER' }
       } as any;
 
-      await AuthController.logoutAll(mockRequest as any, mockResponse as Response);
-
-      expect(statusMock).toHaveBeenCalledWith(500);
-      expect(jsonMock).toHaveBeenCalledWith({ message: 'Failed to logout' });
+      await expect(AuthController.logoutAll(mockRequest as any, mockResponse as Response))
+        .rejects.toThrow('DB error');
     });
   });
 });

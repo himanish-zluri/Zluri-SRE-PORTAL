@@ -56,7 +56,7 @@ describe('AuthService', () => {
       (UserRepository.findByEmail as jest.Mock).mockResolvedValue(null);
 
       await expect(AuthService.login('unknown@example.com', 'password'))
-        .rejects.toThrow('Invalid credentials');
+        .rejects.toThrow('Invalid email or password');
     });
 
     it('should throw error when password is incorrect', async () => {
@@ -64,7 +64,7 @@ describe('AuthService', () => {
       (bcrypt.compare as jest.Mock).mockResolvedValue(false);
 
       await expect(AuthService.login('test@example.com', 'wrongpassword'))
-        .rejects.toThrow('Invalid credentials');
+        .rejects.toThrow('Invalid email or password');
     });
   });
 

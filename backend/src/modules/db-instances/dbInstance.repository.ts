@@ -18,7 +18,7 @@ function decryptInstance(row: any): DbInstance | null {
   
   return {
     ...row,
-    username: row.username ? decrypt(row.username) : undefined,
+    // Don't decrypt username - keep it as plain text
     password: row.password ? decrypt(row.password) : undefined,
     mongo_uri: row.mongo_uri ? decrypt(row.mongo_uri) : undefined,
   };
@@ -38,7 +38,7 @@ export class DbInstanceRepository {
 
   static async findByType(type: string) {
     const result = await pool.query(
-      `SELECT id, name, host, port, type, created_at
+      `SELECT id, name, type
        FROM db_instances
        WHERE type = $1
        ORDER BY name`,
@@ -50,7 +50,7 @@ export class DbInstanceRepository {
 
   static async findAll() {
     const result = await pool.query(
-      `SELECT id, name, host, port, type, created_at
+      `SELECT id, name, type
        FROM db_instances
        ORDER BY name`
     );

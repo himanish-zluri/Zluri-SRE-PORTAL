@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { UserRepository } from '../users/user.repository';
 import { RefreshTokenRepository } from './refreshToken.repository';
+import { UnauthorizedError, NotFoundError, InternalError } from '../../errors';
 
 const ACCESS_TOKEN_EXPIRES_IN = '15m';
 const REFRESH_TOKEN_EXPIRES_DAYS = 7;
@@ -10,7 +11,7 @@ const REFRESH_TOKEN_EXPIRES_DAYS = 7;
 const getJwtSecret = (): string => {
   const secret = process.env.JWT_SECRET;
   if (!secret) {
-    throw new Error('JWT_SECRET is not defined');
+    throw new InternalError('JWT_SECRET is not defined');
   }
   return secret;
 };
@@ -32,13 +33,13 @@ export class AuthService {
     const user = await UserRepository.findByEmail(email);
 
     if (!user) {
-      throw new Error('Invalid credentials');
+      throw new UnauthorizedError('Invalid email or password');
     }
 
     const passwordMatch = await bcrypt.compare(password, user.password_hash);
 
     if (!passwordMatch) {
-      throw new Error('Invalid credentials');
+      throw new UnauthorizedError('Invalid email or password');
     }
 
     const accessToken = this.generateAccessToken(user.id, user.role);
@@ -65,13 +66,13 @@ export class AuthService {
     const tokenRecord = await RefreshTokenRepository.findByToken(refreshToken);
     
     if (!tokenRecord) {
-      throw new Error('Invalid or expired refresh token');
+      throw new UnauthorizedError('Invalid or expired refresh token');
     }
 
     const user = await UserRepository.findById(tokenRecord.user_id);
     
     if (!user) {
-      throw new Error('User not found');
+      throw new NotFoundError('User not found');
     }
 
     // Generate new access token

@@ -307,7 +307,11 @@ describe('QueryService', () => {
   });
 
   describe('getQueriesByUser', () => {
-    it('should return queries for user with script content', async () => {
+    beforeEach(() => {
+      (QueryRepository.countByRequester as jest.Mock).mockResolvedValue(2);
+    });
+
+    it('should return queries for user with script content and pagination', async () => {
       const mockQueries = [
         { id: 'q1', submission_type: 'QUERY', script_path: null },
         { id: 'q2', submission_type: 'SCRIPT', script_path: '/path/to/script.js' }
@@ -317,57 +321,77 @@ describe('QueryService', () => {
 
       const result = await QueryService.getQueriesByUser('user-1');
 
-      expect(QueryRepository.findByRequesterWithStatus).toHaveBeenCalledWith('user-1', undefined, undefined);
-      expect(result[0].script_content).toBeNull();
-      expect(result[1].script_content).toBe('console.log("script content");');
+      expect(QueryRepository.findByRequesterWithStatus).toHaveBeenCalledWith('user-1', undefined, undefined, undefined);
+      expect(result.data[0].script_content).toBeNull();
+      expect(result.data[1].script_content).toBe('console.log("script content");');
+      expect(result.pagination.total).toBe(2);
     });
 
     it('should return queries with status filter', async () => {
       (QueryRepository.findByRequesterWithStatus as jest.Mock).mockResolvedValue([]);
+      (QueryRepository.countByRequester as jest.Mock).mockResolvedValue(0);
 
       await QueryService.getQueriesByUser('user-1', ['PENDING', 'APPROVED']);
 
-      expect(QueryRepository.findByRequesterWithStatus).toHaveBeenCalledWith('user-1', ['PENDING', 'APPROVED'], undefined);
+      expect(QueryRepository.findByRequesterWithStatus).toHaveBeenCalledWith('user-1', ['PENDING', 'APPROVED'], undefined, undefined);
     });
 
     it('should handle missing script file gracefully', async () => {
       const mockQueries = [{ id: 'q1', submission_type: 'SCRIPT', script_path: '/missing/file.js' }];
       (QueryRepository.findByRequesterWithStatus as jest.Mock).mockResolvedValue(mockQueries);
+      (QueryRepository.countByRequester as jest.Mock).mockResolvedValue(1);
       (fs.readFileSync as jest.Mock).mockImplementation(() => { throw new Error('File not found'); });
 
       const result = await QueryService.getQueriesByUser('user-1');
 
-      expect(result[0].script_content).toBeNull();
+      expect(result.data[0].script_content).toBeNull();
     });
 
     it('should return null script_content for SCRIPT type with null script_path', async () => {
       const mockQueries = [{ id: 'q1', submission_type: 'SCRIPT', script_path: null }];
       (QueryRepository.findByRequesterWithStatus as jest.Mock).mockResolvedValue(mockQueries);
+      (QueryRepository.countByRequester as jest.Mock).mockResolvedValue(1);
 
       const result = await QueryService.getQueriesByUser('user-1');
 
-      expect(result[0].script_content).toBeNull();
+      expect(result.data[0].script_content).toBeNull();
       expect(fs.readFileSync).not.toHaveBeenCalled();
     });
 
     it('should return queries with type filter', async () => {
       (QueryRepository.findByRequesterWithStatus as jest.Mock).mockResolvedValue([]);
+      (QueryRepository.countByRequester as jest.Mock).mockResolvedValue(0);
 
       await QueryService.getQueriesByUser('user-1', undefined, 'POSTGRES');
 
-      expect(QueryRepository.findByRequesterWithStatus).toHaveBeenCalledWith('user-1', undefined, 'POSTGRES');
+      expect(QueryRepository.findByRequesterWithStatus).toHaveBeenCalledWith('user-1', undefined, 'POSTGRES', undefined);
     });
 
     it('should return queries with both status and type filter', async () => {
       (QueryRepository.findByRequesterWithStatus as jest.Mock).mockResolvedValue([]);
+      (QueryRepository.countByRequester as jest.Mock).mockResolvedValue(0);
 
       await QueryService.getQueriesByUser('user-1', ['PENDING'], 'MONGODB');
 
-      expect(QueryRepository.findByRequesterWithStatus).toHaveBeenCalledWith('user-1', ['PENDING'], 'MONGODB');
+      expect(QueryRepository.findByRequesterWithStatus).toHaveBeenCalledWith('user-1', ['PENDING'], 'MONGODB', undefined);
+    });
+
+    it('should return queries with pagination options', async () => {
+      (QueryRepository.findByRequesterWithStatus as jest.Mock).mockResolvedValue([{ id: 'q1' }]);
+      (QueryRepository.countByRequester as jest.Mock).mockResolvedValue(25);
+
+      const result = await QueryService.getQueriesByUser('user-1', undefined, undefined, { limit: 10, offset: 10 });
+
+      expect(QueryRepository.findByRequesterWithStatus).toHaveBeenCalledWith('user-1', undefined, undefined, { limit: 10, offset: 10 });
+      expect(result.pagination).toEqual({ total: 25, limit: 10, offset: 10, hasMore: true });
     });
   });
 
   describe('getQueriesForManager', () => {
+    beforeEach(() => {
+      (QueryRepository.countByManager as jest.Mock).mockResolvedValue(1);
+    });
+
     it('should return queries for manager pods with script content', async () => {
       const mockQueries = [{ id: 'q1', submission_type: 'SCRIPT', script_path: '/path/script.js' }];
       (QueryRepository.findByManagerWithStatus as jest.Mock).mockResolvedValue(mockQueries);
@@ -375,20 +399,35 @@ describe('QueryService', () => {
 
       const result = await QueryService.getQueriesForManager('manager-1', ['PENDING']);
 
-      expect(QueryRepository.findByManagerWithStatus).toHaveBeenCalledWith('manager-1', ['PENDING'], undefined);
-      expect(result[0].script_content).toBe('// manager script');
+      expect(QueryRepository.findByManagerWithStatus).toHaveBeenCalledWith('manager-1', ['PENDING'], undefined, undefined);
+      expect(result.data[0].script_content).toBe('// manager script');
     });
 
     it('should return queries with type filter', async () => {
       (QueryRepository.findByManagerWithStatus as jest.Mock).mockResolvedValue([]);
+      (QueryRepository.countByManager as jest.Mock).mockResolvedValue(0);
 
       await QueryService.getQueriesForManager('manager-1', undefined, 'POSTGRES');
 
-      expect(QueryRepository.findByManagerWithStatus).toHaveBeenCalledWith('manager-1', undefined, 'POSTGRES');
+      expect(QueryRepository.findByManagerWithStatus).toHaveBeenCalledWith('manager-1', undefined, 'POSTGRES', undefined);
+    });
+
+    it('should return queries with pagination options', async () => {
+      (QueryRepository.findByManagerWithStatus as jest.Mock).mockResolvedValue([{ id: 'q1' }]);
+      (QueryRepository.countByManager as jest.Mock).mockResolvedValue(50);
+
+      const result = await QueryService.getQueriesForManager('manager-1', undefined, undefined, { limit: 10, offset: 20 });
+
+      expect(QueryRepository.findByManagerWithStatus).toHaveBeenCalledWith('manager-1', undefined, undefined, { limit: 10, offset: 20 });
+      expect(result.pagination).toEqual({ total: 50, limit: 10, offset: 20, hasMore: true });
     });
   });
 
   describe('getAllQueries', () => {
+    beforeEach(() => {
+      (QueryRepository.countAll as jest.Mock).mockResolvedValue(2);
+    });
+
     it('should return all queries with script content', async () => {
       const mockQueries = [
         { id: 'q1', submission_type: 'QUERY' },
@@ -399,27 +438,39 @@ describe('QueryService', () => {
 
       const result = await QueryService.getAllQueries();
 
-      expect(QueryRepository.findAllWithStatus).toHaveBeenCalledWith(undefined, undefined);
-      expect(result[0].script_content).toBeNull();
-      expect(result[1].script_content).toBe('// all queries script');
+      expect(QueryRepository.findAllWithStatus).toHaveBeenCalledWith(undefined, undefined, undefined);
+      expect(result.data[0].script_content).toBeNull();
+      expect(result.data[1].script_content).toBe('// all queries script');
     });
 
     it('should return all queries with status filter', async () => {
       const mockQueries = [{ id: 'q1', status: 'PENDING', submission_type: 'QUERY' }];
       (QueryRepository.findAllWithStatus as jest.Mock).mockResolvedValue(mockQueries);
+      (QueryRepository.countAll as jest.Mock).mockResolvedValue(1);
 
       const result = await QueryService.getAllQueries(['PENDING', 'APPROVED']);
 
-      expect(QueryRepository.findAllWithStatus).toHaveBeenCalledWith(['PENDING', 'APPROVED'], undefined);
-      expect(result).toHaveLength(1);
+      expect(QueryRepository.findAllWithStatus).toHaveBeenCalledWith(['PENDING', 'APPROVED'], undefined, undefined);
+      expect(result.data).toHaveLength(1);
     });
 
     it('should return all queries with type filter', async () => {
       (QueryRepository.findAllWithStatus as jest.Mock).mockResolvedValue([]);
+      (QueryRepository.countAll as jest.Mock).mockResolvedValue(0);
 
       await QueryService.getAllQueries(undefined, 'MONGODB');
 
-      expect(QueryRepository.findAllWithStatus).toHaveBeenCalledWith(undefined, 'MONGODB');
+      expect(QueryRepository.findAllWithStatus).toHaveBeenCalledWith(undefined, 'MONGODB', undefined);
+    });
+
+    it('should return queries with pagination options', async () => {
+      (QueryRepository.findAllWithStatus as jest.Mock).mockResolvedValue([{ id: 'q1' }]);
+      (QueryRepository.countAll as jest.Mock).mockResolvedValue(100);
+
+      const result = await QueryService.getAllQueries(undefined, undefined, { limit: 10, offset: 0 });
+
+      expect(QueryRepository.findAllWithStatus).toHaveBeenCalledWith(undefined, undefined, { limit: 10, offset: 0 });
+      expect(result.pagination).toEqual({ total: 100, limit: 10, offset: 0, hasMore: true });
     });
   });
 });

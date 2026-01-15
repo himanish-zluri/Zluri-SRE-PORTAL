@@ -1,6 +1,7 @@
 import { Response, NextFunction } from 'express';
 import { requireAuth, requireRole, AuthenticatedRequest } from '../../../src/middlewares/auth.middleware';
 import { UserRepository } from '../../../src/modules/users/user.repository';
+import { UnauthorizedError, ForbiddenError } from '../../../src/errors';
 import jwt from 'jsonwebtoken';
 
 jest.mock('../../../src/modules/users/user.repository');
@@ -9,17 +10,10 @@ jest.mock('jsonwebtoken');
 describe('Auth Middleware', () => {
   let mockRequest: Partial<AuthenticatedRequest>;
   let mockResponse: Partial<Response>;
-  let nextFunction: NextFunction;
-  let jsonMock: jest.Mock;
-  let statusMock: jest.Mock;
+  let nextFunction: jest.Mock;
 
   beforeEach(() => {
-    jsonMock = jest.fn();
-    statusMock = jest.fn().mockReturnValue({ json: jsonMock });
-    mockResponse = {
-      status: statusMock,
-      json: jsonMock
-    };
+    mockResponse = {};
     nextFunction = jest.fn();
     jest.clearAllMocks();
   });
@@ -37,7 +31,7 @@ describe('Auth Middleware', () => {
 
       await requireAuth(mockRequest as AuthenticatedRequest, mockResponse as Response, nextFunction);
 
-      expect(nextFunction).toHaveBeenCalled();
+      expect(nextFunction).toHaveBeenCalledWith();
       expect(mockRequest.user).toEqual({
         id: 'user-123',
         email: 'test@example.com',
@@ -45,28 +39,27 @@ describe('Auth Middleware', () => {
       });
     });
 
-    it('should return 401 when no authorization header', async () => {
+    it('should call next with UnauthorizedError when no authorization header', async () => {
       mockRequest = { headers: {} };
 
       await requireAuth(mockRequest as AuthenticatedRequest, mockResponse as Response, nextFunction);
 
-      expect(statusMock).toHaveBeenCalledWith(401);
-      expect(jsonMock).toHaveBeenCalledWith({ message: 'Unauthorized' });
-      expect(nextFunction).not.toHaveBeenCalled();
+      expect(nextFunction).toHaveBeenCalledWith(expect.any(UnauthorizedError));
+      const error = nextFunction.mock.calls[0][0];
+      expect(error.message).toBe('Missing or invalid authorization header');
     });
 
-    it('should return 401 when token does not start with Bearer', async () => {
+    it('should call next with UnauthorizedError when token does not start with Bearer', async () => {
       mockRequest = {
         headers: { authorization: 'Basic some-token' }
       };
 
       await requireAuth(mockRequest as AuthenticatedRequest, mockResponse as Response, nextFunction);
 
-      expect(statusMock).toHaveBeenCalledWith(401);
-      expect(jsonMock).toHaveBeenCalledWith({ message: 'Unauthorized' });
+      expect(nextFunction).toHaveBeenCalledWith(expect.any(UnauthorizedError));
     });
 
-    it('should return 401 when user not found', async () => {
+    it('should call next with UnauthorizedError when user not found', async () => {
       mockRequest = {
         headers: { authorization: 'Bearer valid-token' }
       };
@@ -76,11 +69,12 @@ describe('Auth Middleware', () => {
 
       await requireAuth(mockRequest as AuthenticatedRequest, mockResponse as Response, nextFunction);
 
-      expect(statusMock).toHaveBeenCalledWith(401);
-      expect(jsonMock).toHaveBeenCalledWith({ message: 'Unauthorized' });
+      expect(nextFunction).toHaveBeenCalledWith(expect.any(UnauthorizedError));
+      const error = nextFunction.mock.calls[0][0];
+      expect(error.message).toBe('User not found');
     });
 
-    it('should return 401 when token is invalid', async () => {
+    it('should call next with UnauthorizedError when token is invalid', async () => {
       mockRequest = {
         headers: { authorization: 'Bearer invalid-token' }
       };
@@ -91,11 +85,12 @@ describe('Auth Middleware', () => {
 
       await requireAuth(mockRequest as AuthenticatedRequest, mockResponse as Response, nextFunction);
 
-      expect(statusMock).toHaveBeenCalledWith(401);
-      expect(jsonMock).toHaveBeenCalledWith({ message: 'Unauthorized' });
+      expect(nextFunction).toHaveBeenCalledWith(expect.any(UnauthorizedError));
+      const error = nextFunction.mock.calls[0][0];
+      expect(error.message).toBe('Invalid or expired token');
     });
 
-    it('should return 401 when JWT_SECRET is not defined', async () => {
+    it('should call next with UnauthorizedError when JWT_SECRET is not defined', async () => {
       const originalSecret = process.env.JWT_SECRET;
       delete process.env.JWT_SECRET;
 
@@ -103,14 +98,13 @@ describe('Auth Middleware', () => {
         headers: { authorization: 'Bearer some-token' }
       };
 
-      // jwt.verify will throw because getJwtSecret throws
       (jwt.verify as jest.Mock).mockImplementation(() => {
         throw new Error('JWT_SECRET is not defined');
       });
 
       await requireAuth(mockRequest as AuthenticatedRequest, mockResponse as Response, nextFunction);
 
-      expect(statusMock).toHaveBeenCalledWith(401);
+      expect(nextFunction).toHaveBeenCalledWith(expect.any(UnauthorizedError));
       
       process.env.JWT_SECRET = originalSecret;
     });
@@ -125,20 +119,19 @@ describe('Auth Middleware', () => {
       const middleware = requireRole(['MANAGER', 'ADMIN']);
       middleware(mockRequest as AuthenticatedRequest, mockResponse as Response, nextFunction);
 
-      expect(nextFunction).toHaveBeenCalled();
+      expect(nextFunction).toHaveBeenCalledWith();
     });
 
-    it('should return 401 when no user on request', () => {
+    it('should call next with UnauthorizedError when no user on request', () => {
       mockRequest = {};
 
       const middleware = requireRole(['MANAGER']);
       middleware(mockRequest as AuthenticatedRequest, mockResponse as Response, nextFunction);
 
-      expect(statusMock).toHaveBeenCalledWith(401);
-      expect(jsonMock).toHaveBeenCalledWith({ message: 'Unauthorized' });
+      expect(nextFunction).toHaveBeenCalledWith(expect.any(UnauthorizedError));
     });
 
-    it('should return 403 when user role not allowed', () => {
+    it('should call next with ForbiddenError when user role not allowed', () => {
       mockRequest = {
         user: { id: '1', email: 'test@example.com', role: 'DEVELOPER' }
       };
@@ -146,8 +139,7 @@ describe('Auth Middleware', () => {
       const middleware = requireRole(['MANAGER', 'ADMIN']);
       middleware(mockRequest as AuthenticatedRequest, mockResponse as Response, nextFunction);
 
-      expect(statusMock).toHaveBeenCalledWith(403);
-      expect(jsonMock).toHaveBeenCalledWith({ message: 'Forbidden' });
+      expect(nextFunction).toHaveBeenCalledWith(expect.any(ForbiddenError));
     });
   });
 });

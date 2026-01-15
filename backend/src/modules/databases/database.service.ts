@@ -1,13 +1,14 @@
 import { Pool } from 'pg';
 import { MongoClient } from 'mongodb';
 import { DbInstanceRepository } from '../db-instances/dbInstance.repository';
+import { NotFoundError, BadRequestError } from '../../errors';
 
 export class DatabaseService {
   static async listDatabasesFromInstance(instanceId: string): Promise<string[]> {
     const instance = await DbInstanceRepository.findById(instanceId);
     
     if (!instance) {
-      throw new Error('Instance not found');
+      throw new NotFoundError('Instance not found');
     }
 
     if (instance.type === 'POSTGRES') {
@@ -15,7 +16,7 @@ export class DatabaseService {
     } else if (instance.type === 'MONGODB') {
       return this.listMongoDatabases(instance);
     } else {
-      throw new Error(`Unsupported database type: ${instance.type}`);
+      throw new BadRequestError(`Unsupported database type: ${instance.type}`);
     }
   }
 
@@ -26,7 +27,7 @@ export class DatabaseService {
     password?: string;
   }): Promise<string[]> {
     if (!instance.host || !instance.port || !instance.username || !instance.password) {
-      throw new Error('Postgres instance missing connection details');
+      throw new BadRequestError('Postgres instance missing connection details');
     }
 
     const pool = new Pool({
@@ -56,7 +57,7 @@ export class DatabaseService {
     mongo_uri?: string;
   }): Promise<string[]> {
     if (!instance.mongo_uri) {
-      throw new Error('MongoDB instance missing connection URI');
+      throw new BadRequestError('MongoDB instance missing connection URI');
     }
 
     const client = new MongoClient(instance.mongo_uri);

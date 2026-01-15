@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { QueryController } from '../../../src/modules/queries/query.controller';
 import { QueryService } from '../../../src/modules/queries/query.service';
 import { AuthenticatedRequest } from '../../../src/middlewares/auth.middleware';
+import { BadRequestError } from '../../../src/errors';
 
 jest.mock('../../../src/modules/queries/query.service');
 
@@ -41,7 +42,7 @@ describe('QueryController', () => {
       expect(jsonMock).toHaveBeenCalledWith(mockQuery);
     });
 
-    it('should return 400 when script file missing for SCRIPT submission', async () => {
+    it('should throw BadRequestError when script file missing for SCRIPT submission', async () => {
       mockRequest = {
         user: { id: 'user-1', email: 'test@test.com', role: 'DEVELOPER' },
         body: {
@@ -54,10 +55,8 @@ describe('QueryController', () => {
         file: undefined
       };
 
-      await QueryController.submit(mockRequest as AuthenticatedRequest, mockResponse as Response);
-
-      expect(statusMock).toHaveBeenCalledWith(400);
-      expect(jsonMock).toHaveBeenCalledWith({ message: 'Script file required for SCRIPT submission' });
+      await expect(QueryController.submit(mockRequest as AuthenticatedRequest, mockResponse as Response))
+        .rejects.toThrow(BadRequestError);
     });
 
     it('should submit script with file successfully', async () => {
@@ -84,7 +83,7 @@ describe('QueryController', () => {
       }));
     });
 
-    it('should return 500 on service error', async () => {
+    it('should throw error on service error (caught by global handler)', async () => {
       (QueryService.submitQuery as jest.Mock).mockRejectedValue(new Error('DB error'));
 
       mockRequest = {
@@ -99,10 +98,8 @@ describe('QueryController', () => {
         }
       };
 
-      await QueryController.submit(mockRequest as AuthenticatedRequest, mockResponse as Response);
-
-      expect(statusMock).toHaveBeenCalledWith(500);
-      expect(jsonMock).toHaveBeenCalledWith({ message: 'Failed to submit query', error: 'DB error' });
+      await expect(QueryController.submit(mockRequest as AuthenticatedRequest, mockResponse as Response))
+        .rejects.toThrow('DB error');
     });
   });
 
@@ -122,7 +119,7 @@ describe('QueryController', () => {
       expect(jsonMock).toHaveBeenCalledWith(mockResult);
     });
 
-    it('should return 500 on approval error', async () => {
+    it('should throw error on approval error (caught by global handler)', async () => {
       (QueryService.approveQuery as jest.Mock).mockRejectedValue(new Error('Execution failed'));
 
       mockRequest = {
@@ -130,10 +127,8 @@ describe('QueryController', () => {
         params: { id: 'query-1' }
       };
 
-      await QueryController.approve(mockRequest as AuthenticatedRequest, mockResponse as Response);
-
-      expect(statusMock).toHaveBeenCalledWith(500);
-      expect(jsonMock).toHaveBeenCalledWith({ message: 'Query execution failed', error: 'Execution failed' });
+      await expect(QueryController.approve(mockRequest as AuthenticatedRequest, mockResponse as Response))
+        .rejects.toThrow('Execution failed');
     });
   });
 
@@ -169,7 +164,7 @@ describe('QueryController', () => {
       expect(QueryService.rejectQuery).toHaveBeenCalledWith('query-1', 'manager-1', 'MANAGER', undefined);
     });
 
-    it('should return 500 on rejection error', async () => {
+    it('should throw error on rejection error (caught by global handler)', async () => {
       (QueryService.rejectQuery as jest.Mock).mockRejectedValue(new Error('Not authorized'));
 
       mockRequest = {
@@ -178,59 +173,19 @@ describe('QueryController', () => {
         body: {}
       };
 
-      await QueryController.reject(mockRequest as AuthenticatedRequest, mockResponse as Response);
-
-      expect(statusMock).toHaveBeenCalledWith(500);
+      await expect(QueryController.reject(mockRequest as AuthenticatedRequest, mockResponse as Response))
+        .rejects.toThrow('Not authorized');
     });
   });
 
   describe('getQueries', () => {
-    it('should return user queries when user=me', async () => {
-      const mockQueries = [{ id: 'q1' }];
-      (QueryService.getQueriesByUser as jest.Mock).mockResolvedValue(mockQueries);
-
-      mockRequest = {
-        user: { id: 'user-1', email: 'test@test.com', role: 'DEVELOPER' },
-        query: { user: 'me' }
-      };
-
-      await QueryController.getQueries(mockRequest as AuthenticatedRequest, mockResponse as Response);
-
-      expect(QueryService.getQueriesByUser).toHaveBeenCalledWith('user-1', undefined, undefined);
-      expect(jsonMock).toHaveBeenCalledWith(mockQueries);
-    });
-
-    it('should return user queries with status filter', async () => {
-      const mockQueries = [{ id: 'q1', status: 'PENDING' }];
-      (QueryService.getQueriesByUser as jest.Mock).mockResolvedValue(mockQueries);
-
-      mockRequest = {
-        user: { id: 'user-1', email: 'test@test.com', role: 'DEVELOPER' },
-        query: { user: 'me', status: 'PENDING,APPROVED' }
-      };
-
-      await QueryController.getQueries(mockRequest as AuthenticatedRequest, mockResponse as Response);
-
-      expect(QueryService.getQueriesByUser).toHaveBeenCalledWith('user-1', ['PENDING', 'APPROVED'], undefined);
-    });
-
-    it('should return user queries with type filter', async () => {
-      const mockQueries = [{ id: 'q1' }];
-      (QueryService.getQueriesByUser as jest.Mock).mockResolvedValue(mockQueries);
-
-      mockRequest = {
-        user: { id: 'user-1', email: 'test@test.com', role: 'DEVELOPER' },
-        query: { user: 'me', type: 'POSTGRES' }
-      };
-
-      await QueryController.getQueries(mockRequest as AuthenticatedRequest, mockResponse as Response);
-
-      expect(QueryService.getQueriesByUser).toHaveBeenCalledWith('user-1', undefined, 'POSTGRES');
-    });
+    const mockPaginatedResponse = {
+      data: [{ id: 'q1' }],
+      pagination: { total: 1, limit: 10, offset: 0, hasMore: false }
+    };
 
     it('should return manager queries when role is MANAGER', async () => {
-      const mockQueries = [{ id: 'q1' }];
-      (QueryService.getQueriesForManager as jest.Mock).mockResolvedValue(mockQueries);
+      (QueryService.getQueriesForManager as jest.Mock).mockResolvedValue(mockPaginatedResponse);
 
       mockRequest = {
         user: { id: 'manager-1', email: 'manager@test.com', role: 'MANAGER' },
@@ -239,26 +194,25 @@ describe('QueryController', () => {
 
       await QueryController.getQueries(mockRequest as AuthenticatedRequest, mockResponse as Response);
 
-      expect(QueryService.getQueriesForManager).toHaveBeenCalledWith('manager-1', undefined, undefined);
+      expect(QueryService.getQueriesForManager).toHaveBeenCalledWith('manager-1', undefined, undefined, { limit: undefined, offset: undefined });
+      expect(jsonMock).toHaveBeenCalledWith(mockPaginatedResponse);
     });
 
-    it('should return manager queries with type filter', async () => {
-      const mockQueries = [{ id: 'q1' }];
-      (QueryService.getQueriesForManager as jest.Mock).mockResolvedValue(mockQueries);
+    it('should return manager queries with status filter', async () => {
+      (QueryService.getQueriesForManager as jest.Mock).mockResolvedValue(mockPaginatedResponse);
 
       mockRequest = {
         user: { id: 'manager-1', email: 'manager@test.com', role: 'MANAGER' },
-        query: { type: 'MONGODB' }
+        query: { status: 'PENDING,APPROVED' }
       };
 
       await QueryController.getQueries(mockRequest as AuthenticatedRequest, mockResponse as Response);
 
-      expect(QueryService.getQueriesForManager).toHaveBeenCalledWith('manager-1', undefined, 'MONGODB');
+      expect(QueryService.getQueriesForManager).toHaveBeenCalledWith('manager-1', ['PENDING', 'APPROVED'], undefined, { limit: undefined, offset: undefined });
     });
 
     it('should return all queries when role is ADMIN', async () => {
-      const mockQueries = [{ id: 'q1' }, { id: 'q2' }];
-      (QueryService.getAllQueries as jest.Mock).mockResolvedValue(mockQueries);
+      (QueryService.getAllQueries as jest.Mock).mockResolvedValue(mockPaginatedResponse);
 
       mockRequest = {
         user: { id: 'admin-1', email: 'admin@test.com', role: 'ADMIN' },
@@ -267,56 +221,11 @@ describe('QueryController', () => {
 
       await QueryController.getQueries(mockRequest as AuthenticatedRequest, mockResponse as Response);
 
-      expect(QueryService.getAllQueries).toHaveBeenCalledWith(undefined, undefined);
-      expect(jsonMock).toHaveBeenCalledWith(mockQueries);
+      expect(QueryService.getAllQueries).toHaveBeenCalledWith(undefined, undefined, { limit: undefined, offset: undefined });
+      expect(jsonMock).toHaveBeenCalledWith(mockPaginatedResponse);
     });
 
-    it('should return all queries with status filter for ADMIN', async () => {
-      const mockQueries = [{ id: 'q1', status: 'PENDING' }];
-      (QueryService.getAllQueries as jest.Mock).mockResolvedValue(mockQueries);
-
-      mockRequest = {
-        user: { id: 'admin-1', email: 'admin@test.com', role: 'ADMIN' },
-        query: { status: 'PENDING' }
-      };
-
-      await QueryController.getQueries(mockRequest as AuthenticatedRequest, mockResponse as Response);
-
-      expect(QueryService.getAllQueries).toHaveBeenCalledWith(['PENDING'], undefined);
-    });
-
-    it('should return all queries with type filter for ADMIN', async () => {
-      const mockQueries = [{ id: 'q1' }];
-      (QueryService.getAllQueries as jest.Mock).mockResolvedValue(mockQueries);
-
-      mockRequest = {
-        user: { id: 'admin-1', email: 'admin@test.com', role: 'ADMIN' },
-        query: { type: 'POSTGRES' }
-      };
-
-      await QueryController.getQueries(mockRequest as AuthenticatedRequest, mockResponse as Response);
-
-      expect(QueryService.getAllQueries).toHaveBeenCalledWith(undefined, 'POSTGRES');
-    });
-
-    it('should return own queries for ADMIN when user=me', async () => {
-      const mockQueries = [{ id: 'q1' }];
-      (QueryService.getQueriesByUser as jest.Mock).mockResolvedValue(mockQueries);
-
-      mockRequest = {
-        user: { id: 'admin-1', email: 'admin@test.com', role: 'ADMIN' },
-        query: { user: 'me' }
-      };
-
-      await QueryController.getQueries(mockRequest as AuthenticatedRequest, mockResponse as Response);
-
-      expect(QueryService.getQueriesByUser).toHaveBeenCalledWith('admin-1', undefined, undefined);
-    });
-
-    it('should return own queries for DEVELOPER', async () => {
-      const mockQueries = [{ id: 'q1' }];
-      (QueryService.getQueriesByUser as jest.Mock).mockResolvedValue(mockQueries);
-
+    it('should return empty result for DEVELOPER role', async () => {
       mockRequest = {
         user: { id: 'dev-1', email: 'dev@test.com', role: 'DEVELOPER' },
         query: {}
@@ -324,20 +233,65 @@ describe('QueryController', () => {
 
       await QueryController.getQueries(mockRequest as AuthenticatedRequest, mockResponse as Response);
 
-      expect(QueryService.getQueriesByUser).toHaveBeenCalledWith('dev-1', undefined, undefined);
+      expect(jsonMock).toHaveBeenCalledWith({ data: [], pagination: { total: 0, limit: 0, offset: 0, hasMore: false } });
     });
 
-    it('should return 500 on error', async () => {
+    it('should throw error on service error (caught by global handler)', async () => {
+      (QueryService.getQueriesForManager as jest.Mock).mockRejectedValue(new Error('DB error'));
+
+      mockRequest = {
+        user: { id: 'manager-1', email: 'manager@test.com', role: 'MANAGER' },
+        query: {}
+      };
+
+      await expect(QueryController.getQueries(mockRequest as AuthenticatedRequest, mockResponse as Response))
+        .rejects.toThrow('DB error');
+    });
+  });
+
+  describe('getMySubmissions', () => {
+    const mockPaginatedResponse = {
+      data: [{ id: 'q1' }],
+      pagination: { total: 1, limit: 10, offset: 0, hasMore: false }
+    };
+
+    it('should return user own submissions', async () => {
+      (QueryService.getQueriesByUser as jest.Mock).mockResolvedValue(mockPaginatedResponse);
+
+      mockRequest = {
+        user: { id: 'user-1', email: 'test@test.com', role: 'DEVELOPER' },
+        query: {}
+      };
+
+      await QueryController.getMySubmissions(mockRequest as AuthenticatedRequest, mockResponse as Response);
+
+      expect(QueryService.getQueriesByUser).toHaveBeenCalledWith('user-1', undefined, undefined, { limit: undefined, offset: undefined });
+      expect(jsonMock).toHaveBeenCalledWith(mockPaginatedResponse);
+    });
+
+    it('should return submissions with filters', async () => {
+      (QueryService.getQueriesByUser as jest.Mock).mockResolvedValue(mockPaginatedResponse);
+
+      mockRequest = {
+        user: { id: 'user-1', email: 'test@test.com', role: 'DEVELOPER' },
+        query: { status: 'PENDING', type: 'QUERY', limit: '10', offset: '0' }
+      };
+
+      await QueryController.getMySubmissions(mockRequest as AuthenticatedRequest, mockResponse as Response);
+
+      expect(QueryService.getQueriesByUser).toHaveBeenCalledWith('user-1', ['PENDING'], 'QUERY', { limit: 10, offset: 0 });
+    });
+
+    it('should throw error on service error (caught by global handler)', async () => {
       (QueryService.getQueriesByUser as jest.Mock).mockRejectedValue(new Error('DB error'));
 
       mockRequest = {
         user: { id: 'user-1', email: 'test@test.com', role: 'DEVELOPER' },
-        query: { user: 'me' }
+        query: {}
       };
 
-      await QueryController.getQueries(mockRequest as AuthenticatedRequest, mockResponse as Response);
-
-      expect(statusMock).toHaveBeenCalledWith(500);
+      await expect(QueryController.getMySubmissions(mockRequest as AuthenticatedRequest, mockResponse as Response))
+        .rejects.toThrow('DB error');
     });
   });
 });

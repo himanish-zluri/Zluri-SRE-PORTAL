@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { PodsController } from '../../../src/modules/pods/pods.controller';
 import { PodsRepository } from '../../../src/modules/pods/pods.repository';
+import { NotFoundError } from '../../../src/errors';
 
 jest.mock('../../../src/modules/pods/pods.repository');
 
@@ -8,12 +9,10 @@ describe('PodsController', () => {
   let mockRequest: Partial<Request>;
   let mockResponse: Partial<Response>;
   let jsonMock: jest.Mock;
-  let statusMock: jest.Mock;
 
   beforeEach(() => {
     jsonMock = jest.fn();
-    statusMock = jest.fn().mockReturnValue({ json: jsonMock });
-    mockResponse = { json: jsonMock, status: statusMock };
+    mockResponse = { json: jsonMock };
     jest.clearAllMocks();
   });
 
@@ -45,15 +44,13 @@ describe('PodsController', () => {
       expect(jsonMock).toHaveBeenCalledWith(mockPod);
     });
 
-    it('should return 404 when pod not found', async () => {
+    it('should throw NotFoundError when pod not found', async () => {
       (PodsRepository.findById as jest.Mock).mockResolvedValue(null);
 
       mockRequest = { params: { id: 'invalid' } };
 
-      await PodsController.getPod(mockRequest as Request, mockResponse as Response);
-
-      expect(statusMock).toHaveBeenCalledWith(404);
-      expect(jsonMock).toHaveBeenCalledWith({ message: 'Pod not found' });
+      await expect(PodsController.getPod(mockRequest as Request, mockResponse as Response))
+        .rejects.toThrow(NotFoundError);
     });
   });
 });

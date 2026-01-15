@@ -6,6 +6,7 @@ import instanceRoutes from './modules/db-instances/dbInstance.routes';
 import databaseRoutes from './modules/databases/database.routes';
 import podsRoutes from './modules/pods/pods.routes';
 import auditRoutes from './modules/audit/audit.routes';
+import { globalErrorHandler, notFoundHandler } from './middlewares/errorHandler.middleware';
 
 const app = express();
 
@@ -19,5 +20,11 @@ app.use('/api/auth', authRoutes);
 app.use('/api/test', testRoutes);
 app.use('/api/queries', queryRoutes);
 app.use('/api/audit', auditRoutes);
+
+// 404 handler for undefined routes (must be after all routes)
+app.use(notFoundHandler);
+
+// Global error handler (must be last middleware)
+app.use(globalErrorHandler);
 
 export default app;

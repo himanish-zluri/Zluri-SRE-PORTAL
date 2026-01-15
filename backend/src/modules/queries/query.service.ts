@@ -1,11 +1,22 @@
-import { QueryRepository } from './query.repository';
+import { QueryRepository, PaginationOptions } from './query.repository';
 import { executePostgresQuery } from '../../execution/postgres-query.executor';
 import { executePostgresScriptSandboxed } from '../../execution/sandbox/executor';
 import { DbInstanceRepository } from '../db-instances/dbInstance.repository';
 import { executeMongoQuery } from '../../execution/mongo-query.executor';
 import { executeMongoScriptSandboxed } from '../../execution/sandbox/executor';
 import { AuditRepository } from '../audit/audit.repository';
+import { NotFoundError, ConflictError, BadRequestError, ForbiddenError } from '../../errors';
 import fs from 'fs';
+
+export interface PaginatedResponse<T> {
+  data: T[];
+  pagination: {
+    total: number;
+    limit: number;
+    offset: number;
+    hasMore: boolean;
+  };
+}
 
 // Helper to read script content safely
 function readScriptContent(scriptPath: string | null): string | null {
@@ -52,16 +63,16 @@ export class QueryService {
   static async approveQuery(queryId: string, managerId: string) {
     const query = await QueryRepository.findById(queryId);
     if (!query) {
-      throw new Error('Query not found');
+      throw new NotFoundError('Query not found');
     }
   
     if (query.status !== 'PENDING') {
-      throw new Error('Query already processed');
+      throw new ConflictError('Query already processed');
     }
   
     const instance = await DbInstanceRepository.findById(query.instance_id);
     if (!instance) {
-      throw new Error('DB instance not found');
+      throw new NotFoundError('DB instance not found');
     }
   
     try {
@@ -69,12 +80,12 @@ export class QueryService {
   
       if (instance.type === 'POSTGRES') {
         if (!instance.host || !instance.port || !instance.username || !instance.password) {
-          throw new Error('Postgres instance missing required connection details');
+          throw new BadRequestError('Postgres instance missing required connection details');
         }
         
         if (query.submission_type === 'SCRIPT') {
           if (!query.script_path) {
-            throw new Error('Postgres script path missing');
+            throw new BadRequestError('Postgres script path missing');
           }
   
           result = await executePostgresScriptSandboxed(
@@ -101,12 +112,12 @@ export class QueryService {
         }
       } else if (instance.type === 'MONGODB') {
         if (!instance.mongo_uri) {
-          throw new Error('Mongo URI not configured');
+          throw new BadRequestError('Mongo URI not configured');
         }
   
         if (query.submission_type === 'SCRIPT') {
           if (!query.script_path) {
-            throw new Error('Mongo script path missing');
+            throw new BadRequestError('Mongo script path missing');
           }
   
           result = await executeMongoScriptSandboxed(
@@ -122,7 +133,7 @@ export class QueryService {
           );
         }
       } else {
-        throw new Error(`Unsupported database type: ${instance.type}`);
+        throw new BadRequestError(`Unsupported database type: ${instance.type}`);
       }
   
       await QueryRepository.markExecuted(queryId, managerId, result);
@@ -155,7 +166,9 @@ export class QueryService {
   static async rejectQuery(queryId: string, managerId: string, userRole: string, reason?: string) {
     const query = await QueryRepository.findById(queryId);
 
-    if (!query) throw new Error('Query not found');
+    if (!query) {
+      throw new NotFoundError('Query not found');
+    }
 
     // ADMINs can reject any query, MANAGERs can only reject queries for their PODs
     if (userRole !== 'ADMIN') {
@@ -165,7 +178,7 @@ export class QueryService {
       );
 
       if (!ownsPod) {
-        throw new Error('Not authorized to reject this request');
+        throw new ForbiddenError('Not authorized to reject this request');
       }
     }
 
@@ -182,18 +195,77 @@ export class QueryService {
     return result;
   }
 
-  static async getQueriesByUser(userId: string, statusFilter?: string[], typeFilter?: string) {
-    const queries = await QueryRepository.findByRequesterWithStatus(userId, statusFilter, typeFilter);
-    return enrichWithScriptContent(queries);
+  static async getQueriesByUser(
+    userId: string, 
+    statusFilter?: string[], 
+    typeFilter?: string,
+    pagination?: PaginationOptions
+  ): Promise<PaginatedResponse<any>> {
+    const [queries, total] = await Promise.all([
+      QueryRepository.findByRequesterWithStatus(userId, statusFilter, typeFilter, pagination),
+      QueryRepository.countByRequester(userId, statusFilter, typeFilter)
+    ]);
+    
+    const limit = pagination?.limit ?? total;
+    const offset = pagination?.offset ?? 0;
+    
+    return {
+      data: enrichWithScriptContent(queries),
+      pagination: {
+        total,
+        limit,
+        offset,
+        hasMore: offset + queries.length < total
+      }
+    };
   }
 
-  static async getQueriesForManager(managerId: string, statusFilter?: string[], typeFilter?: string) {
-    const queries = await QueryRepository.findByManagerWithStatus(managerId, statusFilter, typeFilter);
-    return enrichWithScriptContent(queries);
+  static async getQueriesForManager(
+    managerId: string, 
+    statusFilter?: string[], 
+    typeFilter?: string,
+    pagination?: PaginationOptions
+  ): Promise<PaginatedResponse<any>> {
+    const [queries, total] = await Promise.all([
+      QueryRepository.findByManagerWithStatus(managerId, statusFilter, typeFilter, pagination),
+      QueryRepository.countByManager(managerId, statusFilter, typeFilter)
+    ]);
+    
+    const limit = pagination?.limit ?? total;
+    const offset = pagination?.offset ?? 0;
+    
+    return {
+      data: enrichWithScriptContent(queries),
+      pagination: {
+        total,
+        limit,
+        offset,
+        hasMore: offset + queries.length < total
+      }
+    };
   }
 
-  static async getAllQueries(statusFilter?: string[], typeFilter?: string) {
-    const queries = await QueryRepository.findAllWithStatus(statusFilter, typeFilter);
-    return enrichWithScriptContent(queries);
+  static async getAllQueries(
+    statusFilter?: string[], 
+    typeFilter?: string,
+    pagination?: PaginationOptions
+  ): Promise<PaginatedResponse<any>> {
+    const [queries, total] = await Promise.all([
+      QueryRepository.findAllWithStatus(statusFilter, typeFilter, pagination),
+      QueryRepository.countAll(statusFilter, typeFilter)
+    ]);
+    
+    const limit = pagination?.limit ?? total;
+    const offset = pagination?.offset ?? 0;
+    
+    return {
+      data: enrichWithScriptContent(queries),
+      pagination: {
+        total,
+        limit,
+        offset,
+        hasMore: offset + queries.length < total
+      }
+    };
   }
 }

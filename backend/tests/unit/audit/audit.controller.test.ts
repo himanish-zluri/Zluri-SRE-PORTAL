@@ -9,12 +9,10 @@ describe('AuditController', () => {
   let mockRequest: Partial<AuthenticatedRequest>;
   let mockResponse: Partial<Response>;
   let jsonMock: jest.Mock;
-  let statusMock: jest.Mock;
 
   beforeEach(() => {
     jsonMock = jest.fn();
-    statusMock = jest.fn().mockReturnValue({ json: jsonMock });
-    mockResponse = { json: jsonMock, status: statusMock };
+    mockResponse = { json: jsonMock };
     jest.clearAllMocks();
   });
 
@@ -96,7 +94,7 @@ describe('AuditController', () => {
       expect(jsonMock).toHaveBeenCalledWith(mockLogs);
     });
 
-    it('should return 500 on error', async () => {
+    it('should throw error on repository error (caught by global handler)', async () => {
       (AuditRepository.findAll as jest.Mock).mockRejectedValue(new Error('DB error'));
 
       mockRequest = {
@@ -104,10 +102,8 @@ describe('AuditController', () => {
         query: {}
       };
 
-      await AuditController.getAuditLogs(mockRequest as AuthenticatedRequest, mockResponse as Response);
-
-      expect(statusMock).toHaveBeenCalledWith(500);
-      expect(jsonMock).toHaveBeenCalledWith({ message: 'Failed to get audit logs', error: 'DB error' });
+      await expect(AuditController.getAuditLogs(mockRequest as AuthenticatedRequest, mockResponse as Response))
+        .rejects.toThrow('DB error');
     });
   });
 
@@ -130,7 +126,7 @@ describe('AuditController', () => {
       expect(jsonMock).toHaveBeenCalledWith(mockLogs);
     });
 
-    it('should return 500 on error', async () => {
+    it('should throw error on repository error (caught by global handler)', async () => {
       (AuditRepository.findByQueryId as jest.Mock).mockRejectedValue(new Error('DB error'));
 
       mockRequest = {
@@ -138,10 +134,8 @@ describe('AuditController', () => {
         params: { queryId: 'query-1' }
       };
 
-      await AuditController.getAuditLogsByQuery(mockRequest as AuthenticatedRequest, mockResponse as Response);
-
-      expect(statusMock).toHaveBeenCalledWith(500);
-      expect(jsonMock).toHaveBeenCalledWith({ message: 'Failed to get audit logs', error: 'DB error' });
+      await expect(AuditController.getAuditLogsByQuery(mockRequest as AuthenticatedRequest, mockResponse as Response))
+        .rejects.toThrow('DB error');
     });
   });
 });

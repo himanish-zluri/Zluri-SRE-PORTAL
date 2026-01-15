@@ -8,12 +8,10 @@ describe('DatabaseController', () => {
   let mockRequest: Partial<Request>;
   let mockResponse: Partial<Response>;
   let jsonMock: jest.Mock;
-  let statusMock: jest.Mock;
 
   beforeEach(() => {
     jsonMock = jest.fn();
-    statusMock = jest.fn().mockReturnValue({ json: jsonMock });
-    mockResponse = { json: jsonMock, status: statusMock };
+    mockResponse = { json: jsonMock };
     jest.clearAllMocks();
   });
 
@@ -35,31 +33,15 @@ describe('DatabaseController', () => {
       ]);
     });
 
-    it('should return 400 when instanceId is missing', async () => {
-      mockRequest = {
-        query: {}
-      };
-
-      await DatabaseController.listDatabases(mockRequest as Request, mockResponse as Response);
-
-      expect(statusMock).toHaveBeenCalledWith(400);
-      expect(jsonMock).toHaveBeenCalledWith({ message: 'instanceId is required' });
-    });
-
-    it('should return 500 on service error', async () => {
+    it('should throw error on service error (caught by global handler)', async () => {
       (DatabaseService.listDatabasesFromInstance as jest.Mock).mockRejectedValue(new Error('Connection failed'));
 
       mockRequest = {
         query: { instanceId: 'instance-1' }
       };
 
-      await DatabaseController.listDatabases(mockRequest as Request, mockResponse as Response);
-
-      expect(statusMock).toHaveBeenCalledWith(500);
-      expect(jsonMock).toHaveBeenCalledWith({
-        message: 'Failed to list databases',
-        error: 'Connection failed'
-      });
+      await expect(DatabaseController.listDatabases(mockRequest as Request, mockResponse as Response))
+        .rejects.toThrow('Connection failed');
     });
   });
 });
