@@ -22,12 +22,13 @@ describe('AuthService', () => {
     process.env = originalEnv;
   });
 
+  // Mock user entity with camelCase properties
   const mockUser = {
     id: 'user-123',
     email: 'test@example.com',
     name: 'Test User',
     role: 'DEVELOPER',
-    password_hash: 'hashed_password'
+    passwordHash: 'hashed_password'
   };
 
   describe('login', () => {
@@ -70,9 +71,9 @@ describe('AuthService', () => {
 
   describe('refresh', () => {
     it('should return new accessToken on valid refresh token', async () => {
-      const tokenRecord = { user_id: 'user-123' };
+      // Token record with populated user relation
+      const tokenRecord = { user: mockUser };
       (RefreshTokenRepository.findByToken as jest.Mock).mockResolvedValue(tokenRecord);
-      (UserRepository.findById as jest.Mock).mockResolvedValue(mockUser);
       (jwt.sign as jest.Mock).mockReturnValue('new-access-token');
 
       const result = await AuthService.refresh('valid-refresh-token');
@@ -89,8 +90,8 @@ describe('AuthService', () => {
     });
 
     it('should throw error when user not found', async () => {
-      (RefreshTokenRepository.findByToken as jest.Mock).mockResolvedValue({ user_id: 'user-123' });
-      (UserRepository.findById as jest.Mock).mockResolvedValue(null);
+      // Token record with null user (not populated or deleted)
+      (RefreshTokenRepository.findByToken as jest.Mock).mockResolvedValue({ user: null });
 
       await expect(AuthService.refresh('valid-token'))
         .rejects.toThrow('User not found');

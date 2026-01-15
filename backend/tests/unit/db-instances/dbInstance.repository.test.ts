@@ -1,11 +1,5 @@
 import { DbInstanceRepository } from '../../../src/modules/db-instances/dbInstance.repository';
-import { pool } from '../../../src/config/db';
-
-jest.mock('../../../src/config/db', () => ({
-  pool: {
-    query: jest.fn()
-  }
-}));
+import { mockEntityManager } from '../../__mocks__/database';
 
 jest.mock('../../../src/utils/crypto', () => ({
   decrypt: jest.fn((val) => `decrypted_${val}`)
@@ -17,33 +11,34 @@ describe('DbInstanceRepository', () => {
   });
 
   describe('findById', () => {
-    it('should return instance with decrypted credentials', async () => {
+    it('should return instance with decrypted credentials (except username)', async () => {
       const mockInstance = {
         id: 'inst-1',
         name: 'pg-instance',
         type: 'POSTGRES',
         host: 'localhost',
         port: 5432,
-        username: 'encrypted_user',
-        password: 'encrypted_pass'
+        username: 'plain_user',
+        password: 'encrypted_pass',
+        createdAt: new Date()
       };
-      (pool.query as jest.Mock).mockResolvedValue({ rows: [mockInstance] });
+      mockEntityManager.findOne.mockResolvedValue(mockInstance);
 
       const result = await DbInstanceRepository.findById('inst-1');
 
-      expect(pool.query).toHaveBeenCalledWith(
-        expect.stringContaining('WHERE id = $1'),
-        ['inst-1']
+      expect(mockEntityManager.findOne).toHaveBeenCalledWith(
+        expect.any(Function),
+        { id: 'inst-1' }
       );
       expect(result).toEqual(expect.objectContaining({
         id: 'inst-1',
-        username: 'decrypted_encrypted_user',
+        username: 'plain_user', // Username is not decrypted
         password: 'decrypted_encrypted_pass'
       }));
     });
 
     it('should return null when instance not found', async () => {
-      (pool.query as jest.Mock).mockResolvedValue({ rows: [] });
+      mockEntityManager.findOne.mockResolvedValue(null);
 
       const result = await DbInstanceRepository.findById('invalid-id');
 
@@ -55,9 +50,10 @@ describe('DbInstanceRepository', () => {
         id: 'inst-2',
         name: 'mongo-instance',
         type: 'MONGODB',
-        mongo_uri: 'encrypted_uri'
+        mongoUri: 'encrypted_uri',
+        createdAt: new Date()
       };
-      (pool.query as jest.Mock).mockResolvedValue({ rows: [mockInstance] });
+      mockEntityManager.findOne.mockResolvedValue(mockInstance);
 
       const result = await DbInstanceRepository.findById('inst-2');
 
@@ -70,13 +66,14 @@ describe('DbInstanceRepository', () => {
         name: 'instance',
         type: 'POSTGRES',
         username: null,
-        password: null
+        password: null,
+        createdAt: new Date()
       };
-      (pool.query as jest.Mock).mockResolvedValue({ rows: [mockInstance] });
+      mockEntityManager.findOne.mockResolvedValue(mockInstance);
 
       const result = await DbInstanceRepository.findById('inst-1');
 
-      expect(result?.username).toBeUndefined();
+      expect(result?.username).toBeNull();
       expect(result?.password).toBeUndefined();
     });
   });
@@ -87,13 +84,17 @@ describe('DbInstanceRepository', () => {
         { id: 'inst-1', name: 'pg-1', type: 'POSTGRES' },
         { id: 'inst-2', name: 'pg-2', type: 'POSTGRES' }
       ];
-      (pool.query as jest.Mock).mockResolvedValue({ rows: mockInstances });
+      mockEntityManager.find.mockResolvedValue(mockInstances);
 
       const result = await DbInstanceRepository.findByType('POSTGRES');
 
-      expect(pool.query).toHaveBeenCalledWith(
-        expect.stringContaining('WHERE type = $1'),
-        ['POSTGRES']
+      expect(mockEntityManager.find).toHaveBeenCalledWith(
+        expect.any(Function),
+        { type: 'POSTGRES' },
+        expect.objectContaining({
+          fields: ['id', 'name', 'type'],
+          orderBy: { name: 'ASC' }
+        })
       );
       expect(result).toEqual(mockInstances);
     });
@@ -105,11 +106,18 @@ describe('DbInstanceRepository', () => {
         { id: 'inst-1', name: 'pg-instance', type: 'POSTGRES' },
         { id: 'inst-2', name: 'mongo-instance', type: 'MONGODB' }
       ];
-      (pool.query as jest.Mock).mockResolvedValue({ rows: mockInstances });
+      mockEntityManager.find.mockResolvedValue(mockInstances);
 
       const result = await DbInstanceRepository.findAll();
 
-      expect(pool.query).toHaveBeenCalledWith(expect.stringContaining('SELECT'));
+      expect(mockEntityManager.find).toHaveBeenCalledWith(
+        expect.any(Function),
+        {},
+        expect.objectContaining({
+          fields: ['id', 'name', 'type'],
+          orderBy: { name: 'ASC' }
+        })
+      );
       expect(result).toEqual(mockInstances);
     });
   });

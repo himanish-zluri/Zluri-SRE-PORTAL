@@ -14,10 +14,7 @@ export interface AuthResponse {
 export interface DbInstance {
   id: string;
   name: string;
-  host?: string;
-  port?: number;
   type: 'POSTGRES' | 'MONGODB';
-  created_at: string;
 }
 
 export interface Pod {

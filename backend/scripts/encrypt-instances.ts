@@ -19,12 +19,12 @@ async function encryptExistingInstances() {
     const values: any[] = [];
     let paramIndex = 1;
 
-    // Check if already encrypted (encrypted values contain colons)
-    if (row.username && !row.username.includes(':')) {
-      updates.push(`username = $${paramIndex++}`);
-      values.push(encrypt(row.username));
-      console.log(`Encrypting username for instance: ${row.name}`);
-    }
+    // Don't encrypt username - keep it as plain text
+    // if (row.username && !row.username.includes(':')) {
+    //   updates.push(`username = $${paramIndex++}`);
+    //   values.push(encrypt(row.username));
+    //   console.log(`Encrypting username for instance: ${row.name}`);
+    // }
 
     if (row.password && !row.password.includes(':')) {
       updates.push(`password = $${paramIndex++}`);

@@ -7,20 +7,32 @@ import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { ResultDisplay } from '../components/ui/ResultDisplay';
 
+const ITEMS_PER_PAGE = 10;
+
 export function MySubmissionsPage() {
   const navigate = useNavigate();
   const [queries, setQueries] = useState<Query[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedQuery, setSelectedQuery] = useState<Query | null>(null);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
 
   useEffect(() => {
     loadQueries();
-  }, []);
+  }, [currentPage]);
 
   const loadQueries = async () => {
+    setIsLoading(true);
     try {
-      const response = await queriesApi.getAll({ user: 'me' });
-      setQueries(response.data);
+      const offset = (currentPage - 1) * ITEMS_PER_PAGE;
+      const response = await queriesApi.getMySubmissions({ 
+        limit: ITEMS_PER_PAGE, 
+        offset 
+      });
+      setQueries(response.data.data);
+      setTotalItems(response.data.pagination.total);
     } catch (error) {
       console.error('Failed to load queries:', error);
     } finally {
@@ -54,6 +66,8 @@ export function MySubmissionsPage() {
     if (text.length <= maxLength) return text;
     return text.substring(0, maxLength) + '...';
   };
+
+  const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
 
   if (isLoading) {
     return (
@@ -134,6 +148,34 @@ export function MySubmissionsPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between mt-4">
+          <span className="text-sm text-gray-500 dark:text-gray-400">
+            Showing {((currentPage - 1) * ITEMS_PER_PAGE) + 1} - {Math.min(currentPage * ITEMS_PER_PAGE, totalItems)} of {totalItems}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+            >
+              &lt; Prev
+            </button>
+            <span className="text-sm text-gray-700 dark:text-gray-300">
+              Page {currentPage} of {totalPages}
+            </span>
+            <button
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+            >
+              Next &gt;
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Legend */}
       <div className="mt-4 flex flex-wrap gap-4 text-sm text-gray-500 dark:text-gray-400">

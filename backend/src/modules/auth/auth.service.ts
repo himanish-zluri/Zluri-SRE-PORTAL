@@ -36,7 +36,7 @@ export class AuthService {
       throw new UnauthorizedError('Invalid email or password');
     }
 
-    const passwordMatch = await bcrypt.compare(password, user.password_hash);
+    const passwordMatch = await bcrypt.compare(password, user.passwordHash);
 
     if (!passwordMatch) {
       throw new UnauthorizedError('Invalid email or password');
@@ -69,7 +69,7 @@ export class AuthService {
       throw new UnauthorizedError('Invalid or expired refresh token');
     }
 
-    const user = await UserRepository.findById(tokenRecord.user_id);
+    const user = tokenRecord.user;
     
     if (!user) {
       throw new NotFoundError('User not found');

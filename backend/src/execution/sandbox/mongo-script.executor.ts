@@ -13,7 +13,7 @@ interface RunnerConfig {
   databaseName: string;
 }
 
-async function run() {
+export async function run() {
   // Parse config from command line argument
   const configJson = process.argv[2];
   if (!configJson) {
@@ -84,7 +84,16 @@ async function run() {
   }
 }
 
-run().catch(err => {
+export function handleStartupError(err: Error) {
   process.stderr.write(JSON.stringify({ error: err.message }));
   process.exit(1);
-});
+}
+
+export function main() {
+  run().catch(handleStartupError);
+}
+
+// Only run when executed directly (not when imported for testing)
+if (require.main === module) {
+  main();
+}

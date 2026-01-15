@@ -1,11 +1,5 @@
 import { AuditRepository } from '../../../src/modules/audit/audit.repository';
-import { pool } from '../../../src/config/db';
-
-jest.mock('../../../src/config/db', () => ({
-  pool: {
-    query: jest.fn()
-  }
-}));
+import { mockEntityManager } from '../../__mocks__/database';
 
 describe('AuditRepository', () => {
   beforeEach(() => {
@@ -14,26 +8,31 @@ describe('AuditRepository', () => {
 
   describe('log', () => {
     it('should insert audit log entry', async () => {
-      const mockResult = { rows: [{ id: 'log-1', action: 'SUBMITTED' }] };
-      (pool.query as jest.Mock).mockResolvedValue(mockResult);
+      const mockQueryRequest = { id: 'query-1' };
+      const mockUser = { id: 'user-1', name: 'User One' };
+      mockEntityManager.findOneOrFail
+        .mockResolvedValueOnce(mockQueryRequest)
+        .mockResolvedValueOnce(mockUser);
+      mockEntityManager.persistAndFlush.mockResolvedValue(undefined);
 
-      const result = await AuditRepository.log({
+      await AuditRepository.log({
         queryRequestId: 'query-1',
         action: 'SUBMITTED',
         performedBy: 'user-1',
         details: { podId: 'pod-a' }
       });
 
-      expect(pool.query).toHaveBeenCalledWith(
-        expect.stringContaining('INSERT INTO query_audit_log'),
-        ['query-1', 'SUBMITTED', 'user-1', '{"podId":"pod-a"}']
-      );
-      expect(result).toEqual(mockResult.rows[0]);
+      expect(mockEntityManager.findOneOrFail).toHaveBeenCalledTimes(2);
+      expect(mockEntityManager.persistAndFlush).toHaveBeenCalled();
     });
 
     it('should insert audit log without details', async () => {
-      const mockResult = { rows: [{ id: 'log-1' }] };
-      (pool.query as jest.Mock).mockResolvedValue(mockResult);
+      const mockQueryRequest = { id: 'query-1' };
+      const mockUser = { id: 'manager-1' };
+      mockEntityManager.findOneOrFail
+        .mockResolvedValueOnce(mockQueryRequest)
+        .mockResolvedValueOnce(mockUser);
+      mockEntityManager.persistAndFlush.mockResolvedValue(undefined);
 
       await AuditRepository.log({
         queryRequestId: 'query-1',
@@ -41,26 +40,27 @@ describe('AuditRepository', () => {
         performedBy: 'manager-1'
       });
 
-      expect(pool.query).toHaveBeenCalledWith(
-        expect.any(String),
-        ['query-1', 'APPROVED', 'manager-1', '{}']
-      );
+      expect(mockEntityManager.persistAndFlush).toHaveBeenCalled();
     });
   });
 
   describe('findByQueryId', () => {
     it('should return audit logs for a query', async () => {
       const mockLogs = [
-        { id: 'log-1', action: 'SUBMITTED', performed_by_name: 'User 1' },
-        { id: 'log-2', action: 'EXECUTED', performed_by_name: 'Manager 1' }
+        { id: 'log-1', action: 'SUBMITTED', performedBy: { name: 'User 1' } },
+        { id: 'log-2', action: 'EXECUTED', performedBy: { name: 'Manager 1' } }
       ];
-      (pool.query as jest.Mock).mockResolvedValue({ rows: mockLogs });
+      mockEntityManager.find.mockResolvedValue(mockLogs);
 
       const result = await AuditRepository.findByQueryId('query-1');
 
-      expect(pool.query).toHaveBeenCalledWith(
-        expect.stringContaining('WHERE qal.query_request_id = $1'),
-        ['query-1']
+      expect(mockEntityManager.find).toHaveBeenCalledWith(
+        expect.any(Function),
+        { queryRequest: 'query-1' },
+        expect.objectContaining({
+          populate: ['performedBy'],
+          orderBy: { createdAt: 'ASC' }
+        })
       );
       expect(result).toEqual(mockLogs);
     });
@@ -69,29 +69,39 @@ describe('AuditRepository', () => {
   describe('findByUserId', () => {
     it('should return audit logs for a specific user', async () => {
       const mockLogs = [
-        { id: 'log-1', action: 'SUBMITTED', performed_by: 'user-1', performed_by_name: 'User One' },
-        { id: 'log-2', action: 'APPROVED', performed_by: 'user-1', performed_by_name: 'User One' }
+        { id: 'log-1', action: 'SUBMITTED', performedBy: { id: 'user-1', name: 'User One' } },
+        { id: 'log-2', action: 'APPROVED', performedBy: { id: 'user-1', name: 'User One' } }
       ];
-      (pool.query as jest.Mock).mockResolvedValue({ rows: mockLogs });
+      mockEntityManager.find.mockResolvedValue(mockLogs);
 
       const result = await AuditRepository.findByUserId('user-1');
 
-      expect(pool.query).toHaveBeenCalledWith(
-        expect.stringContaining('WHERE qal.performed_by = $1'),
-        ['user-1', 100, 0]
+      expect(mockEntityManager.find).toHaveBeenCalledWith(
+        expect.any(Function),
+        { performedBy: 'user-1' },
+        expect.objectContaining({
+          populate: ['performedBy', 'queryRequest'],
+          orderBy: { createdAt: 'DESC' },
+          limit: 100,
+          offset: 0
+        })
       );
       expect(result).toEqual(mockLogs);
     });
 
     it('should return audit logs with custom pagination', async () => {
       const mockLogs = [{ id: 'log-1' }];
-      (pool.query as jest.Mock).mockResolvedValue({ rows: mockLogs });
+      mockEntityManager.find.mockResolvedValue(mockLogs);
 
       const result = await AuditRepository.findByUserId('user-1', 50, 10);
 
-      expect(pool.query).toHaveBeenCalledWith(
-        expect.stringContaining('LIMIT $2 OFFSET $3'),
-        ['user-1', 50, 10]
+      expect(mockEntityManager.find).toHaveBeenCalledWith(
+        expect.any(Function),
+        { performedBy: 'user-1' },
+        expect.objectContaining({
+          limit: 50,
+          offset: 10
+        })
       );
       expect(result).toEqual(mockLogs);
     });
@@ -100,25 +110,33 @@ describe('AuditRepository', () => {
   describe('findAll', () => {
     it('should return all audit logs with pagination', async () => {
       const mockLogs = [{ id: 'log-1' }, { id: 'log-2' }];
-      (pool.query as jest.Mock).mockResolvedValue({ rows: mockLogs });
+      mockEntityManager.find.mockResolvedValue(mockLogs);
 
       const result = await AuditRepository.findAll(50, 10);
 
-      expect(pool.query).toHaveBeenCalledWith(
-        expect.stringContaining('LIMIT $1 OFFSET $2'),
-        [50, 10]
+      expect(mockEntityManager.find).toHaveBeenCalledWith(
+        expect.any(Function),
+        {},
+        expect.objectContaining({
+          limit: 50,
+          offset: 10
+        })
       );
       expect(result).toEqual(mockLogs);
     });
 
     it('should use default pagination values', async () => {
-      (pool.query as jest.Mock).mockResolvedValue({ rows: [] });
+      mockEntityManager.find.mockResolvedValue([]);
 
       await AuditRepository.findAll();
 
-      expect(pool.query).toHaveBeenCalledWith(
-        expect.any(String),
-        [100, 0]
+      expect(mockEntityManager.find).toHaveBeenCalledWith(
+        expect.any(Function),
+        {},
+        expect.objectContaining({
+          limit: 100,
+          offset: 0
+        })
       );
     });
   });
@@ -126,29 +144,37 @@ describe('AuditRepository', () => {
   describe('findByDatabaseName', () => {
     it('should return audit logs for a specific database', async () => {
       const mockLogs = [
-        { id: 'log-1', action: 'SUBMITTED', database_name: 'production_db' },
-        { id: 'log-2', action: 'EXECUTED', database_name: 'production_db' }
+        { id: 'log-1', action: 'SUBMITTED', queryRequest: { databaseName: 'production_db' } },
+        { id: 'log-2', action: 'EXECUTED', queryRequest: { databaseName: 'production_db' } }
       ];
-      (pool.query as jest.Mock).mockResolvedValue({ rows: mockLogs });
+      mockEntityManager.find.mockResolvedValue(mockLogs);
 
       const result = await AuditRepository.findByDatabaseName('production_db');
 
-      expect(pool.query).toHaveBeenCalledWith(
-        expect.stringContaining('WHERE qr.database_name = $1'),
-        ['production_db', 100, 0]
+      expect(mockEntityManager.find).toHaveBeenCalledWith(
+        expect.any(Function),
+        { queryRequest: { databaseName: 'production_db' } },
+        expect.objectContaining({
+          limit: 100,
+          offset: 0
+        })
       );
       expect(result).toEqual(mockLogs);
     });
 
     it('should return audit logs with custom pagination', async () => {
       const mockLogs = [{ id: 'log-1' }];
-      (pool.query as jest.Mock).mockResolvedValue({ rows: mockLogs });
+      mockEntityManager.find.mockResolvedValue(mockLogs);
 
       const result = await AuditRepository.findByDatabaseName('staging_db', 50, 10);
 
-      expect(pool.query).toHaveBeenCalledWith(
-        expect.stringContaining('LIMIT $2 OFFSET $3'),
-        ['staging_db', 50, 10]
+      expect(mockEntityManager.find).toHaveBeenCalledWith(
+        expect.any(Function),
+        { queryRequest: { databaseName: 'staging_db' } },
+        expect.objectContaining({
+          limit: 50,
+          offset: 10
+        })
       );
       expect(result).toEqual(mockLogs);
     });

@@ -1,11 +1,5 @@
 import { QueryRepository } from '../../../src/modules/queries/query.repository';
-import { pool } from '../../../src/config/db';
-
-jest.mock('../../../src/config/db', () => ({
-  pool: {
-    query: jest.fn()
-  }
-}));
+import { mockEntityManager } from '../../__mocks__/database';
 
 describe('QueryRepository', () => {
   beforeEach(() => {
@@ -15,19 +9,22 @@ describe('QueryRepository', () => {
   describe('findById', () => {
     it('should return query when found', async () => {
       const mockQuery = { id: 'query-1', status: 'PENDING' };
-      (pool.query as jest.Mock).mockResolvedValue({ rows: [mockQuery] });
+      mockEntityManager.findOne.mockResolvedValue(mockQuery);
 
       const result = await QueryRepository.findById('query-1');
 
-      expect(pool.query).toHaveBeenCalledWith(
-        expect.stringContaining('SELECT * FROM query_requests WHERE id = $1'),
-        ['query-1']
+      expect(mockEntityManager.findOne).toHaveBeenCalledWith(
+        expect.any(Function),
+        { id: 'query-1' },
+        expect.objectContaining({
+          populate: ['requester', 'pod', 'instance', 'approvedBy']
+        })
       );
       expect(result).toEqual(mockQuery);
     });
 
     it('should return null when not found', async () => {
-      (pool.query as jest.Mock).mockResolvedValue({ rows: [] });
+      mockEntityManager.findOne.mockResolvedValue(null);
 
       const result = await QueryRepository.findById('invalid-id');
 
@@ -37,27 +34,20 @@ describe('QueryRepository', () => {
 
   describe('isManagerOfPod', () => {
     it('should return true when manager owns pod', async () => {
-      (pool.query as jest.Mock).mockResolvedValue({ rowCount: 1 });
+      const mockPod = { id: 'pod-a', manager: 'manager-1' };
+      mockEntityManager.findOne.mockResolvedValue(mockPod);
 
       const result = await QueryRepository.isManagerOfPod('manager-1', 'pod-a');
 
-      expect(pool.query).toHaveBeenCalledWith(
-        expect.stringContaining('SELECT 1 FROM pods WHERE id = $1 AND manager_id = $2'),
-        ['pod-a', 'manager-1']
+      expect(mockEntityManager.findOne).toHaveBeenCalledWith(
+        expect.any(Function),
+        { id: 'pod-a', manager: 'manager-1' }
       );
       expect(result).toBe(true);
     });
 
     it('should return false when manager does not own pod', async () => {
-      (pool.query as jest.Mock).mockResolvedValue({ rowCount: 0 });
-
-      const result = await QueryRepository.isManagerOfPod('manager-1', 'pod-b');
-
-      expect(result).toBe(false);
-    });
-
-    it('should return false when rowCount is null', async () => {
-      (pool.query as jest.Mock).mockResolvedValue({ rowCount: null });
+      mockEntityManager.findOne.mockResolvedValue(null);
 
       const result = await QueryRepository.isManagerOfPod('manager-1', 'pod-b');
 
@@ -67,35 +57,45 @@ describe('QueryRepository', () => {
 
   describe('reject', () => {
     it('should update query status to REJECTED', async () => {
-      const mockResult = { id: 'query-1', status: 'REJECTED' };
-      (pool.query as jest.Mock).mockResolvedValue({ rows: [mockResult] });
+      const mockQuery: any = { id: 'query-1', status: 'PENDING' };
+      const mockManager = { id: 'manager-1' };
+      mockEntityManager.findOneOrFail
+        .mockResolvedValueOnce(mockQuery)
+        .mockResolvedValueOnce(mockManager);
+      mockEntityManager.flush.mockResolvedValue(undefined);
 
       const result = await QueryRepository.reject('query-1', 'manager-1', 'Not approved');
 
-      expect(pool.query).toHaveBeenCalledWith(
-        expect.stringContaining("SET status = 'REJECTED'"),
-        ['manager-1', 'Not approved', 'query-1']
-      );
-      expect(result).toEqual(mockResult);
+      expect(mockEntityManager.findOneOrFail).toHaveBeenCalledTimes(2);
+      expect(mockEntityManager.flush).toHaveBeenCalled();
+      expect(mockQuery.status).toBe('REJECTED');
+      expect(mockQuery.rejectionReason).toBe('Not approved');
     });
 
     it('should handle rejection without reason', async () => {
-      const mockResult = { id: 'query-1', status: 'REJECTED' };
-      (pool.query as jest.Mock).mockResolvedValue({ rows: [mockResult] });
+      const mockQuery: any = { id: 'query-1', status: 'PENDING' };
+      const mockManager = { id: 'manager-1' };
+      mockEntityManager.findOneOrFail
+        .mockResolvedValueOnce(mockQuery)
+        .mockResolvedValueOnce(mockManager);
+      mockEntityManager.flush.mockResolvedValue(undefined);
 
       await QueryRepository.reject('query-1', 'manager-1');
 
-      expect(pool.query).toHaveBeenCalledWith(
-        expect.any(String),
-        ['manager-1', null, 'query-1']
-      );
+      expect(mockQuery.rejectionReason).toBeUndefined();
     });
   });
 
   describe('create', () => {
     it('should create a new query request', async () => {
-      const mockCreated = { id: 'query-1', status: 'PENDING' };
-      (pool.query as jest.Mock).mockResolvedValue({ rows: [mockCreated] });
+      const mockRequester = { id: 'user-1' };
+      const mockInstance = { id: 'inst-1' };
+      const mockPod = { id: 'pod-a' };
+      mockEntityManager.findOneOrFail
+        .mockResolvedValueOnce(mockRequester)
+        .mockResolvedValueOnce(mockInstance)
+        .mockResolvedValueOnce(mockPod);
+      mockEntityManager.persistAndFlush.mockResolvedValue(undefined);
 
       const result = await QueryRepository.create({
         requesterId: 'user-1',
@@ -107,18 +107,22 @@ describe('QueryRepository', () => {
         submissionType: 'QUERY'
       });
 
-      expect(pool.query).toHaveBeenCalledWith(
-        expect.stringContaining('INSERT INTO query_requests'),
-        expect.arrayContaining(['user-1', 'inst-1', 'test_db'])
-      );
-      expect(result).toEqual(mockCreated);
+      expect(mockEntityManager.findOneOrFail).toHaveBeenCalledTimes(3);
+      expect(mockEntityManager.persistAndFlush).toHaveBeenCalled();
+      expect(result.status).toBe('PENDING');
     });
 
     it('should create script submission with scriptPath', async () => {
-      const mockCreated = { id: 'query-1', status: 'PENDING' };
-      (pool.query as jest.Mock).mockResolvedValue({ rows: [mockCreated] });
+      const mockRequester = { id: 'user-1' };
+      const mockInstance = { id: 'inst-1' };
+      const mockPod = { id: 'pod-a' };
+      mockEntityManager.findOneOrFail
+        .mockResolvedValueOnce(mockRequester)
+        .mockResolvedValueOnce(mockInstance)
+        .mockResolvedValueOnce(mockPod);
+      mockEntityManager.persistAndFlush.mockResolvedValue(undefined);
 
-      await QueryRepository.create({
+      const result = await QueryRepository.create({
         requesterId: 'user-1',
         instanceId: 'inst-1',
         databaseName: 'test_db',
@@ -129,16 +133,21 @@ describe('QueryRepository', () => {
         scriptPath: '/uploads/script.js'
       });
 
-      expect(pool.query).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.arrayContaining(['/uploads/script.js'])
-      );
+      expect(result.scriptPath).toBe('/uploads/script.js');
+      expect(result.submissionType).toBe('SCRIPT');
     });
 
     it('should use default query text for script submission', async () => {
-      (pool.query as jest.Mock).mockResolvedValue({ rows: [{}] });
+      const mockRequester = { id: 'user-1' };
+      const mockInstance = { id: 'inst-1' };
+      const mockPod = { id: 'pod-a' };
+      mockEntityManager.findOneOrFail
+        .mockResolvedValueOnce(mockRequester)
+        .mockResolvedValueOnce(mockInstance)
+        .mockResolvedValueOnce(mockPod);
+      mockEntityManager.persistAndFlush.mockResolvedValue(undefined);
 
-      await QueryRepository.create({
+      const result = await QueryRepository.create({
         requesterId: 'user-1',
         instanceId: 'inst-1',
         databaseName: 'test_db',
@@ -148,201 +157,295 @@ describe('QueryRepository', () => {
         submissionType: 'SCRIPT'
       });
 
-      expect(pool.query).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.arrayContaining(['[SCRIPT SUBMISSION]'])
-      );
+      expect(result.queryText).toBe('[SCRIPT SUBMISSION]');
     });
   });
 
   describe('findByRequesterWithStatus', () => {
     it('should return queries for user without filter', async () => {
       const mockQueries = [{ id: 'q1' }, { id: 'q2' }];
-      (pool.query as jest.Mock).mockResolvedValue({ rows: mockQueries });
+      mockEntityManager.find.mockResolvedValue(mockQueries);
 
       const result = await QueryRepository.findByRequesterWithStatus('user-1');
 
-      expect(pool.query).toHaveBeenCalledWith(
-        expect.stringContaining('WHERE qr.requester_id = $1'),
-        ['user-1']
+      expect(mockEntityManager.find).toHaveBeenCalledWith(
+        expect.any(Function),
+        { requester: 'user-1' },
+        expect.objectContaining({
+          populate: ['requester', 'pod', 'instance', 'approvedBy'],
+          orderBy: { createdAt: 'DESC' }
+        })
       );
       expect(result).toEqual(mockQueries);
     });
 
     it('should return queries with status filter', async () => {
       const mockQueries = [{ id: 'q1', status: 'PENDING' }];
-      (pool.query as jest.Mock).mockResolvedValue({ rows: mockQueries });
+      mockEntityManager.find.mockResolvedValue(mockQueries);
 
       const result = await QueryRepository.findByRequesterWithStatus('user-1', ['PENDING', 'APPROVED']);
 
-      expect(pool.query).toHaveBeenCalledWith(
-        expect.stringContaining('AND qr.status = ANY($2)'),
-        ['user-1', ['PENDING', 'APPROVED']]
+      expect(mockEntityManager.find).toHaveBeenCalledWith(
+        expect.any(Function),
+        expect.objectContaining({
+          requester: 'user-1',
+          status: { $in: ['PENDING', 'APPROVED'] }
+        }),
+        expect.any(Object)
       );
       expect(result).toEqual(mockQueries);
     });
 
     it('should not add filter for empty status array', async () => {
-      (pool.query as jest.Mock).mockResolvedValue({ rows: [] });
+      mockEntityManager.find.mockResolvedValue([]);
 
       await QueryRepository.findByRequesterWithStatus('user-1', []);
 
-      expect(pool.query).toHaveBeenCalledWith(
-        expect.not.stringContaining('AND qr.status = ANY'),
-        ['user-1']
+      expect(mockEntityManager.find).toHaveBeenCalledWith(
+        expect.any(Function),
+        { requester: 'user-1' },
+        expect.any(Object)
       );
     });
 
     it('should filter by type', async () => {
-      (pool.query as jest.Mock).mockResolvedValue({ rows: [] });
+      mockEntityManager.find.mockResolvedValue([]);
 
       await QueryRepository.findByRequesterWithStatus('user-1', undefined, 'POSTGRES');
 
-      expect(pool.query).toHaveBeenCalledWith(
-        expect.stringContaining('AND di.type = $2'),
-        ['user-1', 'POSTGRES']
+      expect(mockEntityManager.find).toHaveBeenCalledWith(
+        expect.any(Function),
+        expect.objectContaining({
+          requester: 'user-1',
+          instance: { type: 'POSTGRES' }
+        }),
+        expect.any(Object)
       );
     });
 
     it('should filter by both status and type', async () => {
-      (pool.query as jest.Mock).mockResolvedValue({ rows: [] });
+      mockEntityManager.find.mockResolvedValue([]);
 
       await QueryRepository.findByRequesterWithStatus('user-1', ['PENDING'], 'MONGODB');
 
-      expect(pool.query).toHaveBeenCalledWith(
-        expect.stringContaining('AND qr.status = ANY($2)'),
-        ['user-1', ['PENDING'], 'MONGODB']
+      expect(mockEntityManager.find).toHaveBeenCalledWith(
+        expect.any(Function),
+        expect.objectContaining({
+          requester: 'user-1',
+          status: { $in: ['PENDING'] },
+          instance: { type: 'MONGODB' }
+        }),
+        expect.any(Object)
       );
-      expect(pool.query).toHaveBeenCalledWith(
-        expect.stringContaining('AND di.type = $3'),
-        ['user-1', ['PENDING'], 'MONGODB']
+    });
+  });
+
+  describe('countByRequester', () => {
+    it('should count queries for user', async () => {
+      mockEntityManager.count.mockResolvedValue(5);
+
+      const result = await QueryRepository.countByRequester('user-1');
+
+      expect(mockEntityManager.count).toHaveBeenCalledWith(
+        expect.any(Function),
+        { requester: 'user-1' }
       );
+      expect(result).toBe(5);
+    });
+
+    it('should count with filters', async () => {
+      mockEntityManager.count.mockResolvedValue(2);
+
+      const result = await QueryRepository.countByRequester('user-1', ['PENDING'], 'POSTGRES');
+
+      expect(mockEntityManager.count).toHaveBeenCalledWith(
+        expect.any(Function),
+        expect.objectContaining({
+          requester: 'user-1',
+          status: { $in: ['PENDING'] },
+          instance: { type: 'POSTGRES' }
+        })
+      );
+      expect(result).toBe(2);
     });
   });
 
   describe('findByManagerWithStatus', () => {
     it('should return queries for manager pods', async () => {
       const mockQueries = [{ id: 'q1' }];
-      (pool.query as jest.Mock).mockResolvedValue({ rows: mockQueries });
+      mockEntityManager.find.mockResolvedValue(mockQueries);
 
       const result = await QueryRepository.findByManagerWithStatus('manager-1');
 
-      expect(pool.query).toHaveBeenCalledWith(
-        expect.stringContaining('WHERE p.manager_id = $1'),
-        ['manager-1']
+      expect(mockEntityManager.find).toHaveBeenCalledWith(
+        expect.any(Function),
+        { pod: { manager: 'manager-1' } },
+        expect.any(Object)
       );
       expect(result).toEqual(mockQueries);
     });
 
     it('should filter by status', async () => {
-      (pool.query as jest.Mock).mockResolvedValue({ rows: [] });
+      mockEntityManager.find.mockResolvedValue([]);
 
       await QueryRepository.findByManagerWithStatus('manager-1', ['PENDING']);
 
-      expect(pool.query).toHaveBeenCalledWith(
-        expect.stringContaining('AND qr.status = ANY($2)'),
-        ['manager-1', ['PENDING']]
+      expect(mockEntityManager.find).toHaveBeenCalledWith(
+        expect.any(Function),
+        expect.objectContaining({
+          pod: { manager: 'manager-1' },
+          status: { $in: ['PENDING'] }
+        }),
+        expect.any(Object)
       );
     });
 
     it('should filter by type', async () => {
-      (pool.query as jest.Mock).mockResolvedValue({ rows: [] });
+      mockEntityManager.find.mockResolvedValue([]);
 
       await QueryRepository.findByManagerWithStatus('manager-1', undefined, 'POSTGRES');
 
-      expect(pool.query).toHaveBeenCalledWith(
-        expect.stringContaining('AND di.type = $2'),
-        ['manager-1', 'POSTGRES']
+      expect(mockEntityManager.find).toHaveBeenCalledWith(
+        expect.any(Function),
+        expect.objectContaining({
+          pod: { manager: 'manager-1' },
+          instance: { type: 'POSTGRES' }
+        }),
+        expect.any(Object)
       );
     });
 
     it('should filter by both status and type', async () => {
-      (pool.query as jest.Mock).mockResolvedValue({ rows: [] });
+      mockEntityManager.find.mockResolvedValue([]);
 
       await QueryRepository.findByManagerWithStatus('manager-1', ['PENDING'], 'MONGODB');
 
-      expect(pool.query).toHaveBeenCalledWith(
-        expect.stringContaining('AND di.type = $3'),
-        ['manager-1', ['PENDING'], 'MONGODB']
+      expect(mockEntityManager.find).toHaveBeenCalledWith(
+        expect.any(Function),
+        expect.objectContaining({
+          pod: { manager: 'manager-1' },
+          status: { $in: ['PENDING'] },
+          instance: { type: 'MONGODB' }
+        }),
+        expect.any(Object)
       );
+    });
+  });
+
+  describe('countByManager', () => {
+    it('should count queries for manager', async () => {
+      mockEntityManager.count.mockResolvedValue(10);
+
+      const result = await QueryRepository.countByManager('manager-1');
+
+      expect(mockEntityManager.count).toHaveBeenCalledWith(
+        expect.any(Function),
+        { pod: { manager: 'manager-1' } }
+      );
+      expect(result).toBe(10);
     });
   });
 
   describe('findAllWithStatus', () => {
     it('should return all queries without filter', async () => {
       const mockQueries = [{ id: 'q1' }, { id: 'q2' }];
-      (pool.query as jest.Mock).mockResolvedValue({ rows: mockQueries });
+      mockEntityManager.find.mockResolvedValue(mockQueries);
 
       const result = await QueryRepository.findAllWithStatus();
 
-      expect(pool.query).toHaveBeenCalledWith(
-        expect.stringContaining('SELECT qr.*'),
-        []
+      expect(mockEntityManager.find).toHaveBeenCalledWith(
+        expect.any(Function),
+        {},
+        expect.any(Object)
       );
       expect(result).toEqual(mockQueries);
     });
 
     it('should filter by status', async () => {
-      (pool.query as jest.Mock).mockResolvedValue({ rows: [] });
+      mockEntityManager.find.mockResolvedValue([]);
 
       await QueryRepository.findAllWithStatus(['EXECUTED', 'FAILED']);
 
-      expect(pool.query).toHaveBeenCalledWith(
-        expect.stringContaining('WHERE qr.status = ANY($1)'),
-        [['EXECUTED', 'FAILED']]
+      expect(mockEntityManager.find).toHaveBeenCalledWith(
+        expect.any(Function),
+        { status: { $in: ['EXECUTED', 'FAILED'] } },
+        expect.any(Object)
       );
     });
 
     it('should filter by type', async () => {
-      (pool.query as jest.Mock).mockResolvedValue({ rows: [] });
+      mockEntityManager.find.mockResolvedValue([]);
 
       await QueryRepository.findAllWithStatus(undefined, 'MONGODB');
 
-      expect(pool.query).toHaveBeenCalledWith(
-        expect.stringContaining('WHERE di.type = $1'),
-        ['MONGODB']
+      expect(mockEntityManager.find).toHaveBeenCalledWith(
+        expect.any(Function),
+        { instance: { type: 'MONGODB' } },
+        expect.any(Object)
       );
     });
 
     it('should filter by both status and type', async () => {
-      (pool.query as jest.Mock).mockResolvedValue({ rows: [] });
+      mockEntityManager.find.mockResolvedValue([]);
 
       await QueryRepository.findAllWithStatus(['PENDING'], 'POSTGRES');
 
-      expect(pool.query).toHaveBeenCalledWith(
-        expect.stringContaining('WHERE qr.status = ANY($1)'),
-        [['PENDING'], 'POSTGRES']
+      expect(mockEntityManager.find).toHaveBeenCalledWith(
+        expect.any(Function),
+        expect.objectContaining({
+          status: { $in: ['PENDING'] },
+          instance: { type: 'POSTGRES' }
+        }),
+        expect.any(Object)
       );
-      expect(pool.query).toHaveBeenCalledWith(
-        expect.stringContaining('AND di.type = $2'),
-        [['PENDING'], 'POSTGRES']
+    });
+  });
+
+  describe('countAll', () => {
+    it('should count all queries', async () => {
+      mockEntityManager.count.mockResolvedValue(100);
+
+      const result = await QueryRepository.countAll();
+
+      expect(mockEntityManager.count).toHaveBeenCalledWith(
+        expect.any(Function),
+        {}
       );
+      expect(result).toBe(100);
     });
   });
 
   describe('markExecuted', () => {
     it('should update query to EXECUTED status', async () => {
-      (pool.query as jest.Mock).mockResolvedValue({ rows: [] });
+      const mockQuery: any = { id: 'query-1', status: 'PENDING' };
+      const mockManager = { id: 'manager-1' };
+      mockEntityManager.findOneOrFail
+        .mockResolvedValueOnce(mockQuery)
+        .mockResolvedValueOnce(mockManager);
+      mockEntityManager.flush.mockResolvedValue(undefined);
 
       await QueryRepository.markExecuted('query-1', 'manager-1', { rows: [{ id: 1 }] });
 
-      expect(pool.query).toHaveBeenCalledWith(
-        expect.stringContaining("SET status = 'EXECUTED'"),
-        ['query-1', 'manager-1', expect.any(String)]
-      );
+      expect(mockQuery.status).toBe('EXECUTED');
+      expect(mockQuery.executionResult).toEqual({ rows: [{ id: 1 }] });
+      expect(mockEntityManager.flush).toHaveBeenCalled();
     });
   });
 
   describe('markFailed', () => {
     it('should update query to FAILED status', async () => {
-      (pool.query as jest.Mock).mockResolvedValue({ rows: [] });
+      const mockQuery: any = { id: 'query-1', status: 'PENDING' };
+      const mockManager = { id: 'manager-1' };
+      mockEntityManager.findOneOrFail
+        .mockResolvedValueOnce(mockQuery)
+        .mockResolvedValueOnce(mockManager);
+      mockEntityManager.flush.mockResolvedValue(undefined);
 
       await QueryRepository.markFailed('query-1', 'manager-1', 'Connection timeout');
 
-      expect(pool.query).toHaveBeenCalledWith(
-        expect.stringContaining("SET status = 'FAILED'"),
-        ['query-1', 'manager-1', expect.stringContaining('Connection timeout')]
-      );
+      expect(mockQuery.status).toBe('FAILED');
+      expect(mockQuery.executionResult).toEqual({ error: 'Connection timeout' });
+      expect(mockEntityManager.flush).toHaveBeenCalled();
     });
   });
 });

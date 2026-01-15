@@ -7,10 +7,21 @@ import databaseRoutes from './modules/databases/database.routes';
 import podsRoutes from './modules/pods/pods.routes';
 import auditRoutes from './modules/audit/audit.routes';
 import { globalErrorHandler, notFoundHandler } from './middlewares/errorHandler.middleware';
+import { RequestContext } from '@mikro-orm/core';
+import { orm } from './config/database';
 
 const app = express();
 
 app.use(express.json());
+
+// MikroORM request context middleware - creates a new EntityManager for each request
+app.use((_req, _res, next) => {
+  if (orm) {
+    RequestContext.create(orm.em, next);
+  } else {
+    next();
+  }
+});
 
 // Routes
 app.use('/api/instances', instanceRoutes);

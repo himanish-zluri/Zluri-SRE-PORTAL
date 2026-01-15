@@ -1,26 +1,17 @@
-import { pool } from '../../config/db';
+import { getEntityManager } from '../../config/database';
+import { Pod } from '../../entities';
 
 export class PodsRepository {
-  static async findAll() {
-    const result = await pool.query(
-      `SELECT p.id, p.name, p.manager_id, p.created_at, u.name as manager_name
-       FROM pods p
-       LEFT JOIN users u ON u.id = p.manager_id
-       ORDER BY p.name`
-    );
-
-    return result.rows;
+  static async findAll(): Promise<Pod[]> {
+    const em = getEntityManager();
+    return em.find(Pod, {}, { 
+      populate: ['manager'],
+      orderBy: { name: 'ASC' }
+    });
   }
 
-  static async findById(id: string) {
-    const result = await pool.query(
-      `SELECT p.id, p.name, p.manager_id, p.created_at, u.name as manager_name
-       FROM pods p
-       LEFT JOIN users u ON u.id = p.manager_id
-       WHERE p.id = $1`,
-      [id]
-    );
-
-    return result.rows[0] || null;
+  static async findById(id: string): Promise<Pod | null> {
+    const em = getEntityManager();
+    return em.findOne(Pod, { id }, { populate: ['manager'] });
   }
 }

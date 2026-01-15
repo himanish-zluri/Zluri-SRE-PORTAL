@@ -1,11 +1,5 @@
 import { PodsRepository } from '../../../src/modules/pods/pods.repository';
-import { pool } from '../../../src/config/db';
-
-jest.mock('../../../src/config/db', () => ({
-  pool: {
-    query: jest.fn()
-  }
-}));
+import { mockEntityManager } from '../../__mocks__/database';
 
 describe('PodsRepository', () => {
   beforeEach(() => {
@@ -18,31 +12,39 @@ describe('PodsRepository', () => {
         { id: 'pod-a', name: 'Pod A' },
         { id: 'pod-b', name: 'Pod B' }
       ];
-      (pool.query as jest.Mock).mockResolvedValue({ rows: mockPods });
+      mockEntityManager.find.mockResolvedValue(mockPods);
 
       const result = await PodsRepository.findAll();
 
-      expect(pool.query).toHaveBeenCalledWith(expect.stringContaining('SELECT'));
+      expect(mockEntityManager.find).toHaveBeenCalledWith(
+        expect.any(Function),
+        {},
+        expect.objectContaining({
+          populate: ['manager'],
+          orderBy: { name: 'ASC' }
+        })
+      );
       expect(result).toEqual(mockPods);
     });
   });
 
   describe('findById', () => {
     it('should return pod when found', async () => {
-      const mockPod = { id: 'pod-a', name: 'Pod A', manager_id: 'manager-1' };
-      (pool.query as jest.Mock).mockResolvedValue({ rows: [mockPod] });
+      const mockPod = { id: 'pod-a', name: 'Pod A', manager: { id: 'manager-1' } };
+      mockEntityManager.findOne.mockResolvedValue(mockPod);
 
       const result = await PodsRepository.findById('pod-a');
 
-      expect(pool.query).toHaveBeenCalledWith(
-        expect.stringContaining('WHERE p.id = $1'),
-        ['pod-a']
+      expect(mockEntityManager.findOne).toHaveBeenCalledWith(
+        expect.any(Function),
+        { id: 'pod-a' },
+        expect.objectContaining({ populate: ['manager'] })
       );
       expect(result).toEqual(mockPod);
     });
 
     it('should return null when pod not found', async () => {
-      (pool.query as jest.Mock).mockResolvedValue({ rows: [] });
+      mockEntityManager.findOne.mockResolvedValue(null);
 
       const result = await PodsRepository.findById('unknown-pod');
 

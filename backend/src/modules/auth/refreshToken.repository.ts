@@ -1,46 +1,55 @@
 import crypto from 'crypto';
-import { pool } from '../../config/db';
+import { getEntityManager } from '../../config/database';
+import { RefreshToken, User } from '../../entities';
 
 export class RefreshTokenRepository {
   static hashToken(token: string): string {
     return crypto.createHash('sha256').update(token).digest('hex');
   }
 
-  static async create(userId: string, token: string, expiresAt: Date) {
+  static async create(userId: string, token: string, expiresAt: Date): Promise<RefreshToken> {
+    const em = getEntityManager();
     const tokenHash = this.hashToken(token);
-    await pool.query(
-      `INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
-       VALUES ($1, $2, $3)`,
-      [userId, tokenHash, expiresAt]
-    );
+    
+    const user = await em.findOneOrFail(User, { id: userId });
+    
+    const refreshToken = new RefreshToken();
+    refreshToken.user = user;
+    refreshToken.tokenHash = tokenHash;
+    refreshToken.expiresAt = expiresAt;
+    
+    await em.persistAndFlush(refreshToken);
+    return refreshToken;
   }
 
-  static async findByToken(token: string) {
+  static async findByToken(token: string): Promise<RefreshToken | null> {
+    const em = getEntityManager();
     const tokenHash = this.hashToken(token);
-    const result = await pool.query(
-      `SELECT * FROM refresh_tokens 
-       WHERE token_hash = $1 AND expires_at > NOW()`,
-      [tokenHash]
+    
+    return em.findOne(
+      RefreshToken,
+      { 
+        tokenHash,
+        expiresAt: { $gt: new Date() }
+      },
+      { populate: ['user'] }
     );
-    return result.rows[0] || null;
   }
 
-  static async deleteByToken(token: string) {
+  static async deleteByToken(token: string): Promise<void> {
+    const em = getEntityManager();
     const tokenHash = this.hashToken(token);
-    await pool.query(
-      `DELETE FROM refresh_tokens WHERE token_hash = $1`,
-      [tokenHash]
-    );
+    
+    await em.nativeDelete(RefreshToken, { tokenHash });
   }
 
-  static async deleteAllForUser(userId: string) {
-    await pool.query(
-      `DELETE FROM refresh_tokens WHERE user_id = $1`,
-      [userId]
-    );
+  static async deleteAllForUser(userId: string): Promise<void> {
+    const em = getEntityManager();
+    await em.nativeDelete(RefreshToken, { user: userId });
   }
 
-  static async deleteExpired() {
-    await pool.query(`DELETE FROM refresh_tokens WHERE expires_at < NOW()`);
+  static async deleteExpired(): Promise<void> {
+    const em = getEntityManager();
+    await em.nativeDelete(RefreshToken, { expiresAt: { $lt: new Date() } });
   }
 }

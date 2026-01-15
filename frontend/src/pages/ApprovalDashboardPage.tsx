@@ -8,16 +8,17 @@ import { Input } from '../components/ui/Input';
 import { TextArea } from '../components/ui/TextArea';
 import { ResultDisplay } from '../components/ui/ResultDisplay';
 
+const ITEMS_PER_PAGE = 10;
+
 export function ApprovalDashboardPage() {
   const [queries, setQueries] = useState<Query[]>([]);
-  const [filteredQueries, setFilteredQueries] = useState<Query[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('PENDING');
   const [searchTerm, setSearchTerm] = useState('');
   
-  // Pagination
+  // Server-side pagination
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const [totalItems, setTotalItems] = useState(0);
 
   // Modal state
   const [selectedQuery, setSelectedQuery] = useState<Query | null>(null);
@@ -28,16 +29,19 @@ export function ApprovalDashboardPage() {
 
   useEffect(() => {
     loadQueries();
-  }, []);
-
-  useEffect(() => {
-    filterQueries();
-  }, [queries, statusFilter, searchTerm]);
+  }, [currentPage, statusFilter]);
 
   const loadQueries = async () => {
+    setIsLoading(true);
     try {
-      const response = await queriesApi.getAll();
-      setQueries(response.data);
+      const offset = (currentPage - 1) * ITEMS_PER_PAGE;
+      const response = await queriesApi.getForApproval({
+        status: statusFilter || undefined,
+        limit: ITEMS_PER_PAGE,
+        offset
+      });
+      setQueries(response.data.data);
+      setTotalItems(response.data.pagination.total);
     } catch (error) {
       console.error('Failed to load queries:', error);
     } finally {
@@ -45,26 +49,15 @@ export function ApprovalDashboardPage() {
     }
   };
 
-  const filterQueries = () => {
-    let filtered = queries;
-
-    if (statusFilter) {
-      filtered = filtered.filter((q) => q.status === statusFilter);
-    }
-
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      filtered = filtered.filter(
+  // Client-side search filtering (on current page data)
+  const filteredQueries = searchTerm
+    ? queries.filter(
         (q) =>
-          q.database_name.toLowerCase().includes(term) ||
-          q.query_text.toLowerCase().includes(term) ||
-          q.comments.toLowerCase().includes(term)
-      );
-    }
-
-    setFilteredQueries(filtered);
-    setCurrentPage(1);
-  };
+          q.database_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          q.query_text.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          q.comments.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    : queries;
 
   const handleApprove = async (query: Query) => {
     setActionLoading(true);
@@ -119,16 +112,16 @@ export function ApprovalDashboardPage() {
     URL.revokeObjectURL(url);
   };
 
-  // Pagination
-  const totalPages = Math.ceil(filteredQueries.length / itemsPerPage);
-  const paginatedQueries = filteredQueries.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
 
   const truncateText = (text: string, maxLength: number = 40) => {
     if (text.length <= maxLength) return text;
     return text.substring(0, maxLength) + '...';
+  };
+
+  const handleStatusFilterChange = (newStatus: string) => {
+    setStatusFilter(newStatus);
+    setCurrentPage(1); // Reset to first page when filter changes
   };
 
   if (isLoading) {
@@ -151,7 +144,7 @@ export function ApprovalDashboardPage() {
           <label className="text-sm text-gray-600 dark:text-gray-400">Filter by Status:</label>
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={(e) => handleStatusFilterChange(e.target.value)}
             className="px-3 py-1.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white text-sm cursor-pointer"
           >
             <option value="">All</option>
@@ -164,7 +157,7 @@ export function ApprovalDashboardPage() {
 
         <div className="flex-1 max-w-xs">
           <Input
-            placeholder="Search..."
+            placeholder="Search current page..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -186,14 +179,14 @@ export function ApprovalDashboardPage() {
             </tr>
           </thead>
           <tbody>
-            {paginatedQueries.length === 0 ? (
+            {filteredQueries.length === 0 ? (
               <tr>
                 <td colSpan={7} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                   No queries found
                 </td>
               </tr>
             ) : (
-              paginatedQueries.map((query) => (
+              filteredQueries.map((query) => (
                 <tr key={query.id} className="border-b border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50">
                   <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
                     {query.database_name}
@@ -267,50 +260,29 @@ export function ApprovalDashboardPage() {
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-2 mt-4">
-          <button
-            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-            disabled={currentPage === 1}
-            className="px-3 py-1 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
-          >
-            &lt;
-          </button>
-          {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-            const page = i + 1;
-            return (
-              <button
-                key={page}
-                onClick={() => setCurrentPage(page)}
-                className={`px-3 py-1 text-sm rounded cursor-pointer ${
-                  currentPage === page
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                }`}
-              >
-                {page}
-              </button>
-            );
-          })}
-          {totalPages > 5 && <span className="text-gray-500 dark:text-gray-400">...</span>}
-          {totalPages > 5 && (
+        <div className="flex items-center justify-between mt-4">
+          <span className="text-sm text-gray-500 dark:text-gray-400">
+            Showing {((currentPage - 1) * ITEMS_PER_PAGE) + 1} - {Math.min(currentPage * ITEMS_PER_PAGE, totalItems)} of {totalItems}
+          </span>
+          <div className="flex items-center gap-2">
             <button
-              onClick={() => setCurrentPage(totalPages)}
-              className={`px-3 py-1 text-sm rounded cursor-pointer ${
-                currentPage === totalPages
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-              }`}
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
             >
-              {totalPages}
+              &lt; Prev
             </button>
-          )}
-          <button
-            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-            disabled={currentPage === totalPages}
-            className="px-3 py-1 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
-          >
-            &gt;
-          </button>
+            <span className="text-sm text-gray-700 dark:text-gray-300">
+              Page {currentPage} of {totalPages}
+            </span>
+            <button
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+            >
+              Next &gt;
+            </button>
+          </div>
         </div>
       )}
 

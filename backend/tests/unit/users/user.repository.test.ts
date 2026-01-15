@@ -1,11 +1,5 @@
 import { UserRepository } from '../../../src/modules/users/user.repository';
-import { pool } from '../../../src/config/db';
-
-jest.mock('../../../src/config/db', () => ({
-  pool: {
-    query: jest.fn()
-  }
-}));
+import { mockEntityManager } from '../../__mocks__/database';
 
 describe('UserRepository', () => {
   beforeEach(() => {
@@ -15,19 +9,19 @@ describe('UserRepository', () => {
   describe('findByEmail', () => {
     it('should return user when found', async () => {
       const mockUser = { id: 'user-1', email: 'test@example.com', role: 'DEVELOPER' };
-      (pool.query as jest.Mock).mockResolvedValue({ rows: [mockUser] });
+      mockEntityManager.findOne.mockResolvedValue(mockUser);
 
       const result = await UserRepository.findByEmail('test@example.com');
 
-      expect(pool.query).toHaveBeenCalledWith(
-        expect.stringContaining('WHERE email = $1'),
-        ['test@example.com']
+      expect(mockEntityManager.findOne).toHaveBeenCalledWith(
+        expect.any(Function),
+        { email: 'test@example.com' }
       );
       expect(result).toEqual(mockUser);
     });
 
     it('should return null when user not found', async () => {
-      (pool.query as jest.Mock).mockResolvedValue({ rows: [] });
+      mockEntityManager.findOne.mockResolvedValue(null);
 
       const result = await UserRepository.findByEmail('unknown@example.com');
 
@@ -38,19 +32,19 @@ describe('UserRepository', () => {
   describe('findById', () => {
     it('should return user when found', async () => {
       const mockUser = { id: 'user-1', email: 'test@example.com' };
-      (pool.query as jest.Mock).mockResolvedValue({ rows: [mockUser] });
+      mockEntityManager.findOne.mockResolvedValue(mockUser);
 
       const result = await UserRepository.findById('user-1');
 
-      expect(pool.query).toHaveBeenCalledWith(
-        expect.stringContaining('WHERE id = $1'),
-        ['user-1']
+      expect(mockEntityManager.findOne).toHaveBeenCalledWith(
+        expect.any(Function),
+        { id: 'user-1' }
       );
       expect(result).toEqual(mockUser);
     });
 
     it('should return null when user not found', async () => {
-      (pool.query as jest.Mock).mockResolvedValue({ rows: [] });
+      mockEntityManager.findOne.mockResolvedValue(null);
 
       const result = await UserRepository.findById('invalid-id');
 

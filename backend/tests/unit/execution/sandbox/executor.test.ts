@@ -331,6 +331,69 @@ describe('Sandbox Executor', () => {
       expect(result).toEqual({ success: true });
     });
 
+    it('should parse single log entry as JSON when it is a valid JSON string', async () => {
+      const promise = executePostgresScriptSandboxed(
+        '/script.js',
+        {
+          PG_HOST: 'localhost',
+          PG_PORT: '5432',
+          PG_USER: 'user',
+          PG_PASSWORD: 'pass',
+          PG_DATABASE: 'testdb',
+        }
+      );
+
+      // Single log entry that is a valid JSON string
+      mockChild.stdout.emit('data', JSON.stringify({ success: true, logs: ['{"data":"parsed"}'] }));
+      mockChild.emit('close', 0);
+
+      const result = await promise;
+
+      expect(result).toEqual({ data: 'parsed' });
+    });
+
+    it('should return single log entry as-is when it is not valid JSON', async () => {
+      const promise = executePostgresScriptSandboxed(
+        '/script.js',
+        {
+          PG_HOST: 'localhost',
+          PG_PORT: '5432',
+          PG_USER: 'user',
+          PG_PASSWORD: 'pass',
+          PG_DATABASE: 'testdb',
+        }
+      );
+
+      // Single log entry that is NOT valid JSON
+      mockChild.stdout.emit('data', JSON.stringify({ success: true, logs: ['plain text log'] }));
+      mockChild.emit('close', 0);
+
+      const result = await promise;
+
+      expect(result).toBe('plain text log');
+    });
+
+    it('should return fallback object when stdout is not valid JSON', async () => {
+      const promise = executePostgresScriptSandboxed(
+        '/script.js',
+        {
+          PG_HOST: 'localhost',
+          PG_PORT: '5432',
+          PG_USER: 'user',
+          PG_PASSWORD: 'pass',
+          PG_DATABASE: 'testdb',
+        }
+      );
+
+      // stdout is not valid JSON, no result, no logs
+      mockChild.stdout.emit('data', 'success: true\nplain output');
+      mockChild.emit('close', 0);
+
+      const result = await promise;
+
+      expect(result).toEqual({ output: 'success: true\nplain output', stderr: '' });
+    });
+
     it('should throw default error when no error message', async () => {
       const promise = executePostgresScriptSandboxed(
         '/script.js',

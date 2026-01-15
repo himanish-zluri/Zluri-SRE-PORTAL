@@ -11,8 +11,8 @@ module.exports = {
     '!src/types/**',
     '!src/**/*.routes.ts',
     '!src/routes/**',
-    '!src/execution/sandbox/*-script.executor.ts',
-    '!src/execution/sandbox/index.ts'
+    '!src/execution/sandbox/index.ts',
+    '!src/execution/sandbox/*-script.executor.ts'
   ],
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov', 'html'],

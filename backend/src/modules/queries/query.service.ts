@@ -6,6 +6,7 @@ import { executeMongoQuery } from '../../execution/mongo-query.executor';
 import { executeMongoScriptSandboxed } from '../../execution/sandbox/executor';
 import { AuditRepository } from '../audit/audit.repository';
 import { NotFoundError, ConflictError, BadRequestError, ForbiddenError } from '../../errors';
+import { QueryRequest } from '../../entities';
 import fs from 'fs';
 
 export interface PaginatedResponse<T> {
@@ -19,7 +20,7 @@ export interface PaginatedResponse<T> {
 }
 
 // Helper to read script content safely
-function readScriptContent(scriptPath: string | null): string | null {
+function readScriptContent(scriptPath: string | null | undefined): string | null {
   if (!scriptPath) return null;
   try {
     return fs.readFileSync(scriptPath, 'utf-8');
@@ -28,12 +29,31 @@ function readScriptContent(scriptPath: string | null): string | null {
   }
 }
 
+// Helper to serialize query for API response
+function serializeQuery(query: QueryRequest): any {
+  return {
+    id: query.id,
+    requester_id: query.requester?.id,
+    pod_id: query.pod?.id,
+    instance_id: query.instance?.id,
+    database_name: query.databaseName,
+    submission_type: query.submissionType,
+    query_text: query.queryText,
+    script_path: query.scriptPath,
+    comments: query.comments,
+    status: query.status,
+    approved_by: query.approvedBy?.id,
+    rejection_reason: query.rejectionReason,
+    execution_result: query.executionResult,
+    created_at: query.createdAt,
+    updated_at: query.updatedAt,
+    script_content: query.submissionType === 'SCRIPT' ? readScriptContent(query.scriptPath) : null,
+  };
+}
+
 // Helper to add script content to queries
-function enrichWithScriptContent(queries: any[]): any[] {
-  return queries.map(q => ({
-    ...q,
-    script_content: q.submission_type === 'SCRIPT' ? readScriptContent(q.script_path) : null
-  }));
+function enrichWithScriptContent(queries: QueryRequest[]): any[] {
+  return queries.map(serializeQuery);
 }
 
 export class QueryService {
@@ -57,7 +77,7 @@ export class QueryService {
       details: { submissionType: input.submissionType, podId: input.podId }
     });
     
-    return query;
+    return serializeQuery(query);
   }
 
   static async approveQuery(queryId: string, managerId: string) {
@@ -70,7 +90,7 @@ export class QueryService {
       throw new ConflictError('Query already processed');
     }
   
-    const instance = await DbInstanceRepository.findById(query.instance_id);
+    const instance = await DbInstanceRepository.findById(query.instance.id);
     if (!instance) {
       throw new NotFoundError('DB instance not found');
     }
@@ -83,19 +103,19 @@ export class QueryService {
           throw new BadRequestError('Postgres instance missing required connection details');
         }
         
-        if (query.submission_type === 'SCRIPT') {
-          if (!query.script_path) {
+        if (query.submissionType === 'SCRIPT') {
+          if (!query.scriptPath) {
             throw new BadRequestError('Postgres script path missing');
           }
   
           result = await executePostgresScriptSandboxed(
-            query.script_path,
+            query.scriptPath,
             {
               PG_HOST: instance.host,
               PG_PORT: String(instance.port),
               PG_USER: instance.username,
               PG_PASSWORD: instance.password,
-              PG_DATABASE: query.database_name,
+              PG_DATABASE: query.databaseName,
             }
           );
         } else {
@@ -105,9 +125,9 @@ export class QueryService {
               port: instance.port,
               username: instance.username,
               password: instance.password,
-              database: query.database_name,
+              database: query.databaseName,
             },
-            query.query_text
+            query.queryText
           );
         }
       } else if (instance.type === 'MONGODB') {
@@ -115,21 +135,21 @@ export class QueryService {
           throw new BadRequestError('Mongo URI not configured');
         }
   
-        if (query.submission_type === 'SCRIPT') {
-          if (!query.script_path) {
+        if (query.submissionType === 'SCRIPT') {
+          if (!query.scriptPath) {
             throw new BadRequestError('Mongo script path missing');
           }
   
           result = await executeMongoScriptSandboxed(
-            query.script_path,
+            query.scriptPath,
             instance.mongo_uri,
-            query.database_name
+            query.databaseName
           );
         } else {
           result = await executeMongoQuery(
             instance.mongo_uri,
-            query.database_name,
-            query.query_text
+            query.databaseName,
+            query.queryText
           );
         }
       } else {
@@ -174,7 +194,7 @@ export class QueryService {
     if (userRole !== 'ADMIN') {
       const ownsPod = await QueryRepository.isManagerOfPod(
         managerId,
-        query.pod_id
+        query.pod.id
       );
 
       if (!ownsPod) {
@@ -192,7 +212,7 @@ export class QueryService {
       details: { reason }
     });
     
-    return result;
+    return serializeQuery(result);
   }
 
   static async getQueriesByUser(

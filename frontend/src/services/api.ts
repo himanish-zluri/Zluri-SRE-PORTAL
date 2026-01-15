@@ -77,8 +77,13 @@ export const podsApi = {
 
 // Queries
 export const queriesApi = {
-  getAll: (params?: { user?: string; status?: string }) =>
-    api.get<Query[]>('/queries', { params }),
+  // Get queries submitted to manager/admin for approval (Manager/Admin only)
+  getForApproval: (params?: { status?: string; type?: string; limit?: number; offset?: number }) =>
+    api.get<{ data: Query[]; pagination: { total: number; limit: number; offset: number; hasMore: boolean } }>('/queries', { params }),
+  
+  // Get user's own submitted queries (all users)
+  getMySubmissions: (params?: { status?: string; type?: string; limit?: number; offset?: number }) =>
+    api.get<{ data: Query[]; pagination: { total: number; limit: number; offset: number; hasMore: boolean } }>('/queries/my-submissions', { params }),
   
   submit: (data: FormData | {
     instanceId: string;
