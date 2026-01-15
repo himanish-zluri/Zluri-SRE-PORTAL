@@ -218,16 +218,23 @@ describe('Validation Schemas', () => {
 
   describe('Pod Schemas', () => {
     describe('podIdParamSchema', () => {
-      it('should pass with valid UUID', () => {
+      it('should pass with valid pod ID', () => {
+        const result = podIdParamSchema.safeParse({
+          params: { id: 'pod-a' },
+        });
+        expect(result.success).toBe(true);
+      });
+
+      it('should pass with UUID pod ID', () => {
         const result = podIdParamSchema.safeParse({
           params: { id: '550e8400-e29b-41d4-a716-446655440000' },
         });
         expect(result.success).toBe(true);
       });
 
-      it('should fail with invalid UUID', () => {
+      it('should fail with empty pod ID', () => {
         const result = podIdParamSchema.safeParse({
-          params: { id: 'invalid' },
+          params: { id: '' },
         });
         expect(result.success).toBe(false);
       });

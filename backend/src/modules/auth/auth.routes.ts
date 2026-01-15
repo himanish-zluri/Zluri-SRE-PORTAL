@@ -6,9 +6,115 @@ import { asyncHandler } from '../../middlewares/errorHandler.middleware';
 
 const router = Router();
 
+/**
+ * @openapi
+ * /api/auth/login:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Login with email and password
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email, password]
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *               password:
+ *                 type: string
+ *                 minLength: 6
+ *     responses:
+ *       200:
+ *         description: Login successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 accessToken:
+ *                   type: string
+ *                 refreshToken:
+ *                   type: string
+ *                 user:
+ *                   $ref: '#/components/schemas/User'
+ *       401:
+ *         description: Invalid credentials
+ */
 router.post('/login', validate(loginSchema), asyncHandler(AuthController.login));
+
+/**
+ * @openapi
+ * /api/auth/refresh:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Refresh access token
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [refreshToken]
+ *             properties:
+ *               refreshToken:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Token refreshed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 accessToken:
+ *                   type: string
+ *                 user:
+ *                   $ref: '#/components/schemas/User'
+ *       401:
+ *         description: Invalid or expired refresh token
+ */
 router.post('/refresh', validate(refreshSchema), asyncHandler(AuthController.refresh));
+
+/**
+ * @openapi
+ * /api/auth/logout:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Logout (invalidate refresh token)
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [refreshToken]
+ *             properties:
+ *               refreshToken:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Logged out successfully
+ */
 router.post('/logout', validate(logoutSchema), asyncHandler(AuthController.logout));
+
+/**
+ * @openapi
+ * /api/auth/logout-all:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Logout from all devices
+ *     responses:
+ *       200:
+ *         description: Logged out from all devices
+ *       401:
+ *         description: Unauthorized
+ */
 router.post('/logout-all', requireAuth, asyncHandler(AuthController.logoutAll));
 
 export default router;

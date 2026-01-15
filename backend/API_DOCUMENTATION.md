@@ -24,7 +24,7 @@ Login with email and password.
 }
 ```
 
-**Response (200):**
+**Response (200):**¯
 ```json
 {
   "accessToken": "eyJhbGciOiJIUzI1NiIs...",

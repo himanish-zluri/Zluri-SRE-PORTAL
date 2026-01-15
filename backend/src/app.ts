@@ -1,4 +1,5 @@
 import express from 'express';
+import swaggerUi from 'swagger-ui-express';
 import authRoutes from './modules/auth/auth.routes';
 import testRoutes from './routes/test.routes';
 import queryRoutes from './modules/queries/query.routes';
@@ -9,10 +10,23 @@ import auditRoutes from './modules/audit/audit.routes';
 import { globalErrorHandler, notFoundHandler } from './middlewares/errorHandler.middleware';
 import { RequestContext } from '@mikro-orm/core';
 import { orm } from './config/database';
+import { swaggerSpec } from './config/swagger';
 
 const app = express();
 
 app.use(express.json());
+
+// Swagger UI
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+  explorer: true,
+  customSiteTitle: 'DB Query Portal API',
+}));
+
+// Serve OpenAPI spec as JSON
+app.get('/api-docs.json', (_req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.send(swaggerSpec);
+});
 
 // MikroORM request context middleware - creates a new EntityManager for each request
 app.use((_req, _res, next) => {
