@@ -87,7 +87,7 @@ const options: swaggerJsdoc.Options = {
             database_name: { type: 'string' },
             submission_type: { type: 'string', enum: ['QUERY', 'SCRIPT'] },
             query_text: { type: 'string' },
-            script_path: { type: 'string', nullable: true },
+            script_content: { type: 'string', nullable: true },
             comments: { type: 'string' },
             status: { type: 'string', enum: ['PENDING', 'EXECUTED', 'REJECTED', 'FAILED'] },
             approved_by: { type: 'string', format: 'uuid', nullable: true },

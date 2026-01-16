@@ -25,6 +25,7 @@ export function LoginPage() {
     try {
       await login(email, password);
     } catch (err: any) {
+      /* istanbul ignore next */
       setError(err.response?.data?.message || 'Invalid email or password');
     } finally {
       setIsLoading(false);

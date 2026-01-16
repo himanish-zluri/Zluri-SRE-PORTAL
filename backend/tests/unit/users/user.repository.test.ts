@@ -51,4 +51,70 @@ describe('UserRepository', () => {
       expect(result).toBeNull();
     });
   });
+
+  describe('findAll', () => {
+    it('should return all users ordered by name', async () => {
+      const mockUsers = [
+        { id: 'user-1', name: 'Alice', email: 'alice@test.com' },
+        { id: 'user-2', name: 'Bob', email: 'bob@test.com' },
+      ];
+      mockEntityManager.find.mockResolvedValue(mockUsers);
+
+      const result = await UserRepository.findAll();
+
+      expect(mockEntityManager.find).toHaveBeenCalledWith(
+        expect.any(Function),
+        {},
+        { orderBy: { name: 'ASC' } }
+      );
+      expect(result).toEqual(mockUsers);
+    });
+
+    it('should return empty array when no users', async () => {
+      mockEntityManager.find.mockResolvedValue([]);
+
+      const result = await UserRepository.findAll();
+
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe('updateSlackId', () => {
+    it('should update user slack ID', async () => {
+      const mockUser: any = { id: 'user-1', slackId: undefined };
+      mockEntityManager.findOneOrFail.mockResolvedValue(mockUser);
+      mockEntityManager.flush.mockResolvedValue(undefined);
+
+      await UserRepository.updateSlackId('user-1', 'U12345ABC');
+
+      expect(mockEntityManager.findOneOrFail).toHaveBeenCalledWith(
+        expect.any(Function),
+        { id: 'user-1' }
+      );
+      expect(mockUser.slackId).toBe('U12345ABC');
+      expect(mockEntityManager.flush).toHaveBeenCalled();
+    });
+
+    it('should clear slack ID when null provided', async () => {
+      const mockUser: any = { id: 'user-1', slackId: 'U12345ABC' };
+      mockEntityManager.findOneOrFail.mockResolvedValue(mockUser);
+      mockEntityManager.flush.mockResolvedValue(undefined);
+
+      await UserRepository.updateSlackId('user-1', null);
+
+      expect(mockUser.slackId).toBeUndefined();
+      expect(mockEntityManager.flush).toHaveBeenCalled();
+    });
+
+    it('should clear slack ID when empty string provided', async () => {
+      const mockUser: any = { id: 'user-1', slackId: 'U12345ABC' };
+      mockEntityManager.findOneOrFail.mockResolvedValue(mockUser);
+      mockEntityManager.flush.mockResolvedValue(undefined);
+
+      await UserRepository.updateSlackId('user-1', '');
+
+      expect(mockUser.slackId).toBeUndefined();
+      expect(mockEntityManager.flush).toHaveBeenCalled();
+    });
+  });
 });

@@ -7,6 +7,7 @@ import instanceRoutes from './modules/db-instances/dbInstance.routes';
 import databaseRoutes from './modules/databases/database.routes';
 import podsRoutes from './modules/pods/pods.routes';
 import auditRoutes from './modules/audit/audit.routes';
+import userRoutes from './modules/users/user.routes';
 import { globalErrorHandler, notFoundHandler } from './middlewares/errorHandler.middleware';
 import { RequestContext } from '@mikro-orm/core';
 import { orm } from './config/database';
@@ -41,6 +42,7 @@ app.use((_req, _res, next) => {
 app.use('/api/instances', instanceRoutes);
 app.use('/api/databases', databaseRoutes);
 app.use('/api/pods', podsRoutes);
+app.use('/api/users', userRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/test', testRoutes);
 app.use('/api/queries', queryRoutes);

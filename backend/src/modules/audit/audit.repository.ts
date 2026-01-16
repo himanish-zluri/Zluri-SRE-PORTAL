@@ -3,6 +3,14 @@ import { QueryAuditLog, AuditAction, User, QueryRequest } from '../../entities';
 
 export { AuditAction };
 
+export interface AuditFilterOptions {
+  userId?: string;
+  databaseName?: string;
+  action?: string;
+  limit?: number;
+  offset?: number;
+}
+
 export class AuditRepository {
   static async log(data: {
     queryRequestId: string;
@@ -75,6 +83,32 @@ export class AuditRepository {
         orderBy: { createdAt: 'DESC' },
         limit,
         offset,
+      }
+    );
+  }
+
+  static async findWithFilters(options: AuditFilterOptions): Promise<QueryAuditLog[]> {
+    const em = getEntityManager();
+    const where: any = {};
+
+    if (options.userId) {
+      where.performedBy = options.userId;
+    }
+    if (options.databaseName) {
+      where.queryRequest = { ...where.queryRequest, databaseName: options.databaseName };
+    }
+    if (options.action) {
+      where.action = options.action;
+    }
+
+    return em.find(
+      QueryAuditLog,
+      where,
+      {
+        populate: ['performedBy', 'queryRequest'],
+        orderBy: { createdAt: 'DESC' },
+        limit: options.limit || 100,
+        offset: options.offset || 0,
       }
     );
   }

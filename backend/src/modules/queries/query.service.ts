@@ -7,7 +7,8 @@ import { executeMongoScriptSandboxed } from '../../execution/sandbox/executor';
 import { AuditRepository } from '../audit/audit.repository';
 import { NotFoundError, ConflictError, BadRequestError, ForbiddenError } from '../../errors';
 import { QueryRequest } from '../../entities';
-import fs from 'fs';
+import { SlackService } from '../../services/slack.service';
+import { UserRepository } from '../users/user.repository';
 
 export interface PaginatedResponse<T> {
   data: T[];
@@ -19,27 +20,21 @@ export interface PaginatedResponse<T> {
   };
 }
 
-// Helper to read script content safely
-function readScriptContent(scriptPath: string | null | undefined): string | null {
-  if (!scriptPath) return null;
-  try {
-    return fs.readFileSync(scriptPath, 'utf-8');
-  } catch {
-    return null;
-  }
-}
-
 // Helper to serialize query for API response
 function serializeQuery(query: QueryRequest): any {
   return {
     id: query.id,
     requester_id: query.requester?.id,
+    requester_name: query.requester?.name,
+    requester_email: query.requester?.email,
     pod_id: query.pod?.id,
+    pod_manager_name: query.pod?.manager?.name,
     instance_id: query.instance?.id,
+    instance_name: query.instance?.name,
     database_name: query.databaseName,
     submission_type: query.submissionType,
     query_text: query.queryText,
-    script_path: query.scriptPath,
+    script_content: query.scriptContent,
     comments: query.comments,
     status: query.status,
     approved_by: query.approvedBy?.id,
@@ -47,13 +42,41 @@ function serializeQuery(query: QueryRequest): any {
     execution_result: query.executionResult,
     created_at: query.createdAt,
     updated_at: query.updatedAt,
-    script_content: query.submissionType === 'SCRIPT' ? readScriptContent(query.scriptPath) : null,
   };
 }
 
-// Helper to add script content to queries
-function enrichWithScriptContent(queries: QueryRequest[]): any[] {
+// Helper to serialize queries array
+function serializeQueries(queries: QueryRequest[]): any[] {
   return queries.map(serializeQuery);
+}
+
+// Helper to build query info for Slack notifications
+function buildSlackQueryInfo(query: QueryRequest): {
+  id: string;
+  requesterName: string;
+  requesterEmail: string;
+  requesterSlackId?: string;
+  databaseName: string;
+  instanceName: string;
+  podId: string;
+  submissionType: 'QUERY' | 'SCRIPT';
+  queryText?: string;
+  scriptContent?: string;
+  comments?: string;
+} {
+  return {
+    id: query.id,
+    requesterName: query.requester?.name || 'Unknown',
+    requesterEmail: query.requester?.email || '',
+    requesterSlackId: query.requester?.slackId,
+    databaseName: query.databaseName,
+    instanceName: query.instance?.name || 'Unknown',
+    podId: query.pod?.id || 'Unknown',
+    submissionType: query.submissionType as 'QUERY' | 'SCRIPT',
+    queryText: query.queryText,
+    scriptContent: query.scriptContent,
+    comments: query.comments,
+  };
 }
 
 export class QueryService {
@@ -65,7 +88,7 @@ export class QueryService {
     podId: string;
     comments: string;
     submissionType: 'QUERY' | 'SCRIPT';
-    scriptPath?: string;
+    scriptContent?: string;
   }) {
     const query = await QueryRepository.create(input);
     
@@ -76,6 +99,13 @@ export class QueryService {
       performedBy: input.requesterId,
       details: { submissionType: input.submissionType, podId: input.podId }
     });
+
+    // Send Slack notification for new submission
+    try {
+      await SlackService.notifyNewSubmission(buildSlackQueryInfo(query));
+    } catch (err) {
+      console.error('Slack notification failed:', err);
+    }
     
     return serializeQuery(query);
   }
@@ -94,6 +124,11 @@ export class QueryService {
     if (!instance) {
       throw new NotFoundError('DB instance not found');
     }
+
+    // Get manager info for Slack notification
+    const manager = await UserRepository.findById(managerId);
+    const managerName = manager?.name || 'Unknown';
+    const slackQueryInfo = buildSlackQueryInfo(query);
   
     try {
       let result: any;
@@ -104,12 +139,12 @@ export class QueryService {
         }
         
         if (query.submissionType === 'SCRIPT') {
-          if (!query.scriptPath) {
-            throw new BadRequestError('Postgres script path missing');
+          if (!query.scriptContent) {
+            throw new BadRequestError('Script content missing');
           }
   
           result = await executePostgresScriptSandboxed(
-            query.scriptPath,
+            query.scriptContent,
             {
               PG_HOST: instance.host,
               PG_PORT: String(instance.port),
@@ -136,12 +171,12 @@ export class QueryService {
         }
   
         if (query.submissionType === 'SCRIPT') {
-          if (!query.scriptPath) {
-            throw new BadRequestError('Mongo script path missing');
+          if (!query.scriptContent) {
+            throw new BadRequestError('Script content missing');
           }
   
           result = await executeMongoScriptSandboxed(
-            query.scriptPath,
+            query.scriptContent,
             instance.mongo_uri,
             query.databaseName
           );
@@ -165,6 +200,13 @@ export class QueryService {
         performedBy: managerId,
         details: { instanceType: instance.type }
       });
+
+      // Send Slack success notification
+      try {
+        await SlackService.notifyExecutionSuccess(slackQueryInfo, result, managerName);
+      } catch (err) {
+        console.error('Slack notification failed:', err);
+      }
       
       return { status: 'EXECUTED', result };
   
@@ -178,6 +220,13 @@ export class QueryService {
         performedBy: managerId,
         details: { error: error.message }
       });
+
+      // Send Slack failure notification
+      try {
+        await SlackService.notifyExecutionFailure(slackQueryInfo, error.message, managerName);
+      } catch (err) {
+        console.error('Slack notification failed:', err);
+      }
       
       throw error;
     }
@@ -202,6 +251,11 @@ export class QueryService {
       }
     }
 
+    // Get manager info for Slack notification
+    const manager = await UserRepository.findById(managerId);
+    const managerName = manager?.name || 'Unknown';
+    const slackQueryInfo = buildSlackQueryInfo(query);
+
     const result = await QueryRepository.reject(queryId, managerId, reason);
     
     // Log rejection
@@ -211,6 +265,13 @@ export class QueryService {
       performedBy: managerId,
       details: { reason }
     });
+
+    // Send Slack rejection notification (DM to requester only)
+    try {
+      await SlackService.notifyRejection(slackQueryInfo, reason, managerName);
+    } catch (err) {
+      console.error('Slack notification failed:', err);
+    }
     
     return serializeQuery(result);
   }
@@ -230,7 +291,7 @@ export class QueryService {
     const offset = pagination?.offset ?? 0;
     
     return {
-      data: enrichWithScriptContent(queries),
+      data: serializeQueries(queries),
       pagination: {
         total,
         limit,
@@ -255,7 +316,7 @@ export class QueryService {
     const offset = pagination?.offset ?? 0;
     
     return {
-      data: enrichWithScriptContent(queries),
+      data: serializeQueries(queries),
       pagination: {
         total,
         limit,
@@ -279,7 +340,7 @@ export class QueryService {
     const offset = pagination?.offset ?? 0;
     
     return {
-      data: enrichWithScriptContent(queries),
+      data: serializeQueries(queries),
       pagination: {
         total,
         limit,

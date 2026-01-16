@@ -40,8 +40,8 @@ export class QueryRequest {
   @Property({ fieldName: 'query_text', type: 'text' })
   queryText!: string;
 
-  @Property({ fieldName: 'script_path', nullable: true })
-  scriptPath?: string;
+  @Property({ fieldName: 'script_content', type: 'text', nullable: true })
+  scriptContent?: string;
 
   @Property({ type: 'text', nullable: true })
   comments?: string;

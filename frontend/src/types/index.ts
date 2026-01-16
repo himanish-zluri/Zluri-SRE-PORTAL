@@ -28,7 +28,10 @@ export interface Pod {
 export interface Query {
   id: string;
   requester_id: string;
+  requester_name?: string;
+  requester_email?: string;
   instance_id: string;
+  instance_name?: string;
   database_name: string;
   submission_type: 'QUERY' | 'SCRIPT';
   query_text: string;
@@ -36,6 +39,7 @@ export interface Query {
   script_content?: string;
   comments: string;
   pod_id: string;
+  pod_manager_name?: string;
   status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'EXECUTED' | 'FAILED';
   approved_by?: string;
   rejection_reason?: string;

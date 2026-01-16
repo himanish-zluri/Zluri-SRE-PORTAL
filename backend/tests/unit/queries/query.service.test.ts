@@ -5,7 +5,8 @@ import { AuditRepository } from '../../../src/modules/audit/audit.repository';
 import { executePostgresQuery } from '../../../src/execution/postgres-query.executor';
 import { executePostgresScriptSandboxed, executeMongoScriptSandboxed } from '../../../src/execution/sandbox/executor';
 import { executeMongoQuery } from '../../../src/execution/mongo-query.executor';
-import fs from 'fs';
+import { SlackService } from '../../../src/services/slack.service';
+import { UserRepository } from '../../../src/modules/users/user.repository';
 
 jest.mock('../../../src/modules/queries/query.repository');
 jest.mock('../../../src/modules/db-instances/dbInstance.repository');
@@ -13,12 +14,18 @@ jest.mock('../../../src/modules/audit/audit.repository');
 jest.mock('../../../src/execution/postgres-query.executor');
 jest.mock('../../../src/execution/sandbox/executor');
 jest.mock('../../../src/execution/mongo-query.executor');
-jest.mock('fs');
+jest.mock('../../../src/services/slack.service');
+jest.mock('../../../src/modules/users/user.repository');
 
 describe('QueryService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (AuditRepository.log as jest.Mock).mockResolvedValue(undefined);
+    (SlackService.notifyNewSubmission as jest.Mock).mockResolvedValue(undefined);
+    (SlackService.notifyExecutionSuccess as jest.Mock).mockResolvedValue(undefined);
+    (SlackService.notifyExecutionFailure as jest.Mock).mockResolvedValue(undefined);
+    (SlackService.notifyRejection as jest.Mock).mockResolvedValue(undefined);
+    (UserRepository.findById as jest.Mock).mockResolvedValue({ id: 'manager-1', name: 'Manager' });
   });
 
   describe('submitQuery', () => {
@@ -33,7 +40,6 @@ describe('QueryService', () => {
         submissionType: 'QUERY' as const
       };
 
-      // Mock returns entity with camelCase properties
       const mockCreated = { 
         id: 'query-1', 
         requester: { id: 'user-123' },
@@ -56,7 +62,7 @@ describe('QueryService', () => {
       expect(result.status).toBe('PENDING');
     });
 
-    it('should create a script submission with scriptPath', async () => {
+    it('should create a script submission with scriptContent', async () => {
       const input = {
         requesterId: 'user-123',
         instanceId: 'instance-1',
@@ -65,7 +71,7 @@ describe('QueryService', () => {
         podId: 'pod-a',
         comments: 'Test script',
         submissionType: 'SCRIPT' as const,
-        scriptPath: '/uploads/script.js'
+        scriptContent: 'console.log("hello");'
       };
 
       const mockCreated = {
@@ -77,7 +83,7 @@ describe('QueryService', () => {
         queryText: '[SCRIPT SUBMISSION]',
         comments: 'Test script',
         submissionType: 'SCRIPT',
-        scriptPath: '/uploads/script.js',
+        scriptContent: 'console.log("hello");',
         status: 'PENDING'
       };
       (QueryRepository.create as jest.Mock).mockResolvedValue(mockCreated);
@@ -86,10 +92,44 @@ describe('QueryService', () => {
 
       expect(QueryRepository.create).toHaveBeenCalledWith(input);
     });
+
+    it('should handle Slack notification failure gracefully on submit', async () => {
+      const input = {
+        requesterId: 'user-123',
+        instanceId: 'instance-1',
+        databaseName: 'test_db',
+        queryText: 'SELECT * FROM users',
+        podId: 'pod-a',
+        comments: 'Test query',
+        submissionType: 'QUERY' as const
+      };
+
+      const mockCreated = { 
+        id: 'query-1', 
+        requester: { id: 'user-123' },
+        instance: { id: 'instance-1' },
+        pod: { id: 'pod-a' },
+        databaseName: 'test_db',
+        queryText: 'SELECT * FROM users',
+        comments: 'Test query',
+        submissionType: 'QUERY',
+        status: 'PENDING'
+      };
+      (QueryRepository.create as jest.Mock).mockResolvedValue(mockCreated);
+      (SlackService.notifyNewSubmission as jest.Mock).mockRejectedValue(new Error('Slack API error'));
+      
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+
+      // Should not throw even if Slack fails
+      const result = await QueryService.submitQuery(input);
+
+      expect(result.id).toBe('query-1');
+      expect(consoleSpy).toHaveBeenCalledWith('Slack notification failed:', expect.any(Error));
+      consoleSpy.mockRestore();
+    });
   });
 
   describe('approveQuery', () => {
-    // Mock query entity with camelCase properties
     const mockQuery = {
       id: 'query-1',
       instance: { id: 'instance-1' },
@@ -122,14 +162,14 @@ describe('QueryService', () => {
     });
 
     it('should execute postgres script', async () => {
-      const scriptQuery = { ...mockQuery, submissionType: 'SCRIPT', scriptPath: '/path/to/script.js' };
+      const scriptQuery = { ...mockQuery, submissionType: 'SCRIPT', scriptContent: 'const result = await query("SELECT 1");' };
       (QueryRepository.findById as jest.Mock).mockResolvedValue(scriptQuery);
       (DbInstanceRepository.findById as jest.Mock).mockResolvedValue(mockPostgresInstance);
       (executePostgresScriptSandboxed as jest.Mock).mockResolvedValue({ stdout: 'success', stderr: '' });
 
       await QueryService.approveQuery('query-1', 'manager-1');
 
-      expect(executePostgresScriptSandboxed).toHaveBeenCalledWith('/path/to/script.js', expect.objectContaining({
+      expect(executePostgresScriptSandboxed).toHaveBeenCalledWith('const result = await query("SELECT 1");', expect.objectContaining({
         PG_HOST: 'localhost',
         PG_DATABASE: 'test_db'
       }));
@@ -195,7 +235,7 @@ describe('QueryService', () => {
         ...mockQuery, 
         instance: { id: 'instance-2' }, 
         submissionType: 'SCRIPT',
-        scriptPath: '/path/to/mongo-script.js'
+        scriptContent: 'return await db.collection("users").find({}).toArray();'
       };
 
       (QueryRepository.findById as jest.Mock).mockResolvedValue(mongoScriptQuery);
@@ -204,7 +244,11 @@ describe('QueryService', () => {
 
       await QueryService.approveQuery('query-1', 'manager-1');
 
-      expect(executeMongoScriptSandboxed).toHaveBeenCalledWith('/path/to/mongo-script.js', 'mongodb://localhost:27017', 'test_db');
+      expect(executeMongoScriptSandboxed).toHaveBeenCalledWith(
+        'return await db.collection("users").find({}).toArray();', 
+        'mongodb://localhost:27017', 
+        'test_db'
+      );
     });
 
     it('should throw error when mongo_uri not configured', async () => {
@@ -225,24 +269,24 @@ describe('QueryService', () => {
         .rejects.toThrow('Unsupported database type: MYSQL');
     });
 
-    it('should throw error when postgres script path missing', async () => {
-      const scriptQuery = { ...mockQuery, submissionType: 'SCRIPT', scriptPath: null };
+    it('should throw error when postgres script content missing', async () => {
+      const scriptQuery = { ...mockQuery, submissionType: 'SCRIPT', scriptContent: null };
       (QueryRepository.findById as jest.Mock).mockResolvedValue(scriptQuery);
       (DbInstanceRepository.findById as jest.Mock).mockResolvedValue(mockPostgresInstance);
 
       await expect(QueryService.approveQuery('query-1', 'manager-1'))
-        .rejects.toThrow('Postgres script path missing');
+        .rejects.toThrow('Script content missing');
     });
 
-    it('should throw error when mongo script path missing', async () => {
+    it('should throw error when mongo script content missing', async () => {
       const mongoInstance = { id: 'instance-2', type: 'MONGODB', mongo_uri: 'mongodb://localhost' };
-      const scriptQuery = { ...mockQuery, instance: { id: 'instance-2' }, submissionType: 'SCRIPT', scriptPath: null };
+      const scriptQuery = { ...mockQuery, instance: { id: 'instance-2' }, submissionType: 'SCRIPT', scriptContent: null };
       
       (QueryRepository.findById as jest.Mock).mockResolvedValue(scriptQuery);
       (DbInstanceRepository.findById as jest.Mock).mockResolvedValue(mongoInstance);
 
       await expect(QueryService.approveQuery('query-1', 'manager-1'))
-        .rejects.toThrow('Mongo script path missing');
+        .rejects.toThrow('Script content missing');
     });
 
     it('should throw error when postgres instance missing host', async () => {
@@ -279,6 +323,38 @@ describe('QueryService', () => {
 
       await expect(QueryService.approveQuery('query-1', 'manager-1'))
         .rejects.toThrow('Postgres instance missing required connection details');
+    });
+
+    it('should handle Slack success notification failure gracefully', async () => {
+      (QueryRepository.findById as jest.Mock).mockResolvedValue(mockQuery);
+      (DbInstanceRepository.findById as jest.Mock).mockResolvedValue(mockPostgresInstance);
+      (executePostgresQuery as jest.Mock).mockResolvedValue({ rows: [{ id: 1 }] });
+      (SlackService.notifyExecutionSuccess as jest.Mock).mockRejectedValue(new Error('Slack API error'));
+      
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+
+      // Should not throw even if Slack fails
+      const result = await QueryService.approveQuery('query-1', 'manager-1');
+
+      expect(result.status).toBe('EXECUTED');
+      expect(consoleSpy).toHaveBeenCalledWith('Slack notification failed:', expect.any(Error));
+      consoleSpy.mockRestore();
+    });
+
+    it('should handle Slack failure notification failure gracefully', async () => {
+      (QueryRepository.findById as jest.Mock).mockResolvedValue(mockQuery);
+      (DbInstanceRepository.findById as jest.Mock).mockResolvedValue(mockPostgresInstance);
+      (executePostgresQuery as jest.Mock).mockRejectedValue(new Error('Query failed'));
+      (SlackService.notifyExecutionFailure as jest.Mock).mockRejectedValue(new Error('Slack API error'));
+      
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+
+      // Should still throw the original error
+      await expect(QueryService.approveQuery('query-1', 'manager-1'))
+        .rejects.toThrow('Query failed');
+
+      expect(consoleSpy).toHaveBeenCalledWith('Slack notification failed:', expect.any(Error));
+      consoleSpy.mockRestore();
     });
   });
 
@@ -334,6 +410,24 @@ describe('QueryService', () => {
       await expect(QueryService.rejectQuery('query-1', 'manager-1', 'MANAGER'))
         .rejects.toThrow('Not authorized to reject this request');
     });
+
+    it('should handle Slack rejection notification failure gracefully', async () => {
+      const mockQuery = { id: 'query-1', pod: { id: 'pod-a' }, status: 'PENDING' };
+      const mockRejected = { ...mockQuery, status: 'REJECTED' };
+      (QueryRepository.findById as jest.Mock).mockResolvedValue(mockQuery);
+      (QueryRepository.isManagerOfPod as jest.Mock).mockResolvedValue(true);
+      (QueryRepository.reject as jest.Mock).mockResolvedValue(mockRejected);
+      (SlackService.notifyRejection as jest.Mock).mockRejectedValue(new Error('Slack API error'));
+      
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+
+      // Should not throw even if Slack fails
+      const result = await QueryService.rejectQuery('query-1', 'manager-1', 'MANAGER', 'Not approved');
+
+      expect(result.status).toBe('REJECTED');
+      expect(consoleSpy).toHaveBeenCalledWith('Slack notification failed:', expect.any(Error));
+      consoleSpy.mockRestore();
+    });
   });
 
   describe('getQueriesByUser', () => {
@@ -343,11 +437,10 @@ describe('QueryService', () => {
 
     it('should return queries for user with script content and pagination', async () => {
       const mockQueries = [
-        { id: 'q1', submissionType: 'QUERY', scriptPath: null },
-        { id: 'q2', submissionType: 'SCRIPT', scriptPath: '/path/to/script.js' }
+        { id: 'q1', submissionType: 'QUERY', scriptContent: null },
+        { id: 'q2', submissionType: 'SCRIPT', scriptContent: 'console.log("script content");' }
       ];
       (QueryRepository.findByRequesterWithStatus as jest.Mock).mockResolvedValue(mockQueries);
-      (fs.readFileSync as jest.Mock).mockReturnValue('console.log("script content");');
 
       const result = await QueryService.getQueriesByUser('user-1');
 
@@ -364,28 +457,6 @@ describe('QueryService', () => {
       await QueryService.getQueriesByUser('user-1', ['PENDING', 'APPROVED']);
 
       expect(QueryRepository.findByRequesterWithStatus).toHaveBeenCalledWith('user-1', ['PENDING', 'APPROVED'], undefined, undefined);
-    });
-
-    it('should handle missing script file gracefully', async () => {
-      const mockQueries = [{ id: 'q1', submissionType: 'SCRIPT', scriptPath: '/missing/file.js' }];
-      (QueryRepository.findByRequesterWithStatus as jest.Mock).mockResolvedValue(mockQueries);
-      (QueryRepository.countByRequester as jest.Mock).mockResolvedValue(1);
-      (fs.readFileSync as jest.Mock).mockImplementation(() => { throw new Error('File not found'); });
-
-      const result = await QueryService.getQueriesByUser('user-1');
-
-      expect(result.data[0].script_content).toBeNull();
-    });
-
-    it('should return null script_content for SCRIPT type with null script_path', async () => {
-      const mockQueries = [{ id: 'q1', submissionType: 'SCRIPT', scriptPath: null }];
-      (QueryRepository.findByRequesterWithStatus as jest.Mock).mockResolvedValue(mockQueries);
-      (QueryRepository.countByRequester as jest.Mock).mockResolvedValue(1);
-
-      const result = await QueryService.getQueriesByUser('user-1');
-
-      expect(result.data[0].script_content).toBeNull();
-      expect(fs.readFileSync).not.toHaveBeenCalled();
     });
 
     it('should return queries with type filter', async () => {
@@ -423,9 +494,8 @@ describe('QueryService', () => {
     });
 
     it('should return queries for manager pods with script content', async () => {
-      const mockQueries = [{ id: 'q1', submissionType: 'SCRIPT', scriptPath: '/path/script.js' }];
+      const mockQueries = [{ id: 'q1', submissionType: 'SCRIPT', scriptContent: '// manager script' }];
       (QueryRepository.findByManagerWithStatus as jest.Mock).mockResolvedValue(mockQueries);
-      (fs.readFileSync as jest.Mock).mockReturnValue('// manager script');
 
       const result = await QueryService.getQueriesForManager('manager-1', ['PENDING']);
 
@@ -461,15 +531,13 @@ describe('QueryService', () => {
     it('should return all queries with script content', async () => {
       const mockQueries = [
         { id: 'q1', submissionType: 'QUERY' },
-        { id: 'q2', submissionType: 'SCRIPT', scriptPath: '/path/script.js' }
+        { id: 'q2', submissionType: 'SCRIPT', scriptContent: '// all queries script' }
       ];
       (QueryRepository.findAllWithStatus as jest.Mock).mockResolvedValue(mockQueries);
-      (fs.readFileSync as jest.Mock).mockReturnValue('// all queries script');
 
       const result = await QueryService.getAllQueries();
 
       expect(QueryRepository.findAllWithStatus).toHaveBeenCalledWith(undefined, undefined, undefined);
-      expect(result.data[0].script_content).toBeNull();
       expect(result.data[1].script_content).toBe('// all queries script');
     });
 

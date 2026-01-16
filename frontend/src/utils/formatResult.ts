@@ -16,6 +16,33 @@ function tryParseJSON(value: any): any {
 }
 
 /**
+ * Try to parse concatenated JSON objects like: {"a":1}{"b":2}{"c":3}
+ * Returns array of parsed objects, or null if not in this format
+ */
+function parseConcatenatedJson(str: string): any[] | null {
+  /* istanbul ignore if */
+  if (typeof str !== 'string') return null;
+  
+  // Check if it looks like concatenated JSON objects
+  if (!str.includes('}{')) return null;
+  
+  try {
+    // Split on }{ and reconstruct individual JSON objects
+    const parts = str.split(/\}\s*\{/).map((part, i, arr) => {
+      if (i === 0) return part + '}';
+      if (i === arr.length - 1) return '{' + part;
+      return '{' + part + '}';
+    });
+    
+    const parsed = parts.map(p => JSON.parse(p));
+    return parsed;
+  /* istanbul ignore next */
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Formats execution result for display
  * Handles nested JSON strings and prettifies output
  */
@@ -34,8 +61,23 @@ export function formatExecutionResult(result: any): { type: 'table' | 'json' | '
     return { type: 'text', data: result.stdout || result.stderr || 'Execution completed' };
   }
 
-  // Handle string result (could be JSON string from script logs)
+  // Handle string result (could be JSON string or concatenated JSON)
   if (typeof result === 'string') {
+    // First try to parse concatenated JSON objects like {"a":1}{"b":2}
+    const concatenated = parseConcatenatedJson(result);
+    if (concatenated) {
+      // Dedupe if there are repeated objects
+      const seen = new Set<string>();
+      const unique = concatenated.filter(item => {
+        const key = JSON.stringify(item);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      return { type: 'table', data: unique };
+    }
+    
+    // Try regular JSON parse
     const parsed = tryParseJSON(result);
     if (parsed !== result) {
       // Successfully parsed - recurse to handle the parsed result
@@ -52,8 +94,48 @@ export function formatExecutionResult(result: any): { type: 'table' | 'json' | '
     return { type: 'text', data: `Query executed successfully. ${result.rowCount || 0} rows affected.` };
   }
 
-  // Handle MongoDB results (usually arrays)
+  // Handle arrays (MongoDB results, script logs, etc.)
   if (Array.isArray(result)) {
+    // First flatten any nested arrays and parse any JSON strings
+    const flattened: any[] = [];
+    
+    for (const item of result) {
+      if (typeof item === 'string') {
+        // Try to parse as JSON
+        const parsed = tryParseJSON(item);
+        if (Array.isArray(parsed)) {
+          // Stringified array - flatten it
+          flattened.push(...parsed);
+        } else if (typeof parsed === 'object' && parsed !== null) {
+          flattened.push(parsed);
+        } else {
+          // Check if it's concatenated JSON
+          const concatenated = parseConcatenatedJson(item);
+          /* istanbul ignore else */
+          if (concatenated) {
+            flattened.push(...concatenated);
+          } else {
+            flattened.push(item);
+          }
+        }
+      } else if (Array.isArray(item)) {
+        // Nested array - flatten it
+        flattened.push(...item);
+      } else if (item !== null && item !== undefined) {
+        flattened.push(item);
+      }
+    }
+    
+    if (flattened.length > 0 && typeof flattened[0] === 'object') {
+      return { type: 'table', data: flattened };
+    }
+    /* istanbul ignore if */
+    if (flattened.length > 0) {
+      return { type: 'json', data: flattened };
+    }
+    
+    // Original array handling
+    /* istanbul ignore if */
     if (result.length > 0 && typeof result[0] === 'object') {
       return { type: 'table', data: result };
     }

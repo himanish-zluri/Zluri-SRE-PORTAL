@@ -10,7 +10,7 @@ export class QueryRepository {
   static async findById(id: string): Promise<QueryRequest | null> {
     const em = getEntityManager();
     return em.findOne(QueryRequest, { id }, { 
-      populate: ['requester', 'pod', 'instance', 'approvedBy'] 
+      populate: ['requester', 'pod', 'pod.manager', 'instance', 'approvedBy'] 
     });
   }
 
@@ -42,7 +42,7 @@ export class QueryRepository {
     podId: string;
     comments: string;
     submissionType: 'QUERY' | 'SCRIPT';
-    scriptPath?: string;
+    scriptContent?: string;
   }): Promise<QueryRequest> {
     const em = getEntityManager();
     
@@ -58,7 +58,7 @@ export class QueryRepository {
     query.queryText = data.queryText || '[SCRIPT SUBMISSION]';
     query.comments = data.comments;
     query.submissionType = data.submissionType as SubmissionType;
-    query.scriptPath = data.scriptPath;
+    query.scriptContent = data.scriptContent;
     query.status = QueryStatus.PENDING;
     
     await em.persistAndFlush(query);
@@ -79,11 +79,11 @@ export class QueryRepository {
     }
     
     if (typeFilter) {
-      where.instance = { type: typeFilter };
+      where.submissionType = typeFilter;
     }
     
     return em.find(QueryRequest, where, {
-      populate: ['requester', 'pod', 'instance', 'approvedBy'],
+      populate: ['requester', 'pod', 'pod.manager', 'instance', 'approvedBy'],
       orderBy: { createdAt: 'DESC' },
       limit: pagination?.limit,
       offset: pagination?.offset,
@@ -103,7 +103,7 @@ export class QueryRepository {
     }
     
     if (typeFilter) {
-      where.instance = { type: typeFilter };
+      where.submissionType = typeFilter;
     }
     
     return em.count(QueryRequest, where);
@@ -123,11 +123,11 @@ export class QueryRepository {
     }
     
     if (typeFilter) {
-      where.instance = { type: typeFilter };
+      where.submissionType = typeFilter;
     }
     
     return em.find(QueryRequest, where, {
-      populate: ['requester', 'pod', 'instance', 'approvedBy'],
+      populate: ['requester', 'pod', 'pod.manager', 'instance', 'approvedBy'],
       orderBy: { createdAt: 'DESC' },
       limit: pagination?.limit,
       offset: pagination?.offset,
@@ -147,7 +147,7 @@ export class QueryRepository {
     }
     
     if (typeFilter) {
-      where.instance = { type: typeFilter };
+      where.submissionType = typeFilter;
     }
     
     return em.count(QueryRequest, where);
@@ -166,11 +166,11 @@ export class QueryRepository {
     }
     
     if (typeFilter) {
-      where.instance = { type: typeFilter };
+      where.submissionType = typeFilter;
     }
     
     return em.find(QueryRequest, where, {
-      populate: ['requester', 'pod', 'instance', 'approvedBy'],
+      populate: ['requester', 'pod', 'pod.manager', 'instance', 'approvedBy'],
       orderBy: { createdAt: 'DESC' },
       limit: pagination?.limit,
       offset: pagination?.offset,
@@ -186,7 +186,7 @@ export class QueryRepository {
     }
     
     if (typeFilter) {
-      where.instance = { type: typeFilter };
+      where.submissionType = typeFilter;
     }
     
     return em.count(QueryRequest, where);

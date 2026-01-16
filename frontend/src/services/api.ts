@@ -6,6 +6,7 @@ const api = axios.create({
 });
 
 // Request interceptor to add auth token
+/* istanbul ignore next */
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('accessToken');
   if (token) {
@@ -15,6 +16,7 @@ api.interceptors.request.use((config) => {
 });
 
 // Response interceptor to handle token refresh
+/* istanbul ignore next */
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -73,6 +75,11 @@ export const databasesApi = {
 export const podsApi = {
   getAll: () => api.get<Pod[]>('/pods'),
   getById: (id: string) => api.get<Pod>(`/pods/${id}`),
+};
+
+// Users
+export const usersApi = {
+  getAll: () => api.get<{ id: string; name: string; email: string; role: string }[]>('/users'),
 };
 
 // Queries

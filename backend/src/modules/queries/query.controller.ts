@@ -19,6 +19,9 @@ export class QueryController {
       throw new BadRequestError('Script file required for SCRIPT submission');
     }
 
+    // Read script content from memory buffer
+    const scriptContent = req.file ? req.file.buffer.toString('utf-8') : undefined;
+
     const query = await QueryService.submitQuery({
       requesterId: req.user!.id,
       instanceId,
@@ -27,7 +30,7 @@ export class QueryController {
       podId,
       comments,
       submissionType,
-      scriptPath: req.file?.path
+      scriptContent
     });
 
     return res.status(201).json(query);

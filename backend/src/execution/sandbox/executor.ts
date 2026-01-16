@@ -6,10 +6,13 @@
  * - Timeout support (kills process after configured time)
  * - Captured stdout/stderr
  * - Clean error handling
+ * - Temp file management (writes script content to temp file, executes, cleans up)
  */
 import { fork, ChildProcess } from 'child_process';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
+import { v4 as uuid } from 'uuid';
 
 const DEFAULT_TIMEOUT_MS = 30000; // 30 seconds
 
@@ -36,6 +39,26 @@ function getForkOptions(): { execArgv?: string[] } {
     return { execArgv: ['-r', 'ts-node/register'] };
   }
   return {};
+}
+
+// Create a temp file with script content
+function createTempScriptFile(scriptContent: string): string {
+  const tempDir = os.tmpdir();
+  const tempFileName = `script-${uuid()}.js`;
+  const tempFilePath = path.join(tempDir, tempFileName);
+  fs.writeFileSync(tempFilePath, scriptContent, 'utf-8');
+  return tempFilePath;
+}
+
+// Clean up temp file
+function cleanupTempFile(filePath: string): void {
+  try {
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+  } catch {
+    // Ignore cleanup errors
+  }
 }
 
 export interface SandboxResult {
@@ -142,7 +165,7 @@ function executeInSandbox(
 }
 
 export async function executePostgresScriptSandboxed(
-  scriptPath: string,
+  scriptContent: string,
   env: {
     PG_HOST: string;
     PG_PORT: string;
@@ -154,68 +177,102 @@ export async function executePostgresScriptSandboxed(
 ): Promise<any> {
   const runnerPath = getRunnerPath('postgres-script.executor');
   
-  const config = {
-    scriptPath,
-    ...env,
-  };
-
-  const result = await executeInSandbox(runnerPath, config, options);
-
-  if (!result.success) {
-    throw new Error(result.error || 'Script execution failed');
-  }
-
-  // Return the parsed result directly, not wrapped in stdout/stderr
-  // The result is already parsed from the child process JSON output
-  if (result.result !== undefined) {
-    return result.result;
-  }
+  // Write script content to temp file
+  const tempScriptPath = createTempScriptFile(scriptContent);
   
-  // If we have logs, try to parse them as JSON (scripts often console.log JSON data)
-  if (result.logs && result.logs.length > 0) {
-    const logValue = result.logs.length === 1 ? result.logs[0] : result.logs;
+  try {
+    const config = {
+      scriptPath: tempScriptPath,
+      ...env,
+    };
+
+    const result = await executeInSandbox(runnerPath, config, options);
+
+    if (!result.success) {
+      throw new Error(result.error || 'Script execution failed');
+    }
+
+    // Return the parsed result directly (from `return` statement in script)
+    if (result.result !== undefined) {
+      return result.result;
+    }
     
-    // Try to parse single log entry as JSON
-    if (typeof logValue === 'string') {
-      try {
-        return JSON.parse(logValue);
-      } catch {
-        return logValue;
+    // If we have logs, process them - flatten arrays but keep all rows
+    if (result.logs && result.logs.length > 0) {
+      const allRows: any[] = [];
+      
+      for (const log of result.logs) {
+        // Skip error logs
+        if (log && typeof log === 'object' && log._error) continue;
+        
+        if (Array.isArray(log)) {
+          // It's an array (like query results) - add each row
+          allRows.push(...log);
+        } else if (typeof log === 'string') {
+          // Try to parse as JSON
+          try {
+            const parsed = JSON.parse(log);
+            if (Array.isArray(parsed)) {
+              allRows.push(...parsed);
+            } else {
+              allRows.push(parsed);
+            }
+          } catch {
+            // Not JSON, keep as string
+            allRows.push(log);
+          }
+        } else if (log !== null && log !== undefined) {
+          allRows.push(log);
+        }
+      }
+
+      if (allRows.length > 0) {
+        return allRows.length === 1 ? allRows[0] : allRows;
       }
     }
-    return logValue;
-  }
 
-  // Fallback: try to parse stdout as JSON
-  try {
-    return JSON.parse(result.stdout);
-  } catch {
-    return { output: result.stdout, stderr: result.stderr };
+    // Fallback: try to parse stdout as JSON
+    try {
+      return JSON.parse(result.stdout);
+    } catch {
+      return { output: result.stdout, stderr: result.stderr };
+    }
+  } finally {
+    // Always clean up temp file
+    cleanupTempFile(tempScriptPath);
   }
 }
 
 export async function executeMongoScriptSandboxed(
-  scriptPath: string,
+  scriptContent: string,
   mongoUri: string,
   databaseName: string,
   options?: ExecuteOptions
 ): Promise<any> {
   const runnerPath = getRunnerPath('mongo-script.executor');
   
-  const config = {
-    scriptPath,
-    mongoUri,
-    databaseName,
-  };
+  // Write script content to temp file
+  const tempScriptPath = createTempScriptFile(scriptContent);
+  
+  try {
+    const config = {
+      scriptPath: tempScriptPath,
+      mongoUri,
+      databaseName,
+    };
 
-  const result = await executeInSandbox(runnerPath, config, options);
+    const result = await executeInSandbox(runnerPath, config, options);
 
-  if (!result.success) {
-    throw new Error(result.error || 'Script execution failed');
+    if (!result.success) {
+      throw new Error(result.error || 'Script execution failed');
+    }
+
+    return result.result ?? result.logs?.[result.logs.length - 1] ?? { success: true };
+  } finally {
+    // Always clean up temp file
+    cleanupTempFile(tempScriptPath);
   }
-
-  return result.result ?? result.logs?.[result.logs.length - 1] ?? { success: true };
 }
 
 // Export for testing
-export { executeInSandbox, DEFAULT_TIMEOUT_MS };
+export { executeInSandbox, DEFAULT_TIMEOUT_MS, createTempScriptFile, cleanupTempFile };

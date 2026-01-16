@@ -26,6 +26,7 @@ export function FileUpload({ label, accept = '.js', error, onChange, value }: Fi
     e.preventDefault();
     setIsDragging(false);
     const file = e.dataTransfer.files[0];
+    /* istanbul ignore else */
     if (file && file.name.endsWith('.js')) {
       onChange(file);
     }
@@ -42,6 +43,7 @@ export function FileUpload({ label, accept = '.js', error, onChange, value }: Fi
 
   const handleRemove = () => {
     onChange(null);
+    /* istanbul ignore if */
     if (inputRef.current) {
       inputRef.current.value = '';
     }

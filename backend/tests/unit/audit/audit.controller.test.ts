@@ -81,7 +81,7 @@ describe('AuditController', () => {
 
     it('should filter by userId when provided', async () => {
       const mockLogs = [createMockLog('log-1', 'SUBMITTED')];
-      (AuditRepository.findByUserId as jest.Mock).mockResolvedValue(mockLogs);
+      (AuditRepository.findWithFilters as jest.Mock).mockResolvedValue(mockLogs);
 
       mockRequest = {
         user: { id: 'admin-1', email: 'admin@test.com', role: 'ADMIN' },
@@ -90,7 +90,13 @@ describe('AuditController', () => {
 
       await AuditController.getAuditLogs(mockRequest as AuthenticatedRequest, mockResponse as Response);
 
-      expect(AuditRepository.findByUserId).toHaveBeenCalledWith('user-1', 50, 10);
+      expect(AuditRepository.findWithFilters).toHaveBeenCalledWith({
+        userId: 'user-1',
+        databaseName: undefined,
+        action: undefined,
+        limit: 50,
+        offset: 10,
+      });
       expect(jsonMock).toHaveBeenCalledWith(expect.arrayContaining([
         expect.objectContaining({ performed_by: 'user-1' }),
       ]));
@@ -98,7 +104,7 @@ describe('AuditController', () => {
 
     it('should filter by databaseName when provided', async () => {
       const mockLogs = [createMockLog('log-1', 'SUBMITTED')];
-      (AuditRepository.findByDatabaseName as jest.Mock).mockResolvedValue(mockLogs);
+      (AuditRepository.findWithFilters as jest.Mock).mockResolvedValue(mockLogs);
 
       mockRequest = {
         user: { id: 'admin-1', email: 'admin@test.com', role: 'ADMIN' },
@@ -107,7 +113,13 @@ describe('AuditController', () => {
 
       await AuditController.getAuditLogs(mockRequest as AuthenticatedRequest, mockResponse as Response);
 
-      expect(AuditRepository.findByDatabaseName).toHaveBeenCalledWith('production_db', 50, 10);
+      expect(AuditRepository.findWithFilters).toHaveBeenCalledWith({
+        userId: undefined,
+        databaseName: 'production_db',
+        action: undefined,
+        limit: 50,
+        offset: 10,
+      });
     });
 
     it('should throw error on repository error (caught by global handler)', async () => {

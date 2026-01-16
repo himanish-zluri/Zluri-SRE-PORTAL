@@ -180,3 +180,91 @@ describe('AuditRepository', () => {
     });
   });
 });
+
+
+  describe('findWithFilters', () => {
+    it('should return all logs when no filters provided', async () => {
+      const mockLogs = [{ id: 'log-1' }, { id: 'log-2' }];
+      mockEntityManager.find.mockResolvedValue(mockLogs);
+
+      const result = await AuditRepository.findWithFilters({});
+
+      expect(mockEntityManager.find).toHaveBeenCalledWith(
+        expect.any(Function),
+        {},
+        expect.objectContaining({
+          limit: 100,
+          offset: 0
+        })
+      );
+      expect(result).toEqual(mockLogs);
+    });
+
+    it('should filter by userId', async () => {
+      const mockLogs = [{ id: 'log-1' }];
+      mockEntityManager.find.mockResolvedValue(mockLogs);
+
+      const result = await AuditRepository.findWithFilters({ userId: 'user-1' });
+
+      expect(mockEntityManager.find).toHaveBeenCalledWith(
+        expect.any(Function),
+        { performedBy: 'user-1' },
+        expect.any(Object)
+      );
+      expect(result).toEqual(mockLogs);
+    });
+
+    it('should filter by databaseName', async () => {
+      const mockLogs = [{ id: 'log-1' }];
+      mockEntityManager.find.mockResolvedValue(mockLogs);
+
+      const result = await AuditRepository.findWithFilters({ databaseName: 'prod_db' });
+
+      expect(mockEntityManager.find).toHaveBeenCalledWith(
+        expect.any(Function),
+        { queryRequest: { databaseName: 'prod_db' } },
+        expect.any(Object)
+      );
+      expect(result).toEqual(mockLogs);
+    });
+
+    it('should filter by action', async () => {
+      const mockLogs = [{ id: 'log-1' }];
+      mockEntityManager.find.mockResolvedValue(mockLogs);
+
+      const result = await AuditRepository.findWithFilters({ action: 'EXECUTED' });
+
+      expect(mockEntityManager.find).toHaveBeenCalledWith(
+        expect.any(Function),
+        { action: 'EXECUTED' },
+        expect.any(Object)
+      );
+      expect(result).toEqual(mockLogs);
+    });
+
+    it('should combine multiple filters', async () => {
+      const mockLogs = [{ id: 'log-1' }];
+      mockEntityManager.find.mockResolvedValue(mockLogs);
+
+      const result = await AuditRepository.findWithFilters({
+        userId: 'user-1',
+        databaseName: 'prod_db',
+        action: 'SUBMITTED',
+        limit: 50,
+        offset: 10,
+      });
+
+      expect(mockEntityManager.find).toHaveBeenCalledWith(
+        expect.any(Function),
+        expect.objectContaining({
+          performedBy: 'user-1',
+          action: 'SUBMITTED',
+        }),
+        expect.objectContaining({
+          limit: 50,
+          offset: 10,
+        })
+      );
+      expect(result).toEqual(mockLogs);
+    });
+  });

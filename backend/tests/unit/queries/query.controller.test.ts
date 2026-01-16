@@ -72,14 +72,14 @@ describe('QueryController', () => {
           comments: 'test',
           submissionType: 'SCRIPT'
         },
-        file: { path: '/uploads/script.js' } as any
+        file: { buffer: Buffer.from('console.log("hello");') } as any
       };
 
       await QueryController.submit(mockRequest as AuthenticatedRequest, mockResponse as Response);
 
       expect(statusMock).toHaveBeenCalledWith(201);
       expect(QueryService.submitQuery).toHaveBeenCalledWith(expect.objectContaining({
-        scriptPath: '/uploads/script.js'
+        scriptContent: 'console.log("hello");'
       }));
     });
 

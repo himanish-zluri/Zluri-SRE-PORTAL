@@ -1,12 +1,7 @@
 import multer from 'multer';
-import path from 'path';
 
-const storage = multer.diskStorage({
-  destination: 'uploads/scripts',
-  filename: (req, file, cb) => {
-    cb(null, `${Date.now()}-${file.originalname}`);
-  }
-});
+// Use memory storage - file content will be in req.file.buffer
+const storage = multer.memoryStorage();
 
 export const uploadScript = multer({
   storage,

@@ -430,6 +430,167 @@ describe('Sandbox Executor', () => {
 
       await expect(promise).rejects.toThrow('timed out');
     });
+
+    it('should skip error logs (logs with _error property)', async () => {
+      const promise = executePostgresScriptSandboxed(
+        '/script.js',
+        {
+          PG_HOST: 'localhost',
+          PG_PORT: '5432',
+          PG_USER: 'user',
+          PG_PASSWORD: 'pass',
+          PG_DATABASE: 'testdb',
+        }
+      );
+
+      // Logs include an error log that should be skipped
+      mockChild.stdout.emit('data', JSON.stringify({ 
+        success: true, 
+        logs: [
+          { _error: true, message: 'some error' },
+          { id: 1, name: 'valid' }
+        ] 
+      }));
+      mockChild.emit('close', 0);
+
+      const result = await promise;
+
+      // Should only return the valid log, not the error log
+      expect(result).toEqual({ id: 1, name: 'valid' });
+    });
+
+    it('should handle null/undefined logs in array', async () => {
+      const promise = executePostgresScriptSandboxed(
+        '/script.js',
+        {
+          PG_HOST: 'localhost',
+          PG_PORT: '5432',
+          PG_USER: 'user',
+          PG_PASSWORD: 'pass',
+          PG_DATABASE: 'testdb',
+        }
+      );
+
+      // Logs include null and undefined values
+      mockChild.stdout.emit('data', JSON.stringify({ 
+        success: true, 
+        logs: [null, undefined, { id: 1 }] 
+      }));
+      mockChild.emit('close', 0);
+
+      const result = await promise;
+
+      // Should only return the valid log
+      expect(result).toEqual({ id: 1 });
+    });
+
+    it('should flatten array logs', async () => {
+      const promise = executePostgresScriptSandboxed(
+        '/script.js',
+        {
+          PG_HOST: 'localhost',
+          PG_PORT: '5432',
+          PG_USER: 'user',
+          PG_PASSWORD: 'pass',
+          PG_DATABASE: 'testdb',
+        }
+      );
+
+      // Logs contain arrays that should be flattened
+      mockChild.stdout.emit('data', JSON.stringify({ 
+        success: true, 
+        logs: [
+          [{ id: 1 }, { id: 2 }],
+          [{ id: 3 }]
+        ] 
+      }));
+      mockChild.emit('close', 0);
+
+      const result = await promise;
+
+      // Should flatten all arrays
+      expect(result).toEqual([{ id: 1 }, { id: 2 }, { id: 3 }]);
+    });
+
+    it('should parse JSON string logs that contain arrays', async () => {
+      const promise = executePostgresScriptSandboxed(
+        '/script.js',
+        {
+          PG_HOST: 'localhost',
+          PG_PORT: '5432',
+          PG_USER: 'user',
+          PG_PASSWORD: 'pass',
+          PG_DATABASE: 'testdb',
+        }
+      );
+
+      // Logs contain JSON strings that are arrays
+      mockChild.stdout.emit('data', JSON.stringify({ 
+        success: true, 
+        logs: ['[{"id":1},{"id":2}]'] 
+      }));
+      mockChild.emit('close', 0);
+
+      const result = await promise;
+
+      // Should parse and flatten
+      expect(result).toEqual([{ id: 1 }, { id: 2 }]);
+    });
+
+    it('should parse JSON string logs that contain objects', async () => {
+      const promise = executePostgresScriptSandboxed(
+        '/script.js',
+        {
+          PG_HOST: 'localhost',
+          PG_PORT: '5432',
+          PG_USER: 'user',
+          PG_PASSWORD: 'pass',
+          PG_DATABASE: 'testdb',
+        }
+      );
+
+      // Logs contain JSON strings that are objects
+      mockChild.stdout.emit('data', JSON.stringify({ 
+        success: true, 
+        logs: ['{"id":1,"name":"test"}'] 
+      }));
+      mockChild.emit('close', 0);
+
+      const result = await promise;
+
+      expect(result).toEqual({ id: 1, name: 'test' });
+    });
+
+    it('should handle mixed log types', async () => {
+      const promise = executePostgresScriptSandboxed(
+        '/script.js',
+        {
+          PG_HOST: 'localhost',
+          PG_PORT: '5432',
+          PG_USER: 'user',
+          PG_PASSWORD: 'pass',
+          PG_DATABASE: 'testdb',
+        }
+      );
+
+      // Logs contain mixed types
+      mockChild.stdout.emit('data', JSON.stringify({ 
+        success: true, 
+        logs: [
+          [{ id: 1 }],
+          '{"id":2}',
+          { id: 3 },
+          'plain text',
+          null
+        ] 
+      }));
+      mockChild.emit('close', 0);
+
+      const result = await promise;
+
+      // Should handle all types
+      expect(result).toEqual([{ id: 1 }, { id: 2 }, { id: 3 }, 'plain text']);
+    });
   });
 
   describe('executeMongoScriptSandboxed', () => {

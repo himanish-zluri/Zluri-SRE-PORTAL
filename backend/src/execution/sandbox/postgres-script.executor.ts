@@ -48,16 +48,19 @@ export async function run() {
     return result.rows;
   };
 
-  // Capture logs
-  const logs: string[] = [];
+  // Capture logs - store actual values, not stringified
+  const logs: any[] = [];
   const originalLog = console.log;
   const originalError = console.error;
 
   console.log = (...args: any[]) => {
-    logs.push(args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' '));
+    // Store each argument as-is (will be serialized properly at the end)
+    for (const arg of args) {
+      logs.push(arg);
+    }
   };
   console.error = (...args: any[]) => {
-    logs.push('[ERROR] ' + args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' '));
+    logs.push({ _error: true, message: args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ') });
   };
 
   try {

@@ -1,25 +1,79 @@
 import { useState, useEffect } from 'react';
-import { auditApi } from '../services/api';
-import type { AuditLog } from '../types';
-import { Input } from '../components/ui/Input';
+import { auditApi, usersApi, instancesApi, databasesApi } from '../services/api';
+import type { AuditLog, DbInstance } from '../types';
 import { Button } from '../components/ui/Button';
+import { Select } from '../components/ui/Select';
+
+interface UserOption {
+  id: string;
+  name: string;
+  email: string;
+}
+
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 
 export function AuditPage() {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
-  // Filters
-  const [databaseFilter, setDatabaseFilter] = useState('');
-  const [userFilter, setUserFilter] = useState('');
+  // Filter options
+  const [users, setUsers] = useState<UserOption[]>([]);
+  const [instances, setInstances] = useState<DbInstance[]>([]);
+  const [databases, setDatabases] = useState<string[]>([]);
+  
+  // Selected filters
+  const [selectedUser, setSelectedUser] = useState('');
+  const [selectedInstance, setSelectedInstance] = useState('');
+  const [selectedDatabase, setSelectedDatabase] = useState('');
+  const [selectedAction, setSelectedAction] = useState('');
   
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
-  const itemsPerPage = 20;
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
+  // Load filter options on mount
+  useEffect(() => {
+    loadFilterOptions();
+  }, []);
+
+  // Load logs when page or itemsPerPage changes
   useEffect(() => {
     loadLogs();
-  }, [currentPage]);
+  }, [currentPage, itemsPerPage]);
+
+  // Load databases when instance changes
+  useEffect(() => {
+    if (selectedInstance) {
+      databasesApi.getByInstance(selectedInstance)
+        .then(res => setDatabases(res.data.map(d => d.database_name)))
+        .catch(err => console.error('Failed to load databases:', err));
+    } else {
+      setDatabases([]);
+    }
+    setSelectedDatabase('');
+  }, [selectedInstance]);
+
+  const loadFilterOptions = async () => {
+    try {
+      // Load instances
+      const [pgRes, mongoRes] = await Promise.all([
+        instancesApi.getAll('POSTGRES'),
+        instancesApi.getAll('MONGODB'),
+      ]);
+      setInstances([...pgRes.data, ...mongoRes.data]);
+      
+      // Try to load users (may fail if not admin/manager)
+      try {
+        const usersRes = await usersApi.getAll();
+        setUsers(usersRes.data);
+      } catch (err) {
+        console.log('Could not load users (may not have permission)');
+      }
+    } catch (error) {
+      console.error('Failed to load filter options:', error);
+    }
+  };
 
   const loadLogs = async () => {
     setIsLoading(true);
@@ -29,8 +83,9 @@ export function AuditPage() {
         offset: (currentPage - 1) * itemsPerPage,
       };
       
-      if (databaseFilter) params.databaseName = databaseFilter;
-      if (userFilter) params.userId = userFilter;
+      if (selectedDatabase) params.databaseName = selectedDatabase;
+      if (selectedUser) params.userId = selectedUser;
+      if (selectedAction) params.action = selectedAction;
 
       const response = await auditApi.getAll(params);
       setLogs(response.data);
@@ -48,10 +103,17 @@ export function AuditPage() {
   };
 
   const handleClearFilters = () => {
-    setDatabaseFilter('');
-    setUserFilter('');
+    setSelectedUser('');
+    setSelectedInstance('');
+    setSelectedDatabase('');
+    setSelectedAction('');
     setCurrentPage(1);
     loadLogs();
+  };
+
+  const handleItemsPerPageChange = (newLimit: number) => {
+    setItemsPerPage(newLimit);
+    setCurrentPage(1);
   };
 
   const formatDate = (dateString: string) => {
@@ -78,6 +140,57 @@ export function AuditPage() {
     }
   };
 
+  const formatDetails = (action: string, details: Record<string, any>) => {
+    if (!details || Object.keys(details).length === 0) return '-';
+
+    switch (action) {
+      case 'SUBMITTED':
+        return (
+          <div className="space-y-0.5">
+            {details.submissionType && (
+              <div><span className="text-gray-500">Type:</span> {details.submissionType}</div>
+            )}
+            {details.podId && (
+              <div><span className="text-gray-500">POD:</span> {details.podId}</div>
+            )}
+          </div>
+        );
+      case 'REJECTED':
+        return (
+          <div>
+            <span className="text-gray-500">Reason:</span>{' '}
+            <span className="text-red-500">{details.reason || 'No reason provided'}</span>
+          </div>
+        );
+      case 'FAILED':
+        return (
+          <div>
+            <span className="text-gray-500">Error:</span>{' '}
+            <span className="text-orange-500 break-all">{details.error || 'Unknown error'}</span>
+          </div>
+        );
+      case 'EXECUTED':
+        return (
+          <div>
+            {details.instanceType && (
+              <div><span className="text-gray-500">Instance:</span> {details.instanceType}</div>
+            )}
+          </div>
+        );
+      /* istanbul ignore next */
+      default:
+        return (
+          <div className="text-xs">
+            {Object.entries(details).map(([key, value]) => (
+              <div key={key}>
+                <span className="text-gray-500">{key}:</span> {String(value)}
+              </div>
+            ))}
+          </div>
+        );
+    }
+  };
+
   return (
     <div>
       <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">
@@ -85,19 +198,47 @@ export function AuditPage() {
       </h2>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-4 mb-6">
-        <div className="w-48">
-          <Input
-            placeholder="Filter by database..."
-            value={databaseFilter}
-            onChange={(e) => setDatabaseFilter(e.target.value)}
+      <div className="flex flex-wrap gap-4 mb-6 items-end">
+        <div className="w-56">
+          <Select
+            label="Filter by User"
+            value={selectedUser}
+            onChange={(e) => setSelectedUser(e.target.value)}
+            options={users.map(u => ({ value: u.id, label: `${u.name} (${u.email})` }))}
+            placeholder="All users"
           />
         </div>
         <div className="w-48">
-          <Input
-            placeholder="Filter by user ID..."
-            value={userFilter}
-            onChange={(e) => setUserFilter(e.target.value)}
+          <Select
+            label="Filter by Instance"
+            value={selectedInstance}
+            onChange={(e) => setSelectedInstance(e.target.value)}
+            options={instances.map(i => ({ value: i.id, label: i.name }))}
+            placeholder="All instances"
+          />
+        </div>
+        <div className="w-48">
+          <Select
+            label="Filter by Database"
+            value={selectedDatabase}
+            onChange={(e) => setSelectedDatabase(e.target.value)}
+            options={databases.map(d => ({ value: d, label: d }))}
+            placeholder="All databases"
+            disabled={!selectedInstance}
+          />
+        </div>
+        <div className="w-40">
+          <Select
+            label="Filter by Action"
+            value={selectedAction}
+            onChange={(e) => setSelectedAction(e.target.value)}
+            options={[
+              { value: 'SUBMITTED', label: 'Submitted' },
+              { value: 'EXECUTED', label: 'Executed' },
+              { value: 'REJECTED', label: 'Rejected' },
+              { value: 'FAILED', label: 'Failed' },
+            ]}
+            placeholder="All actions"
           />
         </div>
         <Button onClick={handleFilter}>Apply</Button>
@@ -144,14 +285,8 @@ export function AuditPage() {
                     <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300 font-mono">
                       {log.query_request_id.substring(0, 8)}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
-                      {Object.keys(log.details).length > 0 ? (
-                        <pre className="text-xs">
-                          {JSON.stringify(log.details, null, 2)}
-                        </pre>
-                      ) : (
-                        '-'
-                      )}
+                    <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
+                      {formatDetails(log.action, log.details)}
                     </td>
                   </tr>
                 ))
@@ -163,8 +298,22 @@ export function AuditPage() {
 
       {/* Pagination */}
       <div className="flex items-center justify-between mt-4">
-        <div className="text-sm text-gray-500 dark:text-gray-400">
-          Page {currentPage}
+        <div className="flex items-center gap-4">
+          <span className="text-sm text-gray-500 dark:text-gray-400">
+            Page {currentPage}
+          </span>
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-500 dark:text-gray-400">Per page:</label>
+            <select
+              value={itemsPerPage}
+              onChange={(e) => handleItemsPerPageChange(Number(e.target.value))}
+              className="px-2 py-1 rounded bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white text-sm cursor-pointer"
+            >
+              {PAGE_SIZE_OPTIONS.map(size => (
+                <option key={size} value={size}>{size}</option>
+              ))}
+            </select>
+          </div>
         </div>
         <div className="flex gap-2">
           <Button

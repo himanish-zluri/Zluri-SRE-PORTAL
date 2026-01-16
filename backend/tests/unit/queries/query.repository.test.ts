@@ -17,7 +17,7 @@ describe('QueryRepository', () => {
         expect.any(Function),
         { id: 'query-1' },
         expect.objectContaining({
-          populate: ['requester', 'pod', 'instance', 'approvedBy']
+          populate: ['requester', 'pod', 'pod.manager', 'instance', 'approvedBy']
         })
       );
       expect(result).toEqual(mockQuery);
@@ -130,10 +130,10 @@ describe('QueryRepository', () => {
         podId: 'pod-a',
         comments: 'Test script',
         submissionType: 'SCRIPT',
-        scriptPath: '/uploads/script.js'
+        scriptContent: 'console.log("hello");'
       });
 
-      expect(result.scriptPath).toBe('/uploads/script.js');
+      expect(result.scriptContent).toBe('console.log("hello");');
       expect(result.submissionType).toBe('SCRIPT');
     });
 
@@ -172,7 +172,7 @@ describe('QueryRepository', () => {
         expect.any(Function),
         { requester: 'user-1' },
         expect.objectContaining({
-          populate: ['requester', 'pod', 'instance', 'approvedBy'],
+          populate: ['requester', 'pod', 'pod.manager', 'instance', 'approvedBy'],
           orderBy: { createdAt: 'DESC' }
         })
       );
@@ -217,7 +217,7 @@ describe('QueryRepository', () => {
         expect.any(Function),
         expect.objectContaining({
           requester: 'user-1',
-          instance: { type: 'POSTGRES' }
+          submissionType: 'POSTGRES'
         }),
         expect.any(Object)
       );
@@ -233,7 +233,7 @@ describe('QueryRepository', () => {
         expect.objectContaining({
           requester: 'user-1',
           status: { $in: ['PENDING'] },
-          instance: { type: 'MONGODB' }
+          submissionType: 'MONGODB'
         }),
         expect.any(Object)
       );
@@ -263,7 +263,7 @@ describe('QueryRepository', () => {
         expect.objectContaining({
           requester: 'user-1',
           status: { $in: ['PENDING'] },
-          instance: { type: 'POSTGRES' }
+          submissionType: 'POSTGRES'
         })
       );
       expect(result).toBe(2);
@@ -309,7 +309,7 @@ describe('QueryRepository', () => {
         expect.any(Function),
         expect.objectContaining({
           pod: { manager: 'manager-1' },
-          instance: { type: 'POSTGRES' }
+          submissionType: 'POSTGRES'
         }),
         expect.any(Object)
       );
@@ -325,7 +325,7 @@ describe('QueryRepository', () => {
         expect.objectContaining({
           pod: { manager: 'manager-1' },
           status: { $in: ['PENDING'] },
-          instance: { type: 'MONGODB' }
+          submissionType: 'MONGODB'
         }),
         expect.any(Object)
       );
@@ -343,6 +343,36 @@ describe('QueryRepository', () => {
         { pod: { manager: 'manager-1' } }
       );
       expect(result).toBe(10);
+    });
+
+    it('should count with status filter', async () => {
+      mockEntityManager.count.mockResolvedValue(5);
+
+      const result = await QueryRepository.countByManager('manager-1', ['PENDING']);
+
+      expect(mockEntityManager.count).toHaveBeenCalledWith(
+        expect.any(Function),
+        expect.objectContaining({
+          pod: { manager: 'manager-1' },
+          status: { $in: ['PENDING'] }
+        })
+      );
+      expect(result).toBe(5);
+    });
+
+    it('should count with type filter', async () => {
+      mockEntityManager.count.mockResolvedValue(3);
+
+      const result = await QueryRepository.countByManager('manager-1', undefined, 'SCRIPT');
+
+      expect(mockEntityManager.count).toHaveBeenCalledWith(
+        expect.any(Function),
+        expect.objectContaining({
+          pod: { manager: 'manager-1' },
+          submissionType: 'SCRIPT'
+        })
+      );
+      expect(result).toBe(3);
     });
   });
 
@@ -380,7 +410,7 @@ describe('QueryRepository', () => {
 
       expect(mockEntityManager.find).toHaveBeenCalledWith(
         expect.any(Function),
-        { instance: { type: 'MONGODB' } },
+        { submissionType: 'MONGODB' },
         expect.any(Object)
       );
     });
@@ -394,7 +424,7 @@ describe('QueryRepository', () => {
         expect.any(Function),
         expect.objectContaining({
           status: { $in: ['PENDING'] },
-          instance: { type: 'POSTGRES' }
+          submissionType: 'POSTGRES'
         }),
         expect.any(Object)
       );
@@ -412,6 +442,45 @@ describe('QueryRepository', () => {
         {}
       );
       expect(result).toBe(100);
+    });
+
+    it('should count with status filter', async () => {
+      mockEntityManager.count.mockResolvedValue(50);
+
+      const result = await QueryRepository.countAll(['PENDING', 'EXECUTED']);
+
+      expect(mockEntityManager.count).toHaveBeenCalledWith(
+        expect.any(Function),
+        { status: { $in: ['PENDING', 'EXECUTED'] } }
+      );
+      expect(result).toBe(50);
+    });
+
+    it('should count with type filter', async () => {
+      mockEntityManager.count.mockResolvedValue(25);
+
+      const result = await QueryRepository.countAll(undefined, 'QUERY');
+
+      expect(mockEntityManager.count).toHaveBeenCalledWith(
+        expect.any(Function),
+        { submissionType: 'QUERY' }
+      );
+      expect(result).toBe(25);
+    });
+
+    it('should count with both filters', async () => {
+      mockEntityManager.count.mockResolvedValue(10);
+
+      const result = await QueryRepository.countAll(['PENDING'], 'SCRIPT');
+
+      expect(mockEntityManager.count).toHaveBeenCalledWith(
+        expect.any(Function),
+        expect.objectContaining({
+          status: { $in: ['PENDING'] },
+          submissionType: 'SCRIPT'
+        })
+      );
+      expect(result).toBe(10);
     });
   });
 

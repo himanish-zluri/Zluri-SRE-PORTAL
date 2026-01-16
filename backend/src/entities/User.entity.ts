@@ -1,4 +1,4 @@
-import { Entity, PrimaryKey, Property, Enum, OneToMany, Collection } from '@mikro-orm/core';
+import { Entity, PrimaryKey, Property, Enum } from '@mikro-orm/core';
 import { v4 as uuid } from 'uuid';
 
 export enum UserRole {
@@ -23,6 +23,9 @@ export class User {
 
   @Enum({ items: () => UserRole })
   role!: UserRole;
+
+  @Property({ fieldName: 'slack_id', nullable: true })
+  slackId?: string;
 
   @Property({ fieldName: 'created_at' })
   createdAt: Date = new Date();
