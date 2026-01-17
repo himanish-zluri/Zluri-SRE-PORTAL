@@ -5,7 +5,10 @@ export async function executeMongoQuery(
   databaseName: string,
   queryText: string
 ) {
-  const client = new MongoClient(mongoUri);
+  const client = new MongoClient(mongoUri, {
+    connectTimeoutMS: 10000,
+    serverSelectionTimeoutMS: 10000,
+  });
 
   try {
     await client.connect();
@@ -20,18 +23,22 @@ export async function executeMongoQuery(
      */
     const collection = (name: string) => db.collection(name);
     
-    const fn = new Function(
+    // Create async function with proper error handling
+    const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
+    const fn = new AsyncFunction(
       'db',
       'collection',
       `
-        return (async () => {
+        try {
           const result = await (${queryText});
           // If result has toArray method (cursor), convert it
           if (result && typeof result.toArray === 'function') {
             return await result.toArray();
           }
           return result;
-        })();
+        } catch (error) {
+          throw new Error('Query execution failed: ' + error.message);
+        }
       `
     );
 
