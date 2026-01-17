@@ -2,14 +2,14 @@
   "name": "db-query-portal-backend",
   "version": "1.0.0",
   "description": "Database Query Portal Backend",
-  "main": "dist/server.js",
+  "main": "dist/src/server.js",
   "scripts": {
     "dev": "ts-node src/server.ts",
     "test": "jest",
     "test:coverage": "jest --coverage",
     "test:watch": "jest --watch",
     "build": "tsc",
-    "start": "node dist/server.js"
+    "start": "node dist/src/server.js"
   },
   "dependencies": {
     "@mikro-orm/cli": "^6.6.4",
