@@ -21,10 +21,25 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [
   'http://localhost:5173',
   'https://zluri-sre-portal.vercel.app'
 ];
-app.use(cors({
-  origin: allowedOrigins,
+
+// Allow all Vercel preview deployments
+const corsOptions = {
+  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+    // Allow requests with no origin (mobile apps, etc.)
+    if (!origin) return callback(null, true);
+    
+    // Allow configured origins
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    
+    // Allow all Vercel preview deployments
+    if (origin.includes('vercel.app')) return callback(null, true);
+    
+    // Reject other origins
+    callback(new Error('Not allowed by CORS'));
+  },
   credentials: true,
-}));
+};
+app.use(cors(corsOptions));
 
 app.use(express.json());
 
