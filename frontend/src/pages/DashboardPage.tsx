@@ -291,16 +291,72 @@ export function DashboardPage() {
         />
 
         {submissionType === 'QUERY' ? (
-          <TextArea
-            label="Query"
-            value={queryText}
-            onChange={(e) => setQueryText(e.target.value)}
-            placeholder={dbType === 'MONGODB' 
-              ? "return await db.collection('users').find({}).toArray();"
-              : "SELECT * FROM users WHERE active = true;"}
-            rows={6}
-            required
-          />
+          <>
+            <TextArea
+              label="Query"
+              value={queryText}
+              onChange={(e) => setQueryText(e.target.value)}
+              placeholder={dbType === 'MONGODB' 
+                ? "db.users.find({})"
+                : "SELECT * FROM users WHERE active = true"}
+              rows={6}
+              required
+            />
+            
+            {/* Query Documentation */}
+            <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+              <h4 className="text-sm font-semibold text-green-800 dark:text-green-300 mb-2">
+                🔍 How to Write Queries
+              </h4>
+              
+              {dbType === 'POSTGRES' && (
+                <div className="text-sm text-green-700 dark:text-green-400 space-y-2">
+                  <p><strong>Single SQL query only</strong> - no semicolons needed:</p>
+                  <pre className="bg-white dark:bg-gray-800 p-2 rounded text-xs overflow-x-auto">
+{`SELECT * FROM users WHERE active = true
+
+SELECT COUNT(*) FROM orders WHERE status = 'pending'
+
+SELECT u.name, COUNT(o.id) as order_count 
+FROM users u 
+LEFT JOIN orders o ON u.id = o.user_id 
+GROUP BY u.id, u.name`}
+                  </pre>
+                  <p className="text-xs text-green-600 dark:text-green-400">
+                    ⚠️ Query mode supports single expressions only. For multiple queries, use Script mode.
+                  </p>
+                </div>
+              )}
+              
+              {dbType === 'MONGODB' && (
+                <div className="text-sm text-green-700 dark:text-green-400 space-y-2">
+                  <p><strong>Single MongoDB expression only</strong> - no semicolons needed:</p>
+                  <pre className="bg-white dark:bg-gray-800 p-2 rounded text-xs overflow-x-auto">
+{`db.users.find({})
+
+db.users.find({ status: 'active' })
+
+db.orders.countDocuments({ status: 'pending' })
+
+db.users.aggregate([
+  { $group: { _id: '$department', count: { $sum: 1 } } }
+])
+
+collection('users').find({ age: { $gte: 18 } })`}
+                  </pre>
+                  <p className="text-xs text-green-600 dark:text-green-400">
+                    ⚠️ Query mode supports single expressions only. For multiple queries, use Script mode.
+                  </p>
+                </div>
+              )}
+              
+              {!dbType && (
+                <p className="text-sm text-green-600 dark:text-green-400 italic">
+                  Select a database type above to see query examples.
+                </p>
+              )}
+            </div>
+          </>
         ) : (
           <>
             <FileUpload
@@ -320,51 +376,74 @@ export function DashboardPage() {
                 <div className="text-sm text-blue-700 dark:text-blue-400 space-y-2">
                   <p>For PostgreSQL, use the pre-injected <code className="bg-blue-100 dark:bg-blue-800 px-1 rounded">query()</code> function:</p>
                   <pre className="bg-white dark:bg-gray-800 p-2 rounded text-xs overflow-x-auto">
-{`// query() is pre-injected - use it to run SQL
+{`// query() function is pre-injected - use it to run SQL
 const users = await query('SELECT * FROM users LIMIT 10');
-console.log(users);
+console.log('Users:', users);
 
-// With parameters
+// With parameters (use $1, $2, etc.)
 const orders = await query('SELECT * FROM orders WHERE status = $1', ['pending']);
+console.log('Pending orders:', orders);
 
-// Using loops
-for (let i = 0; i < 5; i++) {
-  const batch = await query('SELECT * FROM items WHERE batch_id = $1', [i]);
-  console.log(batch);
-}
+// Multiple queries in one script
+const userCount = await query('SELECT COUNT(*) as total FROM users');
+const activeUsers = await query('SELECT * FROM users WHERE active = true');
 
-// All console.log outputs are captured and returned as result
-console.log({ users, orders });`}
+console.log('Total users:', userCount[0].total);
+console.log('Active users:', activeUsers.length);
+
+// Return final result (optional)
+return {
+  totalUsers: userCount[0].total,
+  activeUsers: activeUsers.length,
+  summary: \`Found \${activeUsers.length} active out of \${userCount[0].total} total users\`
+};`}
                   </pre>
+                  <p className="text-xs text-blue-600 dark:text-blue-400">
+                    💡 Scripts can run multiple queries, use variables, loops, and JavaScript logic.
+                  </p>
                 </div>
               )}
               
               {dbType === 'MONGODB' && (
                 <div className="text-sm text-blue-700 dark:text-blue-400 space-y-2">
-                  <p>For MongoDB, use the pre-injected <code className="bg-blue-100 dark:bg-blue-800 px-1 rounded">db</code> object:</p>
+                  <p>For MongoDB, use the pre-injected <code className="bg-blue-100 dark:bg-blue-800 px-1 rounded">db</code> object and <code className="bg-blue-100 dark:bg-blue-800 px-1 rounded">collection()</code> helper:</p>
                   <pre className="bg-white dark:bg-gray-800 p-2 rounded text-xs overflow-x-auto">
-{`// db is pre-injected - use it to access collections
-const users = await db.collection('users').find({}).limit(10).toArray();
-console.log(users);
+{`// db object is pre-injected - use natural MongoDB syntax
+const users = await db.users.find({});
+console.log('All users:', users);
 
-// Insert, update, delete
-await db.collection('logs').insertOne({ action: 'test', timestamp: new Date() });
+// Alternative: collection() helper function
+const logs = await collection('logs').find({ level: 'error' });
+console.log('Error logs:', logs);
 
-// Using loops
-const collections = ['users', 'orders', 'products'];
-for (const coll of collections) {
-  const count = await db.collection(coll).countDocuments();
-  console.log({ collection: coll, count });
+// Multiple operations in one script
+const userCount = await db.users.countDocuments({});
+const activeUsers = await db.users.find({ status: 'active' });
+const recentLogs = await db.logs.find({ 
+  timestamp: { $gte: new Date(Date.now() - 24*60*60*1000) } 
+});
+
+console.log('User count:', userCount);
+console.log('Active users:', activeUsers.length);
+console.log('Recent logs:', recentLogs.length);
+
+// Data processing with JavaScript
+const usersByStatus = {};
+for (const user of activeUsers) {
+  usersByStatus[user.status] = (usersByStatus[user.status] || 0) + 1;
 }
 
-// Aggregation
-const stats = await db.collection('orders').aggregate([
-  { $group: { _id: '$status', count: { $sum: 1 } } }
-]).toArray();
-
-// All console.log outputs are captured and returned as result
-console.log(stats);`}
+// Return final result (optional)
+return {
+  totalUsers: userCount,
+  activeUsers: activeUsers.length,
+  recentLogs: recentLogs.length,
+  breakdown: usersByStatus
+};`}
                   </pre>
+                  <p className="text-xs text-blue-600 dark:text-blue-400">
+                    💡 Both <code>db.collectionName.method()</code> and <code>collection('name').method()</code> syntax work.
+                  </p>
                 </div>
               )}
               
@@ -376,7 +455,8 @@ console.log(stats);`}
               
               <div className="mt-3 pt-3 border-t border-blue-200 dark:border-blue-700">
                 <p className="text-xs text-blue-600 dark:text-blue-400">
-                  ⚠️ Scripts run in a sandboxed environment. File system access and network calls are restricted.
+                  ⚠️ Scripts run in a sandboxed environment with restricted file system and network access.<br/>
+                  📊 Results display as: <strong>Table</strong> (array of objects), <strong>JSON</strong> (single object), or <strong>Text</strong> (strings).
                 </p>
               </div>
             </div>
