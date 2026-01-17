@@ -38,6 +38,7 @@ export async function run() {
     user: config.PG_USER,
     password: config.PG_PASSWORD,
     database: config.PG_DATABASE,
+    ssl: { rejectUnauthorized: false },
   });
 
   const client = await pool.connect();

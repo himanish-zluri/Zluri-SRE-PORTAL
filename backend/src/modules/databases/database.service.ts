@@ -30,13 +30,34 @@ export class DatabaseService {
       throw new BadRequestError('Postgres instance missing connection details');
     }
 
-    const pool = new Pool({
-      host: instance.host,
-      port: instance.port,
-      user: instance.username,
-      password: instance.password,
-      database: 'postgres', // Connect to default db to list all
-    });
+    // Try connecting to 'postgres' first, then fall back to other databases
+    const databasesToTry = ['postgres', 'neondb', 'pg1', 'template1'];
+    let pool: Pool | null = null;
+    let connected = false;
+
+    for (const dbName of databasesToTry) {
+      try {
+        pool = new Pool({
+          host: instance.host,
+          port: instance.port,
+          user: instance.username,
+          password: instance.password,
+          database: dbName,
+          ssl: true,
+        });
+        // Test connection
+        await pool.query('SELECT 1');
+        connected = true;
+        break;
+      } catch {
+        if (pool) await pool.end().catch(() => {});
+        pool = null;
+      }
+    }
+
+    if (!pool || !connected) {
+      throw new BadRequestError('Could not connect to any database on this instance');
+    }
 
     try {
       const result = await pool.query(`

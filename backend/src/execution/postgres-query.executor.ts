@@ -16,6 +16,7 @@ export async function executePostgresQuery(
     user: connection.username,
     password: connection.password,
     database: connection.database,
+    ssl: { rejectUnauthorized: false },
   });
 
   try {

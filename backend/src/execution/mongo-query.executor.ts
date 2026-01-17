@@ -13,19 +13,29 @@ export async function executeMongoQuery(
 
     /**
      * VERY IMPORTANT:
-     * We expose ONLY `db` to the evaluated code.
+     * We expose `db` and a `collection` helper to the evaluated code.
      * This mimics mongosh but inside Node.
+     * 
+     * The query should return a value. If it returns a cursor, we convert to array.
      */
+    const collection = (name: string) => db.collection(name);
+    
     const fn = new Function(
       'db',
+      'collection',
       `
         return (async () => {
-          ${queryText}
+          const result = await (${queryText});
+          // If result has toArray method (cursor), convert it
+          if (result && typeof result.toArray === 'function') {
+            return await result.toArray();
+          }
+          return result;
         })();
       `
     );
 
-    const result = await fn(db);
+    const result = await fn(db, collection);
     return result;
 
   } finally {

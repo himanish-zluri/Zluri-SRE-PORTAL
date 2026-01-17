@@ -18,6 +18,9 @@ const config: Options = {
   metadataProvider: TsMorphMetadataProvider,
   debug: process.env.NODE_ENV === 'development',
   allowGlobalContext: true,
+  driverOptions: process.env.DB_SSL === 'true' ? {
+    connection: { ssl: { rejectUnauthorized: false } },
+  } : undefined,
 };
 
 export default config;
