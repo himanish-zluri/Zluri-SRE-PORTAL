@@ -1,9 +1,8 @@
 import '@testing-library/jest-dom';
-import { TextEncoder, TextDecoder } from 'util';
 
 // Polyfill TextEncoder/TextDecoder for react-router-dom
-global.TextEncoder = TextEncoder;
-global.TextDecoder = TextDecoder as any;
+(global as any).TextEncoder = TextEncoder;
+(global as any).TextDecoder = TextDecoder;
 
 // Mock window.matchMedia
 Object.defineProperty(window, 'matchMedia', {
