@@ -81,7 +81,10 @@ export class DatabaseService {
       throw new BadRequestError('MongoDB instance missing connection URI');
     }
 
-    const client = new MongoClient(instance.mongo_uri);
+    const client = new MongoClient(instance.mongo_uri, {
+      connectTimeoutMS: 10000, // 10 second timeout
+      serverSelectionTimeoutMS: 10000, // 10 second timeout
+    });
 
     try {
       await client.connect();
