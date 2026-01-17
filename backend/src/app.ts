@@ -17,7 +17,10 @@ import { swaggerSpec } from './config/swagger';
 const app = express();
 
 // CORS configuration
-const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:5173'];
+const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [
+  'http://localhost:5173',
+  'https://zluri-sre-portal.vercel.app'
+];
 app.use(cors({
   origin: allowedOrigins,
   credentials: true,
