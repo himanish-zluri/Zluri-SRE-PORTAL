@@ -12,16 +12,36 @@ export async function executeMongoQuery(
 
   try {
     await client.connect();
-    const db = client.db(databaseName);
+    const database = client.db(databaseName);
 
-    /**
-     * VERY IMPORTANT:
-     * We expose `db` and a `collection` helper to the evaluated code.
-     * This mimics mongosh but inside Node.
-     * 
-     * The query should return a value. If it returns a cursor, we convert to array.
-     */
-    const collection = (name: string) => db.collection(name);
+    // Create a proxy for db that automatically converts cursors to arrays
+    const db = new Proxy(database, {
+      get(target, prop) {
+        if (typeof prop === 'string') {
+          // Return collection proxy
+          return new Proxy(target.collection(prop), {
+            get(collectionTarget, collectionProp) {
+              const method = collectionTarget[collectionProp as keyof typeof collectionTarget];
+              if (typeof method === 'function') {
+                return function(...args: any[]) {
+                  const result = method.apply(collectionTarget, args);
+                  // If it's a cursor, auto-convert to array
+                  if (result && typeof result.toArray === 'function') {
+                    return result.toArray();
+                  }
+                  return result;
+                };
+              }
+              return method;
+            }
+          });
+        }
+        return target[prop as keyof typeof target];
+      }
+    });
+
+    // Also provide collection helper
+    const collection = (name: string) => database.collection(name);
     
     // Create async function with proper error handling
     const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
@@ -30,12 +50,7 @@ export async function executeMongoQuery(
       'collection',
       `
         try {
-          const result = await (${queryText});
-          // If result has toArray method (cursor), convert it
-          if (result && typeof result.toArray === 'function') {
-            return await result.toArray();
-          }
-          return result;
+          return await (${queryText});
         } catch (error) {
           throw new Error('Query execution failed: ' + error.message);
         }
