@@ -5,12 +5,14 @@ A secure web portal for developers to submit database queries and scripts for ex
 ## Features
 
 - **Authentication**: JWT-based auth with access + refresh tokens
-- **Query Submission**: Submit SQL queries or JavaScript scripts
-- **Approval Workflow**: Manager approval required before execution
-- **Multi-Database Support**: PostgreSQL and MongoDB
-- **Sandboxed Execution**: Scripts run in isolated child processes
-- **Audit Trail**: Complete logging of all actions
-- **Role-Based Access**: Developer, Manager, Admin roles
+- **Query Submission**: Submit SQL queries or JavaScript scripts with comprehensive validation
+- **Approval Workflow**: Manager approval required before execution with toast notifications
+- **Multi-Database Support**: PostgreSQL and MongoDB with single-statement validation
+- **Sandboxed Execution**: Scripts run in isolated child processes with 30s timeout
+- **Audit Trail**: Complete logging of all actions with detailed tracking
+- **Role-Based Access**: Developer, Manager, Admin roles with proper authorization
+- **Security Features**: Input size limits, DoS protection, multiple statement prevention
+- **Modern UX**: Toast notifications, dark mode, responsive design
 
 ## Tech Stack
 
@@ -157,6 +159,10 @@ console.log(logs);
 - **Credential Encryption**: AES-256-GCM for database passwords
 - **Process Isolation**: Scripts sandboxed in child processes
 - **Role-Based Access**: Enforced at middleware level
+- **Input Validation**: Comprehensive size limits and content validation
+- **DoS Protection**: Configurable input size limits (Query: 50KB, Script: 5MB, Comments: 2KB)
+- **Multiple Statement Prevention**: Single SQL/MongoDB statement enforcement in Query mode
+- **File Upload Security**: Type validation, size limits, content verification
 
 ## Testing
 

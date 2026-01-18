@@ -149,7 +149,23 @@ GET /queries?user=me&status=PENDING,APPROVED
 ---
 
 ### POST /queries
-Submit a new query or script.
+Submit a new query or script with comprehensive validation.
+
+**Input Size Limits:**
+- Query text: 50KB maximum
+- Script files: 5MB maximum  
+- Comments: 2KB maximum
+- Database names: 100 characters maximum
+- Pod IDs: 50 characters maximum
+
+**Single Statement Validation:**
+Query mode only allows single SQL or MongoDB statements:
+- ✅ Allowed: `SELECT * FROM users`, `db.users.find({})`
+- ✅ Allowed: `SELECT * FROM users;`, `db.users.find({});` (trailing semicolon OK)
+- ❌ Rejected: `SELECT * FROM users; SELECT * FROM orders`
+- ❌ Rejected: `db.users.find({}); db.orders.find({})`
+
+For multiple statements, use Script mode instead.
 
 **For Query Submission (JSON):**
 ```json
@@ -171,7 +187,7 @@ Submit a new query or script.
 | podId | string | POD identifier |
 | comments | string | Description of what script does |
 | submissionType | string | Must be `SCRIPT` |
-| script | file | JavaScript file (.js, max 2MB) |
+| script | file | JavaScript file (.js, max 5MB) |
 
 **Response (201):**
 ```json
@@ -184,6 +200,28 @@ Submit a new query or script.
   "query_text": "SELECT * FROM users WHERE status = 'active'",
   "status": "PENDING",
   "created_at": "2025-01-12T10:00:00.000Z"
+}
+```
+
+**Validation Errors (400):**
+```json
+{
+  "error": "Validation failed",
+  "message": "Query mode supports single statements only. For multiple queries, use Script mode."
+}
+```
+
+```json
+{
+  "error": "Validation failed", 
+  "message": "Query text cannot exceed 50000 characters"
+}
+```
+
+```json
+{
+  "error": "Validation failed",
+  "message": "Script content cannot exceed 5000000 characters"
 }
 ```
 
@@ -422,9 +460,62 @@ Get audit logs for a specific query.
 
 ---
 
+## Recent Updates & Features
+
+### v2.1.0 - Toast Notifications & Enhanced UX
+- **Toast Notifications**: Elegant slide-in notifications replace browser alerts
+- **Approval Feedback**: Success/error toasts for approve/reject actions
+- **Auto-dismiss**: Notifications auto-hide after 3 seconds
+- **Manual Close**: Users can close notifications immediately
+- **Consistent Messaging**: Standardized success/error messages across the app
+
+### v2.0.0 - Security & Validation Overhaul  
+- **Input Size Limits**: DoS protection with configurable limits
+- **Single Statement Validation**: Prevents multiple SQL/MongoDB statements in Query mode
+- **Enhanced File Upload**: 5MB script limit with comprehensive validation
+- **Content Validation**: Checks for empty files and whitespace-only content
+- **Error Messages**: Clear, actionable validation error messages
+
+### v1.9.0 - Professional Filtering & Status Management
+- **Status Counters**: Real-time counts for PENDING, EXECUTED, FAILED, REJECTED
+- **Advanced Filtering**: Multi-criteria filtering with pagination
+- **Professional UI**: Enhanced approval dashboard with better UX
+- **Performance**: Optimized queries and reduced API calls
+
+---
+
 ## Error Responses
 
-### 400 Bad Request
+### 400 Bad Request - Validation Errors
+```json
+{
+  "error": "Validation failed",
+  "message": "Query mode supports single statements only. For multiple queries, use Script mode."
+}
+```
+
+```json
+{
+  "error": "Validation failed",
+  "message": "Query text cannot exceed 50000 characters. Current: 75000"
+}
+```
+
+```json
+{
+  "error": "Validation failed", 
+  "message": "Script content cannot exceed 5000000 characters"
+}
+```
+
+```json
+{
+  "error": "Validation failed",
+  "message": "Comments cannot exceed 2000 characters"
+}
+```
+
+### 400 Bad Request - General
 ```json
 {
   "message": "Email and password are required"
