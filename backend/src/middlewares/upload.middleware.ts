@@ -4,18 +4,21 @@ import { MAX_SCRIPT_SIZE, validateScriptSize } from '../validation/schemas/query
 // Use memory storage - file content will be in req.file.buffer
 const storage = multer.memoryStorage();
 
+// Extract fileFilter function for better testability
+export const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+  if (!file.originalname.endsWith('.js')) {
+    return cb(new Error('Only .js files allowed'));
+  }
+  cb(null, true);
+};
+
 export const uploadScript = multer({
   storage,
   limits: { 
     fileSize: 5 * 1024 * 1024,  // 5MB file size limit
     files: 1,                   // Only 1 file allowed
   },
-  fileFilter: (_, file, cb) => {
-    if (!file.originalname.endsWith('.js')) {
-      return cb(new Error('Only .js files allowed'));
-    }
-    cb(null, true);
-  }
+  fileFilter
 });
 
 // Middleware to validate script content size after upload
