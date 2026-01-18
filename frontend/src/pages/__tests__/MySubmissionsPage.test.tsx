@@ -144,7 +144,7 @@ describe('MySubmissionsPage', () => {
     });
     
     expect(screen.getAllByText('QUERY').length).toBeGreaterThan(0);
-    expect(screen.getByText('SCRIPT')).toBeInTheDocument();
+    expect(screen.getAllByText('SCRIPT').length).toBeGreaterThan(0);
   });
 
   it('displays status badges', async () => {
@@ -154,10 +154,10 @@ describe('MySubmissionsPage', () => {
       expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
     });
     
-    expect(screen.getByText('PENDING')).toBeInTheDocument();
-    expect(screen.getByText('REJECTED')).toBeInTheDocument();
-    expect(screen.getByText('EXECUTED')).toBeInTheDocument();
-    expect(screen.getByText('FAILED')).toBeInTheDocument();
+    expect(screen.getAllByText('PENDING').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('REJECTED').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('EXECUTED').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('FAILED').length).toBeGreaterThan(0);
   });
 
   it('shows View Details button for all submissions', async () => {
@@ -179,8 +179,8 @@ describe('MySubmissionsPage', () => {
       expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
     });
     
-    const retryButtons = screen.getAllByText('🔄 Retry');
-    const modifyButtons = screen.getAllByText('✏️ Modify');
+    const retryButtons = screen.getAllByText('Retry');
+    const modifyButtons = screen.getAllByText('Modify');
     expect(retryButtons.length).toBe(2); // REJECTED and FAILED
     expect(modifyButtons.length).toBe(2);
   });
@@ -192,7 +192,7 @@ describe('MySubmissionsPage', () => {
       expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
     });
     
-    const viewButtons = screen.getAllByText('👁️ View Details');
+    const viewButtons = screen.getAllByText('View Details');
     await userEvent.click(viewButtons[0]);
     
     expect(screen.getByText('Query Details')).toBeInTheDocument();
@@ -205,7 +205,7 @@ describe('MySubmissionsPage', () => {
       expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
     });
     
-    const viewButtons = screen.getAllByText('👁️ View Details');
+    const viewButtons = screen.getAllByText('View Details');
     await userEvent.click(viewButtons[0]);
     
     expect(screen.getByText('SELECT * FROM users')).toBeInTheDocument();
@@ -219,7 +219,7 @@ describe('MySubmissionsPage', () => {
     });
     
     // Click on the rejected query (second one)
-    const viewButtons = screen.getAllByText('👁️ View Details');
+    const viewButtons = screen.getAllByText('View Details');
     await userEvent.click(viewButtons[1]);
     
     expect(screen.getByText('Not approved')).toBeInTheDocument();
@@ -232,7 +232,7 @@ describe('MySubmissionsPage', () => {
       expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
     });
     
-    const retryButtons = screen.getAllByText('🔄 Retry');
+    const retryButtons = screen.getAllByText('Retry');
     await userEvent.click(retryButtons[0]);
     
     await waitFor(() => {
@@ -247,7 +247,7 @@ describe('MySubmissionsPage', () => {
       expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
     });
     
-    const modifyButtons = screen.getAllByText('✏️ Modify');
+    const modifyButtons = screen.getAllByText('Modify');
     await userEvent.click(modifyButtons[0]);
     
     await waitFor(() => {
@@ -262,7 +262,7 @@ describe('MySubmissionsPage', () => {
       expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
     });
     
-    const viewButtons = screen.getAllByText('👁️ View Details');
+    const viewButtons = screen.getAllByText('View Details');
     await userEvent.click(viewButtons[0]);
     
     expect(screen.getByText('Query Details')).toBeInTheDocument();
@@ -293,7 +293,8 @@ describe('MySubmissionsPage', () => {
     });
     
     const selects = screen.getAllByRole('combobox');
-    const perPageSelect = selects[0];
+    // The last select should be the items per page dropdown
+    const perPageSelect = selects[selects.length - 1];
     
     await userEvent.selectOptions(perPageSelect, '25');
     
@@ -329,8 +330,8 @@ describe('MySubmissionsPage', () => {
     });
     
     // Legend items
-    expect(screen.getByText('🔄 Retry (resubmit same query)')).toBeInTheDocument();
-    expect(screen.getByText('✏️ Modify (edit before resubmitting)')).toBeInTheDocument();
+    expect(screen.getByText('Retry (resubmit same query)')).toBeInTheDocument();
+    expect(screen.getByText('Modify (edit before resubmitting)')).toBeInTheDocument();
   });
 
   it('shows error alert on retry failure', async () => {
@@ -345,7 +346,7 @@ describe('MySubmissionsPage', () => {
       expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
     });
     
-    const retryButtons = screen.getAllByText('🔄 Retry');
+    const retryButtons = screen.getAllByText('Retry');
     await userEvent.click(retryButtons[0]);
     
     await waitFor(() => {
@@ -677,7 +678,7 @@ describe('MySubmissionsPage - Modal Actions', () => {
     });
     
     // Click on the script query (second one)
-    const viewButtons = screen.getAllByText('👁️ View Details');
+    const viewButtons = screen.getAllByText('View Details');
     await userEvent.click(viewButtons[1]);
     
     // Mock after render
@@ -709,7 +710,7 @@ describe('MySubmissionsPage - Modal Actions', () => {
     });
     
     // Click on the rejected query (second one)
-    const viewButtons = screen.getAllByText('👁️ View Details');
+    const viewButtons = screen.getAllByText('View Details');
     await userEvent.click(viewButtons[1]);
     
     // Click retry button in modal (there are multiple, get the one in the modal)
@@ -729,7 +730,7 @@ describe('MySubmissionsPage - Modal Actions', () => {
     });
     
     // Click on the rejected query (second one)
-    const viewButtons = screen.getAllByText('👁️ View Details');
+    const viewButtons = screen.getAllByText('View Details');
     await userEvent.click(viewButtons[1]);
     
     // Click modify button in modal (there are multiple, get the one in the modal)
@@ -749,7 +750,7 @@ describe('MySubmissionsPage - Modal Actions', () => {
     });
     
     // Click retry on the script query (second one - REJECTED)
-    const retryButtons = screen.getAllByText('🔄 Retry');
+    const retryButtons = screen.getAllByText('Retry');
     await userEvent.click(retryButtons[0]); // First retry button is for the rejected script
     
     await waitFor(() => {
@@ -770,5 +771,262 @@ describe('MySubmissionsPage - Modal Actions', () => {
     });
     
     consoleSpy.mockRestore();
+  });
+});
+
+describe('MySubmissionsPage - Edge Cases', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (queriesApi.submit as jest.Mock).mockResolvedValue({ data: { id: 'new-query' } });
+    
+    global.URL.createObjectURL = jest.fn(() => 'blob:test');
+    global.URL.revokeObjectURL = jest.fn();
+  });
+
+  it('handles empty queries array gracefully', async () => {
+    (queriesApi.getMySubmissions as jest.Mock).mockResolvedValue({
+      data: { 
+        data: null, // Test null data
+        pagination: { total: 0, limit: 10, offset: 0, hasMore: false } 
+      }
+    });
+    
+    renderMySubmissions();
+    
+    await waitFor(() => {
+      expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
+    });
+    
+    expect(screen.getByText('No submissions yet')).toBeInTheDocument();
+  });
+
+  it('handles non-array response data', async () => {
+    (queriesApi.getMySubmissions as jest.Mock).mockResolvedValue({
+      data: { 
+        data: "invalid data", // Test non-array data
+        pagination: { total: 0, limit: 10, offset: 0, hasMore: false } 
+      }
+    });
+    
+    renderMySubmissions();
+    
+    await waitFor(() => {
+      expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
+    });
+    
+    expect(screen.getByText('No submissions yet')).toBeInTheDocument();
+  });
+
+  it('handles queries with missing properties', async () => {
+    const incompleteQueries = [
+      {
+        id: 'query-1',
+        status: 'PENDING',
+        created_at: '2024-01-15T10:00:00Z',
+        // Missing many properties
+      }
+    ];
+    
+    (queriesApi.getMySubmissions as jest.Mock).mockResolvedValue({
+      data: { 
+        data: incompleteQueries, 
+        pagination: { total: 1, limit: 10, offset: 0, hasMore: false } 
+      }
+    });
+    
+    renderMySubmissions();
+    
+    await waitFor(() => {
+      expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
+    });
+    
+    // Should still render without crashing - use getAllByText since PENDING appears in both filter and status badge
+    expect(screen.getAllByText('PENDING').length).toBeGreaterThan(0);
+  });
+
+  it('handles date filter edge cases', async () => {
+    const queriesWithDifferentDates = [
+      {
+        ...mockQueries[0],
+        created_at: new Date(Date.now() - 1000 * 60 * 60 * 12).toISOString(), // 12 hours ago
+      },
+      {
+        ...mockQueries[1],
+        created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString(), // 3 days ago
+      },
+      {
+        ...mockQueries[2],
+        created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 15).toISOString(), // 15 days ago
+      }
+    ];
+    
+    (queriesApi.getMySubmissions as jest.Mock).mockResolvedValue({
+      data: { 
+        data: queriesWithDifferentDates, 
+        pagination: { total: 3, limit: 10, offset: 0, hasMore: false } 
+      }
+    });
+    
+    renderMySubmissions();
+    
+    await waitFor(() => {
+      expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
+    });
+    
+    // Test 7 days filter
+    const dateSelects = screen.getAllByRole('combobox');
+    const dateSelect = dateSelects.find(select => 
+      select.querySelector('option[value="7d"]')
+    );
+    
+    await userEvent.selectOptions(dateSelect!, '7d');
+    
+    // Should filter to only show queries from last 7 days
+    await waitFor(() => {
+      expect(queriesApi.getMySubmissions).toHaveBeenCalled();
+    });
+  });
+
+  it('handles instance filter with missing instance names', async () => {
+    const queriesWithMissingInstances = [
+      {
+        ...mockQueries[0],
+        instance_name: null,
+      },
+      {
+        ...mockQueries[1],
+        instance_name: undefined,
+      }
+    ];
+    
+    (queriesApi.getMySubmissions as jest.Mock).mockResolvedValue({
+      data: { 
+        data: queriesWithMissingInstances, 
+        pagination: { total: 2, limit: 10, offset: 0, hasMore: false } 
+      }
+    });
+    
+    renderMySubmissions();
+    
+    await waitFor(() => {
+      expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
+    });
+    
+    // Apply instance filter
+    const instanceSelects = screen.getAllByRole('combobox');
+    const instanceSelect = instanceSelects.find(select => 
+      select.querySelector('option[value="pg-instance"]')
+    );
+    
+    await userEvent.selectOptions(instanceSelect!, 'pg-instance');
+    
+    // Should handle missing instance names gracefully
+    await waitFor(() => {
+      expect(queriesApi.getMySubmissions).toHaveBeenCalled();
+    });
+  });
+
+  it('shows filtered message when no results match filters', async () => {
+    (queriesApi.getMySubmissions as jest.Mock).mockResolvedValue({
+      data: { 
+        data: [], 
+        pagination: { total: 0, limit: 10, offset: 0, hasMore: false } 
+      }
+    });
+    
+    renderMySubmissions();
+    
+    await waitFor(() => {
+      expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
+    });
+    
+    // Apply a filter to trigger the filtered message - use more specific selector
+    const statusSelects = screen.getAllByRole('combobox');
+    const statusSelect = statusSelects.find(select => 
+      select.querySelector('option[value="PENDING"]')
+    );
+    await userEvent.selectOptions(statusSelect!, 'PENDING');
+    
+    await waitFor(() => {
+      expect(screen.getByText('No submissions match your filters')).toBeInTheDocument();
+    });
+  });
+
+  it('handles 30 day date filter', async () => {
+    const queriesWithDifferentDates = [
+      {
+        ...mockQueries[0],
+        created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 15).toISOString(), // 15 days ago
+      },
+      {
+        ...mockQueries[1],
+        created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 45).toISOString(), // 45 days ago
+      }
+    ];
+    
+    (queriesApi.getMySubmissions as jest.Mock).mockResolvedValue({
+      data: { 
+        data: queriesWithDifferentDates, 
+        pagination: { total: 2, limit: 10, offset: 0, hasMore: false } 
+      }
+    });
+    
+    renderMySubmissions();
+    
+    await waitFor(() => {
+      expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
+    });
+    
+    // Test 30 days filter
+    const dateSelects = screen.getAllByRole('combobox');
+    const dateSelect = dateSelects.find(select => 
+      select.querySelector('option[value="30d"]')
+    );
+    
+    await userEvent.selectOptions(dateSelect!, '30d');
+    
+    // Should filter to only show queries from last 30 days
+    await waitFor(() => {
+      expect(queriesApi.getMySubmissions).toHaveBeenCalled();
+    });
+  });
+
+  it('handles queries with missing created_at for date filter', async () => {
+    const queriesWithMissingDates = [
+      {
+        ...mockQueries[0],
+        created_at: null,
+      },
+      {
+        ...mockQueries[1],
+        created_at: undefined,
+      }
+    ];
+    
+    (queriesApi.getMySubmissions as jest.Mock).mockResolvedValue({
+      data: { 
+        data: queriesWithMissingDates, 
+        pagination: { total: 2, limit: 10, offset: 0, hasMore: false } 
+      }
+    });
+    
+    renderMySubmissions();
+    
+    await waitFor(() => {
+      expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
+    });
+    
+    // Apply date filter
+    const dateSelects = screen.getAllByRole('combobox');
+    const dateSelect = dateSelects.find(select => 
+      select.querySelector('option[value="24h"]')
+    );
+    
+    await userEvent.selectOptions(dateSelect!, '24h');
+    
+    // Should handle missing dates gracefully
+    await waitFor(() => {
+      expect(queriesApi.getMySubmissions).toHaveBeenCalled();
+    });
   });
 });

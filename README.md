@@ -215,21 +215,45 @@ Comprehensive API documentation is available at:
 
 ## 🔐 Security Features
 
+### DDoS/DoS Protection
+- **Multi-Layer Rate Limiting**: Comprehensive protection against abuse
+  - General API: 100 requests per 15 minutes per IP
+  - Login Attempts: 5 attempts per 15 minutes per IP (strict)
+  - Other Auth Operations: 20 requests per 15 minutes per IP (refresh, logout)
+  - Query Submission: 10 submissions per 5 minutes per IP
+- **Speed Limiting**: Progressive delays after 50 requests (up to 20s max delay)
+- **Request Monitoring**: Real-time tracking and alerting for suspicious activity (>200 req/min)
+- **Security Stats**: Admin endpoint `/api/security/stats` for monitoring
+
+### Security Headers & Protection
+- **Helmet.js Integration**: Comprehensive security headers
+  - Content Security Policy (CSP)
+  - HTTP Strict Transport Security (HSTS)
+  - X-Frame-Options: DENY
+  - X-Content-Type-Options: nosniff
+- **Custom Security Headers**: Additional API protection layers
+- **Cache Control**: Prevents caching of sensitive API responses
+- **Proxy Trust**: Accurate IP detection for rate limiting
+
 ### Input Validation & DoS Protection
+- **JSON Payload**: 1MB limit prevents memory exhaustion attacks
 - **Query Text**: 50KB limit prevents oversized queries
 - **Script Files**: 5MB limit with content validation
+- **Comments**: 2KB limit for metadata fields
 - **Multiple Statement Prevention**: Single SQL/MongoDB statement enforcement
 - **File Type Validation**: Only `.js` files allowed for scripts
 
 ### Authentication & Authorization
-- **JWT Tokens**: Access + refresh token pattern
-- **Role-Based Access**: Developer, Manager, Admin roles
-- **Session Management**: Secure logout and token rotation
+- **JWT Tokens**: Access + refresh token pattern with rotation
+- **Role-Based Access**: Developer, Manager, Admin roles with proper separation
+- **Session Management**: Secure logout and token invalidation
+- **Password Security**: Bcrypt hashing with configurable salt rounds
 
 ### Execution Security
 - **Process Isolation**: Scripts run in sandboxed child processes
-- **Timeout Protection**: 30-second execution limit
-- **Credential Isolation**: Database credentials injected securely
+- **Timeout Protection**: 30-second execution limit prevents runaway processes
+- **Credential Isolation**: Database credentials injected securely at runtime
+- **Resource Limits**: Memory and CPU constraints for script execution
 
 ## 🎨 User Interface
 

@@ -572,9 +572,159 @@ console.log(stats);
 
 ---
 
+## Security Features
+
+### DDoS/DoS Protection
+The API implements comprehensive protection against Distributed Denial of Service (DDoS) and Denial of Service (DoS) attacks:
+
+#### Rate Limiting
+- **General API Rate Limit**: 100 requests per 15 minutes per IP address
+- **Login Rate Limit**: 5 login attempts per 15 minutes per IP address (strict)
+- **Auth Operations Rate Limit**: 20 requests per 15 minutes per IP address (refresh, logout, etc.)
+- **Query Submission Rate Limit**: 10 query submissions per 5 minutes per IP address
+- **Rate Limit Headers**: Standard `RateLimit-*` headers included in responses
+- **Bypass Rules**: Documentation endpoints (`/api-docs`) are excluded from rate limiting
+
+#### Speed Limiting
+- **Progressive Delays**: After 50 requests in 15 minutes, responses are progressively delayed
+- **Delay Increment**: 500ms delay added per request after threshold
+- **Maximum Delay**: Capped at 20 seconds to prevent indefinite blocking
+- **Smart Skipping**: Static and documentation routes are excluded
+
+#### Request Monitoring
+- **Real-time Tracking**: All requests are monitored and tracked by IP address
+- **Suspicious Activity Detection**: Automatic logging when IP exceeds 200 requests per minute
+- **Security Statistics**: Admin endpoint `/api/security/stats` provides monitoring data
+- **Automatic Cleanup**: Old tracking data is automatically purged
+
+### Security Headers
+Comprehensive security headers are applied to all responses:
+
+#### Helmet.js Integration
+- **Content Security Policy (CSP)**: Restricts resource loading to prevent XSS
+- **HTTP Strict Transport Security (HSTS)**: Forces HTTPS connections for 1 year
+- **X-Frame-Options**: Set to `DENY` to prevent clickjacking
+- **X-Content-Type-Options**: Set to `nosniff` to prevent MIME sniffing attacks
+
+#### Custom Security Headers
+- **X-API-Version**: API version information
+- **X-XSS-Protection**: Browser XSS protection enabled
+- **Referrer-Policy**: Strict origin policy for cross-origin requests
+- **Cache-Control**: API responses are not cached to prevent data leakage
+
+### Input Validation & Size Limits
+Comprehensive input validation prevents various attack vectors:
+
+#### Payload Size Limits
+- **JSON Payloads**: Limited to 1MB to prevent memory exhaustion
+- **URL-encoded Data**: Limited to 1MB for form submissions
+- **Query Text**: Maximum 50KB per individual query
+- **Script Content**: Maximum 5MB per script file
+- **Comments**: Maximum 2KB for metadata fields
+- **File Uploads**: Maximum 5MB per uploaded file
+
+#### Content Validation
+- **Multiple Statement Prevention**: Query mode only allows single SQL/MongoDB statements
+- **File Type Validation**: Only `.js` files accepted for script uploads
+- **SQL Injection Prevention**: Parameterized queries and input sanitization
+- **NoSQL Injection Prevention**: MongoDB query validation and sanitization
+
+### Authentication & Authorization
+
+#### JWT Token Security
+- **Access Tokens**: Short-lived (15 minutes) for API access
+- **Refresh Tokens**: Long-lived (7 days) for token renewal
+- **Token Rotation**: Refresh tokens are rotated on each use
+- **Secure Storage**: Tokens stored with httpOnly cookies when possible
+
+#### Role-Based Access Control (RBAC)
+- **Developer Role**: Can submit queries and view own submissions
+- **Manager Role**: Can approve/reject queries and view team submissions  
+- **Admin Role**: Full system access including user management and audit logs
+
+#### Session Management
+- **Secure Logout**: Proper token invalidation on logout
+- **Session Timeout**: Automatic logout after token expiration
+- **Concurrent Sessions**: Multiple device support with individual token tracking
+
+### Execution Security
+
+#### Sandboxed Execution
+- **Process Isolation**: Scripts execute in separate child processes
+- **Resource Limits**: Memory and CPU constraints applied
+- **Timeout Protection**: 30-second maximum execution time
+- **Error Isolation**: Script errors don't affect main application
+
+#### Credential Security
+- **Runtime Injection**: Database credentials provided only during execution
+- **Encryption at Rest**: Sensitive data encrypted using AES-256-GCM
+- **No Credential Logging**: Database passwords never logged or exposed
+- **Secure Environment**: Credentials passed via secure environment variables
+
+### Security Monitoring
+
+#### Security Statistics Endpoint
+```http
+GET /api/security/stats
+Authorization: Bearer <admin_token>
+```
+
+**Response:**
+```json
+{
+  "message": "Security statistics",
+  "timestamp": "2024-01-19T10:30:00.000Z",
+  "totalIPs": 15,
+  "topRequesters": [
+    {
+      "ip": "192.168.1.100",
+      "requests": 45,
+      "duration": 300000
+    }
+  ]
+}
+```
+
+#### Rate Limit Error Responses
+When rate limits are exceeded, the API returns structured error responses:
+
+**429 Too Many Requests:**
+```json
+{
+  "error": "Too many requests",
+  "message": "Too many requests from this IP, please try again later.",
+  "retryAfter": "15 minutes"
+}
+```
+
+**429 Too Many Login Attempts:**
+```json
+{
+  "error": "Too many login attempts",
+  "message": "Too many login attempts from this IP, please try again later.",
+  "retryAfter": "15 minutes"
+}
+```
+
+**429 Too Many Query Submissions:**
+```json
+{
+  "error": "Too many query submissions",
+  "message": "Too many query submissions from this IP, please try again later.",
+  "retryAfter": "5 minutes"
+}
+```
+
+---
+
 ## Rate Limits
 
-No rate limits implemented (internal tool).
+The API implements comprehensive rate limiting for security:
+
+- **General API**: 100 requests per 15 minutes per IP
+- **Authentication**: 5 login attempts per 15 minutes per IP
+- **Query Submission**: 10 submissions per 5 minutes per IP
+- **Speed Limiting**: Progressive delays after 50 requests
 
 ## Pagination
 

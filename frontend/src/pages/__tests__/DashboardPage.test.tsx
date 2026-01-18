@@ -634,4 +634,180 @@ describe('DashboardPage - Script submission', () => {
       expect(screen.getByText(/select a database type above/i)).toBeInTheDocument();
     });
   });
+
+  describe('Inline validation', () => {
+    it('shows inline error for empty comments', async () => {
+      renderDashboard();
+      
+      await userEvent.selectOptions(screen.getByLabelText(/database type/i), 'POSTGRES');
+      await waitFor(() => expect(screen.getByLabelText(/instance/i)).not.toBeDisabled());
+      await userEvent.selectOptions(screen.getByLabelText(/instance/i), 'inst-1');
+      
+      await waitFor(() => {
+        const dbSelect = getDatabaseSelect();
+        expect(dbSelect.options.length).toBeGreaterThan(1);
+      });
+      
+      await userEvent.selectOptions(getDatabaseSelect(), 'users_db');
+      await userEvent.selectOptions(screen.getByLabelText(/pod/i), 'pod-1');
+      await userEvent.type(screen.getByLabelText(/query/i), 'SELECT * FROM users');
+      // Leave comments empty
+      
+      await userEvent.click(screen.getByRole('button', { name: /submit for approval/i }));
+      
+      await waitFor(() => {
+        expect(screen.getByText('Please fill this field. Comments cannot be empty or only spaces.')).toBeInTheDocument();
+      });
+      
+      // Verify the API was not called
+      expect(queriesApi.submit).not.toHaveBeenCalled();
+    });
+
+    it('shows inline error for empty query text', async () => {
+      renderDashboard();
+      
+      await userEvent.selectOptions(screen.getByLabelText(/database type/i), 'POSTGRES');
+      await waitFor(() => expect(screen.getByLabelText(/instance/i)).not.toBeDisabled());
+      await userEvent.selectOptions(screen.getByLabelText(/instance/i), 'inst-1');
+      
+      await waitFor(() => {
+        const dbSelect = getDatabaseSelect();
+        expect(dbSelect.options.length).toBeGreaterThan(1);
+      });
+      
+      await userEvent.selectOptions(getDatabaseSelect(), 'users_db');
+      await userEvent.selectOptions(screen.getByLabelText(/pod/i), 'pod-1');
+      await userEvent.type(screen.getByLabelText(/comments/i), 'Test comment');
+      // Leave query text empty
+      
+      await userEvent.click(screen.getByRole('button', { name: /submit for approval/i }));
+      
+      await waitFor(() => {
+        expect(screen.getByText('Please fill this field. Query text cannot be empty or only spaces.')).toBeInTheDocument();
+      });
+      
+      // Verify the API was not called
+      expect(queriesApi.submit).not.toHaveBeenCalled();
+    });
+
+    it('shows inline error for whitespace-only comments', async () => {
+      renderDashboard();
+      
+      await userEvent.selectOptions(screen.getByLabelText(/database type/i), 'POSTGRES');
+      await waitFor(() => expect(screen.getByLabelText(/instance/i)).not.toBeDisabled());
+      await userEvent.selectOptions(screen.getByLabelText(/instance/i), 'inst-1');
+      
+      await waitFor(() => {
+        const dbSelect = getDatabaseSelect();
+        expect(dbSelect.options.length).toBeGreaterThan(1);
+      });
+      
+      await userEvent.selectOptions(getDatabaseSelect(), 'users_db');
+      await userEvent.selectOptions(screen.getByLabelText(/pod/i), 'pod-1');
+      await userEvent.type(screen.getByLabelText(/query/i), 'SELECT * FROM users');
+      // Type only spaces in comments
+      await userEvent.type(screen.getByLabelText(/comments/i), '   ');
+      
+      await userEvent.click(screen.getByRole('button', { name: /submit for approval/i }));
+      
+      await waitFor(() => {
+        expect(screen.getByText('Please fill this field. Comments cannot be empty or only spaces.')).toBeInTheDocument();
+      });
+      
+      // Verify the API was not called
+      expect(queriesApi.submit).not.toHaveBeenCalled();
+    });
+
+    it('shows inline error for whitespace-only query text', async () => {
+      renderDashboard();
+      
+      await userEvent.selectOptions(screen.getByLabelText(/database type/i), 'POSTGRES');
+      await waitFor(() => expect(screen.getByLabelText(/instance/i)).not.toBeDisabled());
+      await userEvent.selectOptions(screen.getByLabelText(/instance/i), 'inst-1');
+      
+      await waitFor(() => {
+        const dbSelect = getDatabaseSelect();
+        expect(dbSelect.options.length).toBeGreaterThan(1);
+      });
+      
+      await userEvent.selectOptions(getDatabaseSelect(), 'users_db');
+      await userEvent.selectOptions(screen.getByLabelText(/pod/i), 'pod-1');
+      await userEvent.type(screen.getByLabelText(/comments/i), 'Test comment');
+      // Type only spaces in query text
+      await userEvent.type(screen.getByLabelText(/query/i), '   ');
+      
+      await userEvent.click(screen.getByRole('button', { name: /submit for approval/i }));
+      
+      await waitFor(() => {
+        expect(screen.getByText('Please fill this field. Query text cannot be empty or only spaces.')).toBeInTheDocument();
+      });
+      
+      // Verify the API was not called
+      expect(queriesApi.submit).not.toHaveBeenCalled();
+    });
+
+    it('shows inline error for whitespace-only script file', async () => {
+      renderDashboard();
+      
+      await userEvent.selectOptions(screen.getByLabelText(/database type/i), 'POSTGRES');
+      await waitFor(() => expect(screen.getByLabelText(/instance/i)).not.toBeDisabled());
+      await userEvent.selectOptions(screen.getByLabelText(/instance/i), 'inst-1');
+      
+      await waitFor(() => {
+        const dbSelect = getDatabaseSelect();
+        expect(dbSelect.options.length).toBeGreaterThan(1);
+      });
+      
+      await userEvent.selectOptions(getDatabaseSelect(), 'users_db');
+      await userEvent.selectOptions(screen.getByLabelText(/pod/i), 'pod-1');
+      await userEvent.selectOptions(screen.getByLabelText(/submission type/i), 'SCRIPT');
+      await userEvent.type(screen.getByLabelText(/comments/i), 'Test comment');
+      
+      // Create and upload a file with only whitespace
+      const file = new File(['   \n  \t  '], 'whitespace.js', { type: 'application/javascript' });
+      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+      
+      await userEvent.upload(fileInput, file);
+      
+      await userEvent.click(screen.getByRole('button', { name: /submit for approval/i }));
+      
+      await waitFor(() => {
+        expect(screen.getByText('Script file cannot be empty or only spaces.')).toBeInTheDocument();
+      }, { timeout: 5000 });
+      
+      // Verify the API was not called
+      expect(queriesApi.submit).not.toHaveBeenCalled();
+    });
+
+    it('clears inline error when user starts typing', async () => {
+      renderDashboard();
+      
+      await userEvent.selectOptions(screen.getByLabelText(/database type/i), 'POSTGRES');
+      await waitFor(() => expect(screen.getByLabelText(/instance/i)).not.toBeDisabled());
+      await userEvent.selectOptions(screen.getByLabelText(/instance/i), 'inst-1');
+      
+      await waitFor(() => {
+        const dbSelect = getDatabaseSelect();
+        expect(dbSelect.options.length).toBeGreaterThan(1);
+      });
+      
+      await userEvent.selectOptions(getDatabaseSelect(), 'users_db');
+      await userEvent.selectOptions(screen.getByLabelText(/pod/i), 'pod-1');
+      await userEvent.type(screen.getByLabelText(/query/i), 'SELECT * FROM users');
+      // Leave comments empty and submit to trigger error
+      
+      await userEvent.click(screen.getByRole('button', { name: /submit for approval/i }));
+      
+      await waitFor(() => {
+        expect(screen.getByText('Please fill this field. Comments cannot be empty or only spaces.')).toBeInTheDocument();
+      });
+      
+      // Now type in comments field - error should clear
+      await userEvent.type(screen.getByLabelText(/comments/i), 'Test comment');
+      
+      await waitFor(() => {
+        expect(screen.queryByText('Please fill this field. Comments cannot be empty or only spaces.')).not.toBeInTheDocument();
+      });
+    });
+  });
 });

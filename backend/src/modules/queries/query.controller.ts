@@ -21,6 +21,11 @@ export class QueryController {
 
     // Read script content from memory buffer
     const scriptContent = req.file ? req.file.buffer.toString('utf-8') : undefined;
+    
+    // Validate script content is not empty or whitespace-only
+    if (submissionType === 'SCRIPT' && scriptContent !== undefined && scriptContent.trim().length === 0) {
+      throw new BadRequestError('Script file cannot be empty or contain only spaces');
+    }
 
     const query = await QueryService.submitQuery({
       requesterId: req.user!.id,

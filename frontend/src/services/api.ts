@@ -1,15 +1,40 @@
 import axios from 'axios';
 import type { AuthResponse, DbInstance, Pod, Query, AuditLog } from '../types';
 
+// Helper function to get environment variables that works in both Vite and Jest
+function getEnvVar(key: string, defaultValue?: string): string | undefined {
+  // In test environment, use the mocked values
+  if (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') {
+    const mockImportMeta = (globalThis as any).import?.meta;
+    if (mockImportMeta?.env) {
+      return mockImportMeta.env[key] || defaultValue;
+    }
+    return defaultValue;
+  }
+  
+  // In Vite environment, try to access import.meta.env safely
+  try {
+    // Use eval to avoid TypeScript compilation issues
+    const importMeta = eval('import.meta');
+    if (importMeta?.env) {
+      return importMeta.env[key] || defaultValue;
+    }
+  } catch {
+    // Fallback if import.meta is not available
+  }
+  
+  return defaultValue;
+}
+
 // Use a function to get the API URL so it can be mocked in tests
 const getApiUrl = () => {
   // In test environment, use a default URL
-  if (import.meta.env?.MODE === 'test') {
+  if (getEnvVar('MODE') === 'test') {
     return '/api';
   }
   
   // Use Vite environment variable
-  return import.meta.env.VITE_API_URL || 'https://zluri-sre-backend.onrender.com/api';
+  return getEnvVar('VITE_API_URL') || 'https://zluri-sre-backend.onrender.com/api';
 };
 
 const api = axios.create({
@@ -39,7 +64,7 @@ api.interceptors.response.use(
       const refreshToken = localStorage.getItem('refreshToken');
       if (refreshToken) {
         try {
-          const refreshUrl = import.meta.env?.MODE === 'test' ? '/api/auth/refresh' : `${getApiUrl()}/auth/refresh`;
+          const refreshUrl = getEnvVar('MODE') === 'test' ? '/api/auth/refresh' : `${getApiUrl()}/auth/refresh`;
           const response = await axios.post(refreshUrl, { refreshToken });
           const { accessToken } = response.data;
           localStorage.setItem('accessToken', accessToken);

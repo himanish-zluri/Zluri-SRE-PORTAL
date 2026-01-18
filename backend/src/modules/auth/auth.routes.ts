@@ -3,6 +3,7 @@ import { AuthController } from './auth.controller';
 import { requireAuth } from '../../middlewares/auth.middleware';
 import { validate, loginSchema, refreshSchema, logoutSchema } from '../../validation';
 import { asyncHandler } from '../../middlewares/errorHandler.middleware';
+import { loginRateLimit, authRateLimit } from '../../middlewares/security.middleware';
 
 const router = Router();
 
@@ -43,8 +44,10 @@ const router = Router();
  *                   $ref: '#/components/schemas/User'
  *       401:
  *         description: Invalid credentials
+ *       429:
+ *         description: Too many login attempts
  */
-router.post('/login', validate(loginSchema), asyncHandler(AuthController.login));
+router.post('/login', loginRateLimit, validate(loginSchema), asyncHandler(AuthController.login));
 
 /**
  * @openapi
@@ -78,7 +81,7 @@ router.post('/login', validate(loginSchema), asyncHandler(AuthController.login))
  *       401:
  *         description: Invalid or expired refresh token
  */
-router.post('/refresh', validate(refreshSchema), asyncHandler(AuthController.refresh));
+router.post('/refresh', authRateLimit, validate(refreshSchema), asyncHandler(AuthController.refresh));
 
 /**
  * @openapi
@@ -101,7 +104,7 @@ router.post('/refresh', validate(refreshSchema), asyncHandler(AuthController.ref
  *       200:
  *         description: Logged out successfully
  */
-router.post('/logout', validate(logoutSchema), asyncHandler(AuthController.logout));
+router.post('/logout', authRateLimit, validate(logoutSchema), asyncHandler(AuthController.logout));
 
 /**
  * @openapi
@@ -115,6 +118,6 @@ router.post('/logout', validate(logoutSchema), asyncHandler(AuthController.logou
  *       401:
  *         description: Unauthorized
  */
-router.post('/logout-all', requireAuth, asyncHandler(AuthController.logoutAll));
+router.post('/logout-all', authRateLimit, requireAuth, asyncHandler(AuthController.logoutAll));
 
 export default router;

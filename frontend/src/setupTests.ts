@@ -8,6 +8,7 @@ const { TextEncoder, TextDecoder } = require('util');
 // Mock import.meta.env
 (global as any).importMeta = {
   env: {
+    MODE: 'test',
     VITE_API_URL: 'http://localhost:3000/api'
   }
 };

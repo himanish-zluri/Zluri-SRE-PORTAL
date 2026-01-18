@@ -74,11 +74,14 @@ describe('Validation Schemas', () => {
         instanceId: '550e8400-e29b-41d4-a716-446655440000',
         databaseName: 'testdb',
         podId: '550e8400-e29b-41d4-a716-446655440001',
+        comments: 'Valid test comment',
         submissionType: 'QUERY' as const,
       };
 
       it('should pass with valid QUERY submission', () => {
-        const result = submitQuerySchema.safeParse({ body: validBody });
+        const result = submitQuerySchema.safeParse({ 
+          body: { ...validBody, queryText: 'SELECT * FROM users' } 
+        });
         expect(result.success).toBe(true);
       });
 
@@ -115,6 +118,76 @@ describe('Validation Schemas', () => {
           body: { ...validBody, databaseName: '' },
         });
         expect(result.success).toBe(false);
+      });
+
+      it('should fail with whitespace-only databaseName', () => {
+        const result = submitQuerySchema.safeParse({
+          body: { ...validBody, databaseName: '   ' },
+        });
+        expect(result.success).toBe(false);
+      });
+
+      it('should fail with empty podId', () => {
+        const result = submitQuerySchema.safeParse({
+          body: { ...validBody, podId: '' },
+        });
+        expect(result.success).toBe(false);
+      });
+
+      it('should fail with whitespace-only podId', () => {
+        const result = submitQuerySchema.safeParse({
+          body: { ...validBody, podId: '   ' },
+        });
+        expect(result.success).toBe(false);
+      });
+
+      it('should fail with empty comments', () => {
+        const result = submitQuerySchema.safeParse({
+          body: { ...validBody, comments: '' },
+        });
+        expect(result.success).toBe(false);
+      });
+
+      it('should fail with whitespace-only comments', () => {
+        const result = submitQuerySchema.safeParse({
+          body: { ...validBody, comments: '   ' },
+        });
+        expect(result.success).toBe(false);
+      });
+
+      it('should fail QUERY submission without queryText', () => {
+        const result = submitQuerySchema.safeParse({
+          body: { ...validBody, submissionType: 'QUERY', comments: 'Valid comment' },
+        });
+        expect(result.success).toBe(false);
+      });
+
+      it('should fail QUERY submission with empty queryText', () => {
+        const result = submitQuerySchema.safeParse({
+          body: { ...validBody, submissionType: 'QUERY', queryText: '', comments: 'Valid comment' },
+        });
+        expect(result.success).toBe(false);
+      });
+
+      it('should fail QUERY submission with whitespace-only queryText', () => {
+        const result = submitQuerySchema.safeParse({
+          body: { ...validBody, submissionType: 'QUERY', queryText: '   ', comments: 'Valid comment' },
+        });
+        expect(result.success).toBe(false);
+      });
+
+      it('should pass QUERY submission with valid queryText and comments', () => {
+        const result = submitQuerySchema.safeParse({
+          body: { ...validBody, submissionType: 'QUERY', queryText: 'SELECT * FROM users', comments: 'Valid comment' },
+        });
+        expect(result.success).toBe(true);
+      });
+
+      it('should pass SCRIPT submission without queryText', () => {
+        const result = submitQuerySchema.safeParse({
+          body: { ...validBody, submissionType: 'SCRIPT', comments: 'Valid comment' },
+        });
+        expect(result.success).toBe(true);
       });
     });
 

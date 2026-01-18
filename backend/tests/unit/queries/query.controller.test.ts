@@ -83,6 +83,40 @@ describe('QueryController', () => {
       }));
     });
 
+    it('should throw BadRequestError when script file contains only whitespace', async () => {
+      mockRequest = {
+        user: { id: 'user-1', email: 'test@test.com', role: 'DEVELOPER' },
+        body: {
+          instanceId: 'inst-1',
+          databaseName: 'db',
+          podId: 'pod-a',
+          comments: 'test',
+          submissionType: 'SCRIPT'
+        },
+        file: { buffer: Buffer.from('   \n  \t  ') } as any
+      };
+
+      await expect(QueryController.submit(mockRequest as AuthenticatedRequest, mockResponse as Response))
+        .rejects.toThrow(new BadRequestError('Script file cannot be empty or contain only spaces'));
+    });
+
+    it('should throw BadRequestError when script file is empty', async () => {
+      mockRequest = {
+        user: { id: 'user-1', email: 'test@test.com', role: 'DEVELOPER' },
+        body: {
+          instanceId: 'inst-1',
+          databaseName: 'db',
+          podId: 'pod-a',
+          comments: 'test',
+          submissionType: 'SCRIPT'
+        },
+        file: { buffer: Buffer.from('') } as any
+      };
+
+      await expect(QueryController.submit(mockRequest as AuthenticatedRequest, mockResponse as Response))
+        .rejects.toThrow(new BadRequestError('Script file cannot be empty or contain only spaces'));
+    });
+
     it('should throw error on service error (caught by global handler)', async () => {
       (QueryService.submitQuery as jest.Mock).mockRejectedValue(new Error('DB error'));
 

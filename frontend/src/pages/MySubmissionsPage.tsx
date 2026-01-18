@@ -6,7 +6,6 @@ import { StatusBadge } from '../components/ui/StatusBadge';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { ResultDisplay } from '../components/ui/ResultDisplay';
-import { Select } from '../components/ui/Select';
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 
@@ -117,7 +116,21 @@ export function MySubmissionsPage() {
   const handleRetry = async (query: Query) => {
     setRetryLoading(query.id);
     try {
+      // Validate that we have non-empty content before retrying
+      if (!query.comments || query.comments.trim().length === 0) {
+        alert('Cannot retry: Please fill the comments field. Comments cannot be empty or only spaces.');
+        setRetryLoading(null);
+        return;
+      }
+
       if (query.submission_type === 'SCRIPT' && query.script_content) {
+        // Validate script content is not empty or whitespace-only
+        if (query.script_content.trim().length === 0) {
+          alert('Cannot retry: Script content cannot be empty or only spaces.');
+          setRetryLoading(null);
+          return;
+        }
+        
         // For scripts, create a File from the stored content
         const blob = new Blob([query.script_content], { type: 'application/javascript' });
         const file = new File([blob], 'script.js', { type: 'application/javascript' });
@@ -126,17 +139,24 @@ export function MySubmissionsPage() {
         formData.append('instanceId', query.instance_id);
         formData.append('databaseName', query.database_name);
         formData.append('podId', query.pod_id);
-        formData.append('comments', query.comments);
+        formData.append('comments', query.comments.trim());
         formData.append('submissionType', 'SCRIPT');
         formData.append('script', file);
         await queriesApi.submit(formData);
       } else {
+        // Validate query text is not empty or whitespace-only
+        if (!query.query_text || query.query_text.trim().length === 0) {
+          alert('Cannot retry: Please fill the query field. Query text cannot be empty or only spaces.');
+          setRetryLoading(null);
+          return;
+        }
+        
         await queriesApi.submit({
           instanceId: query.instance_id,
           databaseName: query.database_name,
-          queryText: query.query_text,
+          queryText: query.query_text.trim(),
           podId: query.pod_id,
-          comments: query.comments,
+          comments: query.comments.trim(),
           submissionType: query.submission_type,
         });
       }
@@ -237,89 +257,83 @@ export function MySubmissionsPage() {
       </div>
 
       {/* Professional Filter Bar - The 4 Essential Filters */}
-      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4 mb-6">
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Status:</label>
-            <Select
-              value={statusFilter}
-              onChange={(e) => {
-                setStatusFilter(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="min-w-[120px]"
-              options={[
-                { value: '', label: 'All' },
-                { value: 'PENDING', label: 'PENDING' },
-                { value: 'EXECUTED', label: 'EXECUTED' },
-                { value: 'FAILED', label: 'FAILED' },
-                { value: 'REJECTED', label: 'REJECTED' },
-              ]}
-            />
-          </div>
-
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Type:</label>
-            <Select
-              value={typeFilter}
-              onChange={(e) => {
-                setTypeFilter(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="min-w-[100px]"
-              options={[
-                { value: '', label: 'All' },
-                { value: 'QUERY', label: 'QUERY' },
-                { value: 'SCRIPT', label: 'SCRIPT' },
-              ]}
-            />
-          </div>
-
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Instance:</label>
-            <Select
-              value={instanceFilter}
-              onChange={(e) => {
-                setInstanceFilter(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="min-w-[140px]"
-              options={[
-                { value: '', label: 'All' },
-                { value: 'pg-instance', label: 'pg-instance' },
-                { value: 'md-instance', label: 'md-instance' },
-              ]}
-            />
-          </div>
-
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Date Range:</label>
-            <Select
-              value={dateFilter}
-              onChange={(e) => {
-                setDateFilter(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="min-w-[140px]"
-              options={[
-                { value: '', label: 'All Time' },
-                { value: '24h', label: 'Last 24 Hours' },
-                { value: '7d', label: 'Last 7 Days' },
-                { value: '30d', label: 'Last 30 Days' },
-              ]}
-            />
-          </div>
-
-          {(statusFilter || typeFilter || instanceFilter || dateFilter) && (
-            <Button
-              variant="secondary"
-              onClick={clearFilters}
-              className="text-sm"
-            >
-              Clear Filters
-            </Button>
-          )}
+      <div className="flex flex-wrap items-center gap-4 mb-6">
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-gray-600 dark:text-gray-400">Status:</label>
+          <select
+            value={statusFilter}
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="px-3 py-1.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white text-sm cursor-pointer"
+          >
+            <option value="">All</option>
+            <option value="PENDING">PENDING</option>
+            <option value="EXECUTED">EXECUTED</option>
+            <option value="FAILED">FAILED</option>
+            <option value="REJECTED">REJECTED</option>
+          </select>
         </div>
+
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-gray-600 dark:text-gray-400">Type:</label>
+          <select
+            value={typeFilter}
+            onChange={(e) => {
+              setTypeFilter(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="px-3 py-1.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white text-sm cursor-pointer"
+          >
+            <option value="">All</option>
+            <option value="QUERY">QUERY</option>
+            <option value="SCRIPT">SCRIPT</option>
+          </select>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-gray-600 dark:text-gray-400">Instance:</label>
+          <select
+            value={instanceFilter}
+            onChange={(e) => {
+              setInstanceFilter(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="px-3 py-1.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white text-sm cursor-pointer"
+          >
+            <option value="">All</option>
+            <option value="pg-instance">pg-instance</option>
+            <option value="md-instance">md-instance</option>
+          </select>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-gray-600 dark:text-gray-400">Date Range:</label>
+          <select
+            value={dateFilter}
+            onChange={(e) => {
+              setDateFilter(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="px-3 py-1.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white text-sm cursor-pointer"
+          >
+            <option value="">All Time</option>
+            <option value="24h">Last 24 Hours</option>
+            <option value="7d">Last 7 Days</option>
+            <option value="30d">Last 30 Days</option>
+          </select>
+        </div>
+
+        {(statusFilter || typeFilter || instanceFilter || dateFilter) && (
+          <Button
+            variant="secondary"
+            onClick={clearFilters}
+            className="text-sm"
+          >
+            Clear Filters
+          </Button>
+        )}
       </div>
 
       <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
@@ -375,27 +389,27 @@ export function MySubmissionsPage() {
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => setSelectedQuery(query)}
-                        className="flex items-center gap-1 px-2 py-1 text-xs text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors cursor-pointer"
+                        className="px-3 py-1.5 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 text-xs font-medium rounded-lg transition-colors cursor-pointer"
                         title="View Details"
                       >
-                        👁️ View Details
+                        View Details
                       </button>
                       {canRetryOrModify(query.status) && (
                         <>
                           <button
                             onClick={() => handleRetry(query)}
                             disabled={retryLoading === query.id}
-                            className="px-2 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors cursor-pointer disabled:opacity-50"
+                            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg transition-colors cursor-pointer disabled:opacity-50"
                             title="Retry with same details"
                           >
-                            {retryLoading === query.id ? '...' : '🔄 Retry'}
+                            {retryLoading === query.id ? '...' : 'Retry'}
                           </button>
                           <button
                             onClick={() => handleModify(query)}
-                            className="px-2 py-1 text-xs bg-gray-600 hover:bg-gray-700 text-white rounded transition-colors cursor-pointer"
+                            className="px-3 py-1.5 bg-gray-600 hover:bg-gray-700 text-white text-xs font-medium rounded-lg transition-colors cursor-pointer"
                             title="Modify and resubmit"
                           >
-                            ✏️ Modify
+                            Modify
                           </button>
                         </>
                       )}
@@ -452,9 +466,9 @@ export function MySubmissionsPage() {
 
       {/* Legend */}
       <div className="mt-4 flex flex-wrap gap-4 text-sm text-gray-500 dark:text-gray-400">
-        <span>👁️ View Details</span>
-        <span>🔄 Retry (resubmit same query)</span>
-        <span>✏️ Modify (edit before resubmitting)</span>
+        <span>View Details</span>
+        <span>Retry (resubmit same query)</span>
+        <span>Modify (edit before resubmitting)</span>
       </div>
 
       {/* Professional Note */}
@@ -533,24 +547,25 @@ export function MySubmissionsPage() {
               {canRetryOrModify(selectedQuery.status) && (
                 <>
                   {/* istanbul ignore next */}
-                  <Button 
+                  <button 
                     onClick={() => {
                       handleRetry(selectedQuery);
                       setSelectedQuery(null);
                     }}
-                    isLoading={retryLoading === selectedQuery.id}
+                    disabled={retryLoading === selectedQuery.id}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors cursor-pointer disabled:opacity-50"
                   >
-                    🔄 Retry
-                  </Button>
-                  <Button 
-                    variant="secondary"
+                    Retry
+                  </button>
+                  <button 
                     onClick={() => {
                       handleModify(selectedQuery);
                       setSelectedQuery(null);
                     }}
+                    className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white text-sm font-medium rounded-lg transition-colors cursor-pointer"
                   >
-                    ✏️ Modify
-                  </Button>
+                    Modify
+                  </button>
                 </>
               )}
               <Button variant="secondary" onClick={() => setSelectedQuery(null)}>

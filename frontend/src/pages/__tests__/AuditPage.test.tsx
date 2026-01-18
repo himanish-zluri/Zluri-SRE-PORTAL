@@ -136,10 +136,15 @@ describe('AuditPage', () => {
   it('renders filter dropdowns', async () => {
     render(<AuditPage />);
     
-    expect(screen.getByLabelText(/filter by user/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/filter by instance/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/filter by database/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/filter by action/i)).toBeInTheDocument();
+    // Check for select elements by their role
+    const selects = screen.getAllByRole('combobox');
+    expect(selects).toHaveLength(5); // 4 filters + 1 per page selector
+    
+    // Check for labels
+    expect(screen.getByText('User:')).toBeInTheDocument();
+    expect(screen.getByText('Instance:')).toBeInTheDocument();
+    expect(screen.getByText('Database:')).toBeInTheDocument();
+    expect(screen.getByText('Action:')).toBeInTheDocument();
   });
 
   it('loads users for filter dropdown', async () => {
@@ -166,22 +171,29 @@ describe('AuditPage', () => {
       expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
     });
     
-    await userEvent.selectOptions(screen.getByLabelText(/filter by instance/i), 'inst-1');
+    // Get the instance select (second select element)
+    const selects = screen.getAllByRole('combobox');
+    const instanceSelect = selects[1];
+    
+    await userEvent.selectOptions(instanceSelect, 'inst-1');
     
     await waitFor(() => {
       expect(databasesApi.getByInstance).toHaveBeenCalledWith('inst-1');
     });
   });
 
-  it('applies filters when Apply button is clicked', async () => {
+  it('applies filters automatically when filter changes', async () => {
     render(<AuditPage />);
     
     await waitFor(() => {
       expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
     });
     
-    await userEvent.selectOptions(screen.getByLabelText(/filter by action/i), 'EXECUTED');
-    await userEvent.click(screen.getByRole('button', { name: /apply/i }));
+    // Get the action select (fourth select element)
+    const selects = screen.getAllByRole('combobox');
+    const actionSelect = selects[3];
+    
+    await userEvent.selectOptions(actionSelect, 'EXECUTED');
     
     await waitFor(() => {
       expect(auditApi.getAll).toHaveBeenCalledWith(
@@ -197,10 +209,14 @@ describe('AuditPage', () => {
       expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
     });
     
-    await userEvent.selectOptions(screen.getByLabelText(/filter by action/i), 'EXECUTED');
+    // Get the action select (fourth select element)
+    const selects = screen.getAllByRole('combobox');
+    const actionSelect = selects[3];
+    
+    await userEvent.selectOptions(actionSelect, 'EXECUTED');
     await userEvent.click(screen.getByRole('button', { name: /clear/i }));
     
-    expect(screen.getByLabelText(/filter by action/i)).toHaveValue('');
+    expect(actionSelect).toHaveValue('');
   });
 
   it('shows pagination controls', async () => {
@@ -336,7 +352,11 @@ describe('AuditPage', () => {
   it('disables database filter when no instance selected', async () => {
     render(<AuditPage />);
     
-    expect(screen.getByLabelText(/filter by database/i)).toBeDisabled();
+    // Get the database select (third select element)
+    const selects = screen.getAllByRole('combobox');
+    const databaseSelect = selects[2];
+    
+    expect(databaseSelect).toBeDisabled();
   });
 
   it('enables database filter when instance is selected', async () => {
@@ -346,10 +366,15 @@ describe('AuditPage', () => {
       expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
     });
     
-    await userEvent.selectOptions(screen.getByLabelText(/filter by instance/i), 'inst-1');
+    // Get the instance and database selects
+    const selects = screen.getAllByRole('combobox');
+    const instanceSelect = selects[1];
+    const databaseSelect = selects[2];
+    
+    await userEvent.selectOptions(instanceSelect, 'inst-1');
     
     await waitFor(() => {
-      expect(screen.getByLabelText(/filter by database/i)).not.toBeDisabled();
+      expect(databaseSelect).not.toBeDisabled();
     });
   });
 
@@ -400,7 +425,11 @@ describe('AuditPage', () => {
       expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
     });
     
-    await userEvent.selectOptions(screen.getByLabelText(/filter by instance/i), 'inst-1');
+    // Get the instance select (second select element)
+    const selects = screen.getAllByRole('combobox');
+    const instanceSelect = selects[1];
+    
+    await userEvent.selectOptions(instanceSelect, 'inst-1');
     
     await waitFor(() => {
       expect(consoleSpy).toHaveBeenCalledWith('Failed to load databases:', expect.any(Error));
@@ -504,15 +533,18 @@ describe('AuditPage', () => {
     expect(screen.getByText('-')).toBeInTheDocument();
   });
 
-  it('filters by user', async () => {
+  it('filters by user automatically', async () => {
     render(<AuditPage />);
     
     await waitFor(() => {
       expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
     });
     
-    await userEvent.selectOptions(screen.getByLabelText(/filter by user/i), 'user-1');
-    await userEvent.click(screen.getByRole('button', { name: /apply/i }));
+    // Get the user select (first select element)
+    const selects = screen.getAllByRole('combobox');
+    const userSelect = selects[0];
+    
+    await userEvent.selectOptions(userSelect, 'user-1');
     
     await waitFor(() => {
       expect(auditApi.getAll).toHaveBeenCalledWith(
@@ -521,22 +553,26 @@ describe('AuditPage', () => {
     });
   });
 
-  it('filters by database', async () => {
+  it('filters by database automatically', async () => {
     render(<AuditPage />);
     
     await waitFor(() => {
       expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
     });
     
+    // Get the instance and database selects
+    const selects = screen.getAllByRole('combobox');
+    const instanceSelect = selects[1];
+    const databaseSelect = selects[2];
+    
     // Select instance first to enable database filter
-    await userEvent.selectOptions(screen.getByLabelText(/filter by instance/i), 'inst-1');
+    await userEvent.selectOptions(instanceSelect, 'inst-1');
     
     await waitFor(() => {
-      expect(screen.getByLabelText(/filter by database/i)).not.toBeDisabled();
+      expect(databaseSelect).not.toBeDisabled();
     });
     
-    await userEvent.selectOptions(screen.getByLabelText(/filter by database/i), 'users_db');
-    await userEvent.click(screen.getByRole('button', { name: /apply/i }));
+    await userEvent.selectOptions(databaseSelect, 'users_db');
     
     await waitFor(() => {
       expect(auditApi.getAll).toHaveBeenCalledWith(
@@ -637,8 +673,12 @@ describe('AuditPage', () => {
       expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
     });
     
+    // Get the instance select (second select element)
+    const selects = screen.getAllByRole('combobox');
+    const instanceSelect = selects[1];
+    
     // Select instance to trigger database loading
-    await userEvent.selectOptions(screen.getByLabelText(/filter by instance/i), 'inst-1');
+    await userEvent.selectOptions(instanceSelect, 'inst-1');
     
     await waitFor(() => {
       expect(consoleSpy).toHaveBeenCalledWith('Failed to load databases:', expect.any(Error));
@@ -666,16 +706,21 @@ describe('AuditPage', () => {
       expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
     });
     
+    // Get the user and instance selects
+    const selects = screen.getAllByRole('combobox');
+    const userSelect = selects[0];
+    const instanceSelect = selects[1];
+    
     // Set some filters
-    await userEvent.selectOptions(screen.getByLabelText(/filter by user/i), 'user-1');
-    await userEvent.selectOptions(screen.getByLabelText(/filter by instance/i), 'inst-1');
+    await userEvent.selectOptions(userSelect, 'user-1');
+    await userEvent.selectOptions(instanceSelect, 'inst-1');
     
     // Clear filters
     await userEvent.click(screen.getByRole('button', { name: /clear/i }));
     
     await waitFor(() => {
-      expect(screen.getByLabelText(/filter by user/i)).toHaveValue('');
-      expect(screen.getByLabelText(/filter by instance/i)).toHaveValue('');
+      expect(userSelect).toHaveValue('');
+      expect(instanceSelect).toHaveValue('');
     });
   });
 });

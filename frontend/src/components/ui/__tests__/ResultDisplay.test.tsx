@@ -333,4 +333,19 @@ describe('ResultDisplay', () => {
     });
   });
 
+  describe('hasContent final fallback branch coverage', () => {
+    it('should handle primitive values 0 and false in special cases', () => {
+      // Test the special case branches for 0 and false
+      const { unmount: unmount1 } = render(<ResultDisplay result={0} />);
+      expect(screen.getByText('🔍 View Full Result')).toBeInTheDocument();
+      expect(screen.getByText('⬇️ Download')).toBeInTheDocument();
+      unmount1();
+      
+      const { unmount: unmount2 } = render(<ResultDisplay result={false} />);
+      expect(screen.getByText('🔍 View Full Result')).toBeInTheDocument();
+      expect(screen.getByText('⬇️ Download')).toBeInTheDocument();
+      unmount2();
+    });
+  });
+
 });

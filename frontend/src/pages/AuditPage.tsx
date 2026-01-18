@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { auditApi, usersApi, instancesApi, databasesApi } from '../services/api';
 import type { AuditLog, DbInstance } from '../types';
 import { Button } from '../components/ui/Button';
-import { Select } from '../components/ui/Select';
 
 interface UserOption {
   id: string;
@@ -37,10 +36,10 @@ export function AuditPage() {
     loadFilterOptions();
   }, []);
 
-  // Load logs when page or itemsPerPage changes
+  // Load logs when page, itemsPerPage, or any filter changes
   useEffect(() => {
     loadLogs();
-  }, [currentPage, itemsPerPage]);
+  }, [currentPage, itemsPerPage, selectedUser, selectedInstance, selectedDatabase, selectedAction]);
 
   // Load databases when instance changes
   useEffect(() => {
@@ -97,24 +96,31 @@ export function AuditPage() {
     }
   };
 
-  const handleFilter = () => {
-    setCurrentPage(1);
-    loadLogs();
-  };
-
   const handleClearFilters = () => {
     setSelectedUser('');
     setSelectedInstance('');
     setSelectedDatabase('');
     setSelectedAction('');
     setCurrentPage(1);
-    loadLogs();
+  };
+
+  // Count logs by action for overview
+  const getActionCounts = () => {
+    const safeLogs = Array.isArray(logs) ? logs : [];
+    return {
+      SUBMITTED: safeLogs.filter(log => log?.action === 'SUBMITTED').length,
+      EXECUTED: safeLogs.filter(log => log?.action === 'EXECUTED').length,
+      FAILED: safeLogs.filter(log => log?.action === 'FAILED').length,
+      REJECTED: safeLogs.filter(log => log?.action === 'REJECTED').length,
+    };
   };
 
   const handleItemsPerPageChange = (newLimit: number) => {
     setItemsPerPage(newLimit);
     setCurrentPage(1);
   };
+
+  const actionCounts = getActionCounts();
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString('en-US', {
@@ -193,56 +199,104 @@ export function AuditPage() {
 
   return (
     <div>
-      <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">
-        Audit Logs
-      </h2>
+      {/* Header with Action Overview */}
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+          Audit Logs
+        </h2>
+        
+        {/* Action Overview Counters */}
+        <div className="flex items-center gap-4 text-sm">
+          <div className="flex items-center gap-1">
+            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+            <span className="text-gray-600 dark:text-gray-400">Submitted: {actionCounts.SUBMITTED}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+            <span className="text-gray-600 dark:text-gray-400">Executed: {actionCounts.EXECUTED}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+            <span className="text-gray-600 dark:text-gray-400">Failed: {actionCounts.FAILED}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-2 h-2 bg-red-600 rounded-full"></div>
+            <span className="text-gray-600 dark:text-gray-400">Rejected: {actionCounts.REJECTED}</span>
+          </div>
+        </div>
+      </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap gap-4 mb-6 items-end">
-        <div className="w-56">
-          <Select
-            label="Filter by User"
+      {/* Filters - Automatic, No Apply Button */}
+      <div className="flex flex-wrap gap-4 mb-6">
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-gray-600 dark:text-gray-400">User:</label>
+          <select
             value={selectedUser}
-            onChange={(e) => setSelectedUser(e.target.value)}
-            options={users.map(u => ({ value: u.id, label: `${u.name} (${u.email})` }))}
-            placeholder="All users"
-          />
+            onChange={(e) => {
+              setSelectedUser(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="px-3 py-1.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white text-sm cursor-pointer"
+          >
+            <option value="">All users</option>
+            {users.map(u => (
+              <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
+            ))}
+          </select>
         </div>
-        <div className="w-48">
-          <Select
-            label="Filter by Instance"
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-gray-600 dark:text-gray-400">Instance:</label>
+          <select
             value={selectedInstance}
-            onChange={(e) => setSelectedInstance(e.target.value)}
-            options={instances.map(i => ({ value: i.id, label: i.name }))}
-            placeholder="All instances"
-          />
+            onChange={(e) => {
+              setSelectedInstance(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="px-3 py-1.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white text-sm cursor-pointer"
+          >
+            <option value="">All instances</option>
+            {instances.map(i => (
+              <option key={i.id} value={i.id}>{i.name}</option>
+            ))}
+          </select>
         </div>
-        <div className="w-48">
-          <Select
-            label="Filter by Database"
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-gray-600 dark:text-gray-400">Database:</label>
+          <select
             value={selectedDatabase}
-            onChange={(e) => setSelectedDatabase(e.target.value)}
-            options={databases.map(d => ({ value: d, label: d }))}
-            placeholder="All databases"
+            onChange={(e) => {
+              setSelectedDatabase(e.target.value);
+              setCurrentPage(1);
+            }}
             disabled={!selectedInstance}
-          />
+            className="px-3 py-1.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white text-sm cursor-pointer disabled:opacity-50"
+          >
+            <option value="">All databases</option>
+            {databases.map(d => (
+              <option key={d} value={d}>{d}</option>
+            ))}
+          </select>
         </div>
-        <div className="w-40">
-          <Select
-            label="Filter by Action"
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-gray-600 dark:text-gray-400">Action:</label>
+          <select
             value={selectedAction}
-            onChange={(e) => setSelectedAction(e.target.value)}
-            options={[
-              { value: 'SUBMITTED', label: 'Submitted' },
-              { value: 'EXECUTED', label: 'Executed' },
-              { value: 'REJECTED', label: 'Rejected' },
-              { value: 'FAILED', label: 'Failed' },
-            ]}
-            placeholder="All actions"
-          />
+            onChange={(e) => {
+              setSelectedAction(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="px-3 py-1.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white text-sm cursor-pointer"
+          >
+            <option value="">All actions</option>
+            <option value="SUBMITTED">Submitted</option>
+            <option value="EXECUTED">Executed</option>
+            <option value="REJECTED">Rejected</option>
+            <option value="FAILED">Failed</option>
+          </select>
         </div>
-        <Button onClick={handleFilter}>Apply</Button>
-        <Button variant="secondary" onClick={handleClearFilters}>Clear</Button>
+        {(selectedUser || selectedInstance || selectedDatabase || selectedAction) && (
+          <Button variant="secondary" onClick={handleClearFilters}>Clear Filters</Button>
+        )}
       </div>
 
       {/* Table */}

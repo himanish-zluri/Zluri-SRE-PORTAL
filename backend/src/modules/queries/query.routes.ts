@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { requireAuth, requireRole } from '../../middlewares/auth.middleware';
 import { QueryController } from './query.controller';
-import { uploadScript } from '../../middlewares/upload.middleware';
+import { uploadScript, validateScriptContent } from '../../middlewares/upload.middleware';
 import { asyncHandler } from '../../middlewares/errorHandler.middleware';
 import { validate, submitQuerySchema, queryIdParamSchema, rejectQuerySchema, getQueriesSchema } from '../../validation';
 
@@ -166,7 +166,7 @@ router.get('/my-submissions', requireAuth, validate(getQueriesSchema), asyncHand
  *       401:
  *         description: Unauthorized
  */
-router.post('/', requireAuth, uploadScript.single('script'), validate(submitQuerySchema), asyncHandler(QueryController.submit));
+router.post('/', requireAuth, uploadScript.single('script'), validateScriptContent, validate(submitQuerySchema), asyncHandler(QueryController.submit));
 
 /**
  * @openapi

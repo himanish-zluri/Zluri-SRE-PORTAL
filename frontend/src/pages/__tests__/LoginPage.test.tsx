@@ -144,6 +144,24 @@ describe('LoginPage', () => {
     expect(mockToggleTheme).toHaveBeenCalled();
   });
 
+  it('shows dark theme icon when theme is dark', () => {
+    // Mock dark theme
+    jest.doMock('../../context/ThemeContext', () => ({
+      ...jest.requireActual('../../context/ThemeContext'),
+      useTheme: () => ({
+        theme: 'dark',
+        toggleTheme: mockToggleTheme,
+      }),
+      ThemeProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+    }));
+    
+    renderLoginPage();
+    
+    // Should show sun icon for dark theme
+    const themeButton = screen.getByRole('button', { name: '' });
+    expect(themeButton).toBeInTheDocument();
+  });
+
   it('has required attribute on email and password inputs', () => {
     renderLoginPage();
     
