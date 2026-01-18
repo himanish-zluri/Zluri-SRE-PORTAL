@@ -9,7 +9,7 @@ const getApiUrl = () => {
   }
   
   // Use environment variable that works in both Vite and other environments
-  return process.env.VITE_API_URL || '/api';
+  return process.env.VITE_API_URL || 'https://zluri-sre-backend.onrender.com/api';
 };
 
 const api = axios.create({
