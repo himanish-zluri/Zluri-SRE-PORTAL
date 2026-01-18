@@ -48,31 +48,39 @@ export function MySubmissionsPage() {
       const response = await queriesApi.getMySubmissions(params);
       console.log('API response:', response);
       
-      let filteredQueries = response.data.data || [];
+      // Ensure we have valid response structure
+      if (!response || !response.data) {
+        console.error('Invalid API response structure:', response);
+        setQueries([]);
+        setTotalItems(0);
+        return;
+      }
+      
+      let filteredQueries = Array.isArray(response.data.data) ? response.data.data : [];
       
       // Apply date filter client-side (since API might not support it)
-      if (dateFilter) {
+      if (dateFilter && filteredQueries.length > 0) {
         const now = new Date();
         const filterDate = new Date();
         
         switch (dateFilter) {
           case 'today':
             filterDate.setHours(0, 0, 0, 0);
-            filteredQueries = filteredQueries.filter(q => new Date(q.created_at) >= filterDate);
+            filteredQueries = filteredQueries.filter(q => q && q.created_at && new Date(q.created_at) >= filterDate);
             break;
           case 'week':
             filterDate.setDate(now.getDate() - 7);
-            filteredQueries = filteredQueries.filter(q => new Date(q.created_at) >= filterDate);
+            filteredQueries = filteredQueries.filter(q => q && q.created_at && new Date(q.created_at) >= filterDate);
             break;
           case 'month':
             filterDate.setMonth(now.getMonth() - 1);
-            filteredQueries = filteredQueries.filter(q => new Date(q.created_at) >= filterDate);
+            filteredQueries = filteredQueries.filter(q => q && q.created_at && new Date(q.created_at) >= filterDate);
             break;
         }
       }
       
       console.log('Filtered queries:', filteredQueries);
-      setQueries(filteredQueries);
+      setQueries(Array.isArray(filteredQueries) ? filteredQueries : []);
       setTotalItems(response.data.pagination?.total || 0);
     } catch (error) {
       console.error('Failed to load queries:', error);
@@ -179,11 +187,13 @@ export function MySubmissionsPage() {
 
   // Count queries by status for quick overview
   const getStatusCounts = () => {
+    // Ensure queries is always an array
+    const safeQueries = Array.isArray(queries) ? queries : [];
     const counts = {
-      PENDING: queries.filter(q => q.status === 'PENDING').length,
-      EXECUTED: queries.filter(q => q.status === 'EXECUTED').length,
-      FAILED: queries.filter(q => q.status === 'FAILED').length,
-      REJECTED: queries.filter(q => q.status === 'REJECTED').length,
+      PENDING: safeQueries.filter(q => q?.status === 'PENDING').length,
+      EXECUTED: safeQueries.filter(q => q?.status === 'EXECUTED').length,
+      FAILED: safeQueries.filter(q => q?.status === 'FAILED').length,
+      REJECTED: safeQueries.filter(q => q?.status === 'REJECTED').length,
     };
     return counts;
   };
@@ -302,10 +312,10 @@ export function MySubmissionsPage() {
             </tr>
           </thead>
           <tbody>
-            {queries.length === 0 ? (
+            {!Array.isArray(queries) || queries.length === 0 ? (
               <tr>
                 <td colSpan={7} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
-                  No submissions yet
+                  {isLoading ? 'Loading...' : 'No submissions yet'}
                 </td>
               </tr>
             ) : (
