@@ -6,6 +6,7 @@ import { StatusBadge } from '../components/ui/StatusBadge';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { ResultDisplay } from '../components/ui/ResultDisplay';
+import { Select } from '../components/ui/Select';
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 
@@ -21,25 +22,66 @@ export function MySubmissionsPage() {
   const [totalItems, setTotalItems] = useState(0);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
+  // Filter state
+  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [typeFilter, setTypeFilter] = useState<string>('');
+  const [dateFilter, setDateFilter] = useState<string>('');
+
   useEffect(() => {
     loadQueries();
-  }, [currentPage, itemsPerPage]);
+  }, [currentPage, itemsPerPage, statusFilter, typeFilter, dateFilter]);
 
   const loadQueries = async () => {
     setIsLoading(true);
     try {
       const offset = (currentPage - 1) * itemsPerPage;
-      const response = await queriesApi.getMySubmissions({ 
+      const params: any = { 
         limit: itemsPerPage, 
         offset 
-      });
-      setQueries(response.data.data);
+      };
+      
+      // Add filters to API call
+      if (statusFilter) params.status = statusFilter;
+      if (typeFilter) params.type = typeFilter;
+      
+      const response = await queriesApi.getMySubmissions(params);
+      let filteredQueries = response.data.data;
+      
+      // Apply date filter client-side (since API might not support it)
+      if (dateFilter) {
+        const now = new Date();
+        const filterDate = new Date();
+        
+        switch (dateFilter) {
+          case 'today':
+            filterDate.setHours(0, 0, 0, 0);
+            filteredQueries = filteredQueries.filter(q => new Date(q.created_at) >= filterDate);
+            break;
+          case 'week':
+            filterDate.setDate(now.getDate() - 7);
+            filteredQueries = filteredQueries.filter(q => new Date(q.created_at) >= filterDate);
+            break;
+          case 'month':
+            filterDate.setMonth(now.getMonth() - 1);
+            filteredQueries = filteredQueries.filter(q => new Date(q.created_at) >= filterDate);
+            break;
+        }
+      }
+      
+      setQueries(filteredQueries);
       setTotalItems(response.data.pagination.total);
     } catch (error) {
       console.error('Failed to load queries:', error);
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const clearFilters = () => {
+    setStatusFilter('');
+    setTypeFilter('');
+    setDateFilter('');
+    setCurrentPage(1);
   };
 
   // Retry: Resubmit the exact same query automatically
@@ -128,6 +170,19 @@ export function MySubmissionsPage() {
     setCurrentPage(1);
   };
 
+  // Count queries by status for quick overview
+  const getStatusCounts = () => {
+    const counts = {
+      PENDING: queries.filter(q => q.status === 'PENDING').length,
+      EXECUTED: queries.filter(q => q.status === 'EXECUTED').length,
+      FAILED: queries.filter(q => q.status === 'FAILED').length,
+      REJECTED: queries.filter(q => q.status === 'REJECTED').length,
+    };
+    return counts;
+  };
+
+  const statusCounts = getStatusCounts();
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -138,9 +193,93 @@ export function MySubmissionsPage() {
 
   return (
     <div>
-      <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">
-        My Submissions
-      </h2>
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+          My Submissions
+        </h2>
+        
+        {/* Quick Status Overview */}
+        <div className="flex items-center gap-4 text-sm">
+          <div className="flex items-center gap-1">
+            <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+            <span className="text-gray-600 dark:text-gray-400">Pending: {statusCounts.PENDING}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+            <span className="text-gray-600 dark:text-gray-400">Failed: {statusCounts.FAILED}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-2 h-2 bg-red-600 rounded-full"></div>
+            <span className="text-gray-600 dark:text-gray-400">Rejected: {statusCounts.REJECTED}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4 mb-6">
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Status:</label>
+            <Select
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="min-w-[120px]"
+            >
+              <option value="">All</option>
+              <option value="PENDING">PENDING</option>
+              <option value="EXECUTED">EXECUTED</option>
+              <option value="FAILED">FAILED</option>
+              <option value="REJECTED">REJECTED</option>
+            </Select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Type:</label>
+            <Select
+              value={typeFilter}
+              onChange={(e) => {
+                setTypeFilter(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="min-w-[100px]"
+            >
+              <option value="">All</option>
+              <option value="QUERY">QUERY</option>
+              <option value="SCRIPT">SCRIPT</option>
+            </Select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Date:</label>
+            <Select
+              value={dateFilter}
+              onChange={(e) => {
+                setDateFilter(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="min-w-[120px]"
+            >
+              <option value="">All Time</option>
+              <option value="today">Today</option>
+              <option value="week">Last 7 Days</option>
+              <option value="month">Last 30 Days</option>
+            </Select>
+          </div>
+
+          {(statusFilter || typeFilter || dateFilter) && (
+            <Button
+              variant="secondary"
+              onClick={clearFilters}
+              className="text-sm"
+            >
+              Clear Filters
+            </Button>
+          )}
+        </div>
+      </div>
 
       <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
         <table className="w-full">
