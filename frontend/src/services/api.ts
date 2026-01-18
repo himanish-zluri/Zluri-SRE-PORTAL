@@ -98,11 +98,17 @@ export const usersApi = {
 export const queriesApi = {
   // Get queries submitted to manager/admin for approval (Manager/Admin only)
   getForApproval: (params?: { status?: string; type?: string; limit?: number; offset?: number }) =>
-    api.get<{ data: Query[]; pagination: { total: number; limit: number; offset: number; hasMore: boolean } }>('/queries', { params }),
+    api.get<{ data: Query[]; pagination: { total: number; limit: number; offset: number; hasMore: boolean } }>('/queries', { 
+      params,
+      headers: { 'Cache-Control': 'no-cache' }
+    }),
   
   // Get user's own submitted queries (all users)
   getMySubmissions: (params?: { status?: string; type?: string; limit?: number; offset?: number }) =>
-    api.get<{ data: Query[]; pagination: { total: number; limit: number; offset: number; hasMore: boolean } }>('/queries/my-submissions', { params }),
+    api.get<{ data: Query[]; pagination: { total: number; limit: number; offset: number; hasMore: boolean } }>('/queries/my-submissions', { 
+      params,
+      headers: { 'Cache-Control': 'no-cache' }
+    }),
   
   submit: (data: FormData | {
     instanceId: string;

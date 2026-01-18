@@ -44,8 +44,11 @@ export function MySubmissionsPage() {
       if (statusFilter) params.status = statusFilter;
       if (typeFilter) params.type = typeFilter;
       
+      console.log('Loading queries with params:', params);
       const response = await queriesApi.getMySubmissions(params);
-      let filteredQueries = response.data.data;
+      console.log('API response:', response);
+      
+      let filteredQueries = response.data.data || [];
       
       // Apply date filter client-side (since API might not support it)
       if (dateFilter) {
@@ -68,10 +71,14 @@ export function MySubmissionsPage() {
         }
       }
       
+      console.log('Filtered queries:', filteredQueries);
       setQueries(filteredQueries);
-      setTotalItems(response.data.pagination.total);
+      setTotalItems(response.data.pagination?.total || 0);
     } catch (error) {
       console.error('Failed to load queries:', error);
+      // Set empty state on error
+      setQueries([]);
+      setTotalItems(0);
     } finally {
       setIsLoading(false);
     }
