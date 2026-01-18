@@ -64,15 +64,15 @@ export async function executeMongoQuery(
             return await collection.countDocuments(query, options);
           };
           
-          collectionWrapper.aggregate = function(pipeline: any[], options?: any) {
+          collectionWrapper.aggregate = async function(pipeline: any[], options?: any) {
             const cursor = collection.aggregate(pipeline, options);
-            return cursor.toArray();
+            return await cursor.toArray();
           };
           
           return collectionWrapper;
         }
         
-        return target[collectionName];
+        return target[collectionName as unknown as string];
       }
     });
 
@@ -80,16 +80,16 @@ export async function executeMongoQuery(
     const collection = (name: string) => {
       const coll = database.collection(name);
       return {
-        find: (query: any = {}, options?: any) => coll.find(query, options).toArray(),
-        findOne: (query: any = {}, options?: any) => coll.findOne(query, options),
-        insertOne: (doc: any, options?: any) => coll.insertOne(doc, options),
-        insertMany: (docs: any[], options?: any) => coll.insertMany(docs, options),
-        updateOne: (filter: any, update: any, options?: any) => coll.updateOne(filter, update, options),
-        updateMany: (filter: any, update: any, options?: any) => coll.updateMany(filter, update, options),
-        deleteOne: (filter: any, options?: any) => coll.deleteOne(filter, options),
-        deleteMany: (filter: any, options?: any) => coll.deleteMany(filter, options),
-        countDocuments: (query: any = {}, options?: any) => coll.countDocuments(query, options),
-        aggregate: (pipeline: any[], options?: any) => coll.aggregate(pipeline, options).toArray(),
+        find: async (query: any = {}, options?: any) => await coll.find(query, options).toArray(),
+        findOne: async (query: any = {}, options?: any) => await coll.findOne(query, options),
+        insertOne: async (doc: any, options?: any) => await coll.insertOne(doc, options),
+        insertMany: async (docs: any[], options?: any) => await coll.insertMany(docs, options),
+        updateOne: async (filter: any, update: any, options?: any) => await coll.updateOne(filter, update, options),
+        updateMany: async (filter: any, update: any, options?: any) => await coll.updateMany(filter, update, options),
+        deleteOne: async (filter: any, options?: any) => await coll.deleteOne(filter, options),
+        deleteMany: async (filter: any, options?: any) => await coll.deleteMany(filter, options),
+        countDocuments: async (query: any = {}, options?: any) => await coll.countDocuments(query, options),
+        aggregate: async (pipeline: any[], options?: any) => await coll.aggregate(pipeline, options).toArray(),
       };
     };
     
