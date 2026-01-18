@@ -8,6 +8,11 @@ import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { FileUpload } from '../components/ui/FileUpload';
 
+// Size limits (must match backend limits)
+const MAX_QUERY_SIZE = 50000;      // 50KB
+const MAX_SCRIPT_SIZE = 5000000;   // 5MB  
+const MAX_COMMENTS_SIZE = 2000;    // 2KB
+
 interface PrefillData {
   instanceId: string;
   databaseName: string;
@@ -34,6 +39,11 @@ export function DashboardPage() {
   const [scriptFile, setScriptFile] = useState<File | null>(null);
   const [comments, setComments] = useState('');
   const [podId, setPodId] = useState('');
+
+  // Validation state
+  const [queryTextError, setQueryTextError] = useState('');
+  const [commentsError, setCommentsError] = useState('');
+  const [scriptFileError, setScriptFileError] = useState('');
 
   // Data state
   const [instances, setInstances] = useState<DbInstance[]>([]);
@@ -168,28 +178,118 @@ export function DashboardPage() {
     setSuccess('');
     setIsLoading(true);
 
-    try {
-      if (submissionType === 'SCRIPT') {
-        if (!scriptFile) {
-          setError('Please upload a script file');
-          setIsLoading(false);
-          return;
+    // Clear previous validation errors
+    setQueryTextError('');
+    setCommentsError('');
+    setScriptFileError('');
+
+    let hasValidationErrors = false;
+
+    // Frontend validation for all required fields
+    if (!dbType) {
+      setError('Please select a database type.');
+      hasValidationErrors = true;
+    }
+    
+    if (!instanceId) {
+      setError('Please select an instance.');
+      hasValidationErrors = true;
+    }
+    
+    if (!databaseName) {
+      setError('Please select a database.');
+      hasValidationErrors = true;
+    }
+    
+    if (!podId) {
+      setError('Please select a pod.');
+      hasValidationErrors = true;
+    }
+
+    if (comments.trim().length === 0) {
+      setCommentsError('Please fill this field. Comments cannot be empty or only spaces.');
+      hasValidationErrors = true;
+    } else if (comments.length > MAX_COMMENTS_SIZE) {
+      setCommentsError(`Comments cannot exceed ${MAX_COMMENTS_SIZE} characters. Current: ${comments.length}`);
+      hasValidationErrors = true;
+    }
+
+    if (submissionType === 'SCRIPT') {
+      if (!scriptFile) {
+        setScriptFileError('Please upload a script file.');
+        hasValidationErrors = true;
+      } else if (scriptFile.size === 0) {
+        setScriptFileError('Script file cannot be empty.');
+        hasValidationErrors = true;
+      } else if (scriptFile.size > 5 * 1024 * 1024) { // 5MB
+        setScriptFileError('Script file cannot exceed 5MB.');
+        hasValidationErrors = true;
+      } else {
+        // Check if script file content is empty or only whitespace
+        try {
+          const fileContent = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target?.result as string || '');
+            reader.onerror = () => reject(new Error('Failed to read file'));
+            reader.readAsText(scriptFile);
+          });
+          
+          if (fileContent.trim().length === 0) {
+            setScriptFileError('Script file cannot be empty or only spaces.');
+            hasValidationErrors = true;
+          } else if (fileContent.length > MAX_SCRIPT_SIZE) {
+            setScriptFileError(`Script content cannot exceed ${MAX_SCRIPT_SIZE} characters. Current: ${fileContent.length}`);
+            hasValidationErrors = true;
+          }
+        } catch (error) {
+          setScriptFileError('Error reading script file.');
+          hasValidationErrors = true;
         }
+      }
+    } else {
+      // Validate query text is not empty or whitespace-only
+      if (queryText.trim().length === 0) {
+        setQueryTextError('Please fill this field. Query text cannot be empty or only spaces.');
+        hasValidationErrors = true;
+      } else if (queryText.length > MAX_QUERY_SIZE) {
+        setQueryTextError(`Query text cannot exceed ${MAX_QUERY_SIZE} characters. Current: ${queryText.length}`);
+        hasValidationErrors = true;
+      } else {
+        // Check for multiple SQL statements (semicolons)
+        const trimmedQuery = queryText.trim();
+        const semicolonIndex = trimmedQuery.indexOf(';');
+        const semicolonCount = (trimmedQuery.match(/;/g) || []).length;
+        
+        if ((semicolonIndex !== -1 && semicolonIndex < trimmedQuery.length - 1) || semicolonCount > 1) {
+          setQueryTextError('Query mode supports single statements only. For multiple queries, use Script mode.');
+          hasValidationErrors = true;
+        }
+      }
+    }
+
+    if (hasValidationErrors) {
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+
+      if (submissionType === 'SCRIPT') {
         const formData = new FormData();
         formData.append('instanceId', instanceId);
         formData.append('databaseName', databaseName);
         formData.append('podId', podId);
-        formData.append('comments', comments);
+        formData.append('comments', comments.trim());
         formData.append('submissionType', 'SCRIPT');
-        formData.append('script', scriptFile);
+        formData.append('script', scriptFile!);
         await queriesApi.submit(formData);
       } else {
         await queriesApi.submit({
           instanceId,
           databaseName,
-          queryText,
+          queryText: queryText.trim(),
           podId,
-          comments,
+          comments: comments.trim(),
           submissionType: 'QUERY',
         });
       }
@@ -204,6 +304,10 @@ export function DashboardPage() {
       setComments('');
       setPodId('');
       setSubmissionType('QUERY');
+      // Clear validation errors
+      setQueryTextError('');
+      setCommentsError('');
+      setScriptFileError('');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to submit query');
     } finally {
@@ -247,7 +351,6 @@ export function DashboardPage() {
             { value: 'MONGODB', label: 'MongoDB' },
           ]}
           placeholder="Select database type"
-          required
         />
 
         <Select
@@ -257,7 +360,6 @@ export function DashboardPage() {
           options={instances.map(i => ({ value: i.id, label: i.name }))}
           placeholder="Select instance"
           disabled={!dbType}
-          required
         />
 
         <Select
@@ -267,7 +369,6 @@ export function DashboardPage() {
           options={databases.map(d => ({ value: d, label: d }))}
           placeholder="Select database"
           disabled={!instanceId}
-          required
         />
 
         <Select
@@ -276,7 +377,6 @@ export function DashboardPage() {
           onChange={(e) => setPodId(e.target.value)}
           options={pods.map(p => ({ value: p.id, label: p.name }))}
           placeholder="Select pod"
-          required
         />
 
         <Select
@@ -287,20 +387,22 @@ export function DashboardPage() {
             { value: 'QUERY', label: 'Query' },
             { value: 'SCRIPT', label: 'Script (.js file)' },
           ]}
-          required
         />
 
         {submissionType === 'QUERY' ? (
           <>
             <TextArea
-              label="Query"
+              label={`Query (${queryText.length}/${MAX_QUERY_SIZE} characters)`}
               value={queryText}
-              onChange={(e) => setQueryText(e.target.value)}
+              onChange={(e) => {
+                setQueryText(e.target.value);
+                if (queryTextError) setQueryTextError(''); // Clear error when user starts typing
+              }}
               placeholder={dbType === 'MONGODB' 
                 ? "db.users.find({})"
                 : "SELECT * FROM users WHERE active = true"}
               rows={6}
-              required
+              error={queryTextError}
             />
             
             {/* Query Documentation */}
@@ -363,7 +465,11 @@ collection('users').find({ age: { $gte: 18 } })`}
               label="Script File"
               accept=".js"
               value={scriptFile}
-              onChange={setScriptFile}
+              onChange={(file) => {
+                setScriptFile(file);
+                if (scriptFileError) setScriptFileError(''); // Clear error when user selects a file
+              }}
+              error={scriptFileError}
             />
             
             {/* Script Documentation */}
@@ -377,26 +483,55 @@ collection('users').find({ age: { $gte: 18 } })`}
                   <p>For PostgreSQL, use the pre-injected <code className="bg-blue-100 dark:bg-blue-800 px-1 rounded">query()</code> function:</p>
                   <pre className="bg-white dark:bg-gray-800 p-2 rounded text-xs overflow-x-auto">
 {`// query() function is pre-injected - use it to run SQL
+
+// EXAMPLE 1: Simple query (displays as TABLE)
 const users = await query('SELECT * FROM users LIMIT 10');
 console.log('Users:', users);
+// No return statement = displays results as TABLE format
 
-// With parameters (use $1, $2, etc.)
+// EXAMPLE 2: Query with parameters (displays as TABLE)
 const orders = await query('SELECT * FROM orders WHERE status = $1', ['pending']);
 console.log('Pending orders:', orders);
+// Returns table data = displays as TABLE format
 
-// Multiple queries in one script
+// EXAMPLE 3: Multiple queries in loop (displays as TABLE)
+const allResults = [];
+for (let i = 1; i <= 3; i++) {
+    const data = await query(\`SELECT * FROM orders LIMIT \${i}\`);
+    allResults.push(data);
+}
+return allResults;
+// Explicit return of array = displays as TABLE format
+
+// EXAMPLE 4: Custom JSON object (displays as JSON/OBJECT)
 const userCount = await query('SELECT COUNT(*) as total FROM users');
 const activeUsers = await query('SELECT * FROM users WHERE active = true');
 
 console.log('Total users:', userCount[0].total);
 console.log('Active users:', activeUsers.length);
 
-// Return final result (optional)
 return {
   totalUsers: userCount[0].total,
   activeUsers: activeUsers.length,
   summary: \`Found \${activeUsers.length} active out of \${userCount[0].total} total users\`
-};`}
+};
+// Explicit return of object = displays as JSON/OBJECT format
+
+// EXAMPLE 5: Return string (displays as STRING)
+const count = await query('SELECT COUNT(*) as total FROM users');
+return \`Total users in database: \${count[0].total}\`;
+// Explicit return of string = displays as STRING format
+
+// EXAMPLE 6: Return array of values (displays as ARRAY)
+const usernames = await query('SELECT username FROM users LIMIT 5');
+return usernames.map(user => user.username);
+// Explicit return of array = displays as ARRAY format
+
+// RESULT DISPLAY FORMATS:
+// - No return OR return query results = TABLE format
+// - Return custom object = JSON/OBJECT format  
+// - Return string = STRING format
+// - console.log() output always appears in execution logs regardless of display format`}
                   </pre>
                   <p className="text-xs text-blue-600 dark:text-blue-400">
                     💡 Scripts can run multiple queries, use variables, loops, and JavaScript logic.
@@ -409,14 +544,28 @@ return {
                   <p>For MongoDB, use the pre-injected <code className="bg-blue-100 dark:bg-blue-800 px-1 rounded">db</code> object and <code className="bg-blue-100 dark:bg-blue-800 px-1 rounded">collection()</code> helper:</p>
                   <pre className="bg-white dark:bg-gray-800 p-2 rounded text-xs overflow-x-auto">
 {`// db object is pre-injected - use natural MongoDB syntax
+
+// EXAMPLE 1: Simple query (displays as TABLE)
 const users = await db.users.find({});
 console.log('All users:', users);
+// No return statement = displays results as TABLE format
 
-// Alternative: collection() helper function
+// EXAMPLE 2: Alternative collection() syntax (displays as TABLE)
 const logs = await collection('logs').find({ level: 'error' });
 console.log('Error logs:', logs);
+// Returns query results = displays as TABLE format
 
-// Multiple operations in one script
+// EXAMPLE 3: Multiple queries in loop (displays as TABLE)
+const allData = [];
+const collections = ['users', 'products', 'orders'];
+for (const collName of collections) {
+    const data = await db[collName].find({}).limit(5);
+    allData.push(...data);
+}
+return allData;
+// Explicit return of document array = displays as TABLE format
+
+// EXAMPLE 4: Custom JSON object (displays as JSON/OBJECT)
 const userCount = await db.users.countDocuments({});
 const activeUsers = await db.users.find({ status: 'active' });
 const recentLogs = await db.logs.find({ 
@@ -425,21 +574,26 @@ const recentLogs = await db.logs.find({
 
 console.log('User count:', userCount);
 console.log('Active users:', activeUsers.length);
-console.log('Recent logs:', recentLogs.length);
 
-// Data processing with JavaScript
-const usersByStatus = {};
-for (const user of activeUsers) {
-  usersByStatus[user.status] = (usersByStatus[user.status] || 0) + 1;
-}
-
-// Return final result (optional)
 return {
   totalUsers: userCount,
   activeUsers: activeUsers.length,
   recentLogs: recentLogs.length,
-  breakdown: usersByStatus
-};`}
+  summary: \`Found \${userCount} users, \${activeUsers.length} active\`
+};
+// Explicit return of object = displays as JSON/OBJECT format
+
+// EXAMPLE 5: Return string (displays as STRING)
+const count = await db.products.countDocuments({});
+return \`Total products in database: \${count}\`;
+// Explicit return of string = displays as STRING format
+
+// RESULT DISPLAY FORMATS:
+// - No return OR return MongoDB documents = TABLE format
+// - Return custom object = JSON/OBJECT format  
+// - Return string = STRING format
+// - Return array of primitives = ARRAY format
+// - console.log() output always appears in execution logs regardless of display format`}
                   </pre>
                   <p className="text-xs text-blue-600 dark:text-blue-400">
                     💡 Both <code>db.collectionName.method()</code> and <code>collection('name').method()</code> syntax work.
@@ -464,11 +618,14 @@ return {
         )}
 
         <Input
-          label="Comments"
+          label={`Comments (${comments.length}/${MAX_COMMENTS_SIZE} characters)`}
           value={comments}
-          onChange={(e) => setComments(e.target.value)}
+          onChange={(e) => {
+            setComments(e.target.value);
+            if (commentsError) setCommentsError(''); // Clear error when user starts typing
+          }}
           placeholder="Describe the purpose of this query"
-          required
+          error={commentsError}
         />
 
         <Button type="submit" isLoading={isLoading} className="w-full">
