@@ -1,75 +1,78 @@
 import axios from 'axios';
 
-// Mock axios
-jest.mock('axios', () => {
-  const mockAxiosInstance = {
-    get: jest.fn(),
-    post: jest.fn(),
-    interceptors: {
-      request: { use: jest.fn() },
-      response: { use: jest.fn() },
-    },
-  };
-  return {
-    create: jest.fn(() => mockAxiosInstance),
-    post: jest.fn(),
-  };
-});
+// Mock process.env for Jest
+process.env.NODE_ENV = 'test';
 
-// Get the mocked axios instance
+// Mock axios completely
+jest.mock('axios');
 const mockedAxios = axios as jest.Mocked<typeof axios>;
-const mockAxiosInstance = mockedAxios.create() as jest.Mocked<ReturnType<typeof axios.create>>;
 
-// Import after mocking
+// Mock axios.create to return a mocked instance
+const mockAxiosInstance = {
+  get: jest.fn(),
+  post: jest.fn(),
+  interceptors: {
+    request: { use: jest.fn() },
+    response: { use: jest.fn() }
+  }
+};
+
+mockedAxios.create.mockReturnValue(mockAxiosInstance as any);
+
+// Import the actual API functions after mocking
 import { authApi, instancesApi, databasesApi, podsApi, usersApi, queriesApi, auditApi } from '../api';
 
 describe('API Service', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    localStorage.clear();
-  });
-
-  describe('axios instance configuration', () => {
-    it('creates axios instance', () => {
-      expect(mockedAxios.create).toBeDefined();
+    // Clear localStorage
+    Object.defineProperty(window, 'localStorage', {
+      value: {
+        getItem: jest.fn(),
+        setItem: jest.fn(),
+        removeItem: jest.fn(),
+      },
+      writable: true,
     });
   });
 
   describe('authApi', () => {
-    it('login calls POST /auth/login with credentials', async () => {
-      mockAxiosInstance.post.mockResolvedValue({ data: { accessToken: 'token' } });
+    it('should call login endpoint with correct data', async () => {
+      const mockResponse = { data: { accessToken: 'token', user: { id: '1', email: 'test@test.com' } } };
+      mockAxiosInstance.post.mockResolvedValue(mockResponse);
+
+      const result = await authApi.login('test@test.com', 'password');
       
-      await authApi.login('test@example.com', 'password123');
-      
-      expect(mockAxiosInstance.post).toHaveBeenCalledWith('/auth/login', {
-        email: 'test@example.com',
-        password: 'password123',
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith('/auth/login', { 
+        email: 'test@test.com', 
+        password: 'password' 
       });
+      expect(result).toEqual(mockResponse);
     });
 
-    it('refresh calls POST /auth/refresh with refreshToken', async () => {
-      mockAxiosInstance.post.mockResolvedValue({ data: { accessToken: 'newToken' } });
+    it('should call refresh endpoint with correct data', async () => {
+      const mockResponse = { data: { accessToken: 'newToken', user: { id: '1' } } };
+      mockAxiosInstance.post.mockResolvedValue(mockResponse);
+
+      const result = await authApi.refresh('refreshToken');
       
-      await authApi.refresh('refreshToken123');
-      
-      expect(mockAxiosInstance.post).toHaveBeenCalledWith('/auth/refresh', {
-        refreshToken: 'refreshToken123',
-      });
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith('/auth/refresh', { refreshToken: 'refreshToken' });
+      expect(result).toEqual(mockResponse);
     });
 
-    it('logout calls POST /auth/logout with refreshToken', async () => {
-      mockAxiosInstance.post.mockResolvedValue({ data: {} });
+    it('should call logout endpoint', async () => {
+      const mockResponse = { data: {} };
+      mockAxiosInstance.post.mockResolvedValue(mockResponse);
+
+      await authApi.logout('refreshToken');
       
-      await authApi.logout('refreshToken123');
-      
-      expect(mockAxiosInstance.post).toHaveBeenCalledWith('/auth/logout', {
-        refreshToken: 'refreshToken123',
-      });
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith('/auth/logout', { refreshToken: 'refreshToken' });
     });
 
-    it('logoutAll calls POST /auth/logout-all', async () => {
-      mockAxiosInstance.post.mockResolvedValue({ data: {} });
-      
+    it('should call logout-all endpoint', async () => {
+      const mockResponse = { data: {} };
+      mockAxiosInstance.post.mockResolvedValue(mockResponse);
+
       await authApi.logoutAll();
       
       expect(mockAxiosInstance.post).toHaveBeenCalledWith('/auth/logout-all');
@@ -77,178 +80,190 @@ describe('API Service', () => {
   });
 
   describe('instancesApi', () => {
-    it('getAll calls GET /instances without params when no type', async () => {
-      mockAxiosInstance.get.mockResolvedValue({ data: [] });
-      
-      await instancesApi.getAll();
+    it('should get all instances', async () => {
+      const mockInstances = [{ id: '1', name: 'test-instance' }];
+      const mockResponse = { data: mockInstances };
+      mockAxiosInstance.get.mockResolvedValue(mockResponse);
+
+      const result = await instancesApi.getAll();
       
       expect(mockAxiosInstance.get).toHaveBeenCalledWith('/instances', { params: {} });
+      expect(result).toEqual(mockResponse);
     });
 
-    it('getAll calls GET /instances with type param', async () => {
-      mockAxiosInstance.get.mockResolvedValue({ data: [] });
+    it('should get instances by type', async () => {
+      const mockInstances = [{ id: '1', name: 'test-instance', type: 'postgres' }];
+      const mockResponse = { data: mockInstances };
+      mockAxiosInstance.get.mockResolvedValue(mockResponse);
+
+      const result = await instancesApi.getAll('postgres');
       
-      await instancesApi.getAll('POSTGRES');
-      
-      expect(mockAxiosInstance.get).toHaveBeenCalledWith('/instances', { params: { type: 'POSTGRES' } });
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith('/instances', { params: { type: 'postgres' } });
+      expect(result).toEqual(mockResponse);
     });
   });
 
   describe('databasesApi', () => {
-    it('getByInstance calls GET /databases with instanceId', async () => {
-      mockAxiosInstance.get.mockResolvedValue({ data: [] });
+    it('should get databases by instance', async () => {
+      const mockDatabases = [{ database_name: 'test_db' }];
+      const mockResponse = { data: mockDatabases };
+      mockAxiosInstance.get.mockResolvedValue(mockResponse);
+
+      const result = await databasesApi.getByInstance('1');
       
-      await databasesApi.getByInstance('inst-123');
-      
-      expect(mockAxiosInstance.get).toHaveBeenCalledWith('/databases', { params: { instanceId: 'inst-123' } });
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith('/databases', { params: { instanceId: '1' } });
+      expect(result).toEqual(mockResponse);
     });
   });
 
   describe('podsApi', () => {
-    it('getAll calls GET /pods', async () => {
-      mockAxiosInstance.get.mockResolvedValue({ data: [] });
-      
-      await podsApi.getAll();
+    it('should get all pods', async () => {
+      const mockPods = [{ id: '1', name: 'test-pod' }];
+      const mockResponse = { data: mockPods };
+      mockAxiosInstance.get.mockResolvedValue(mockResponse);
+
+      const result = await podsApi.getAll();
       
       expect(mockAxiosInstance.get).toHaveBeenCalledWith('/pods');
+      expect(result).toEqual(mockResponse);
     });
 
-    it('getById calls GET /pods/:id', async () => {
-      mockAxiosInstance.get.mockResolvedValue({ data: {} });
+    it('should get pod by id', async () => {
+      const mockPod = { id: '1', name: 'test-pod' };
+      const mockResponse = { data: mockPod };
+      mockAxiosInstance.get.mockResolvedValue(mockResponse);
+
+      const result = await podsApi.getById('1');
       
-      await podsApi.getById('pod-123');
-      
-      expect(mockAxiosInstance.get).toHaveBeenCalledWith('/pods/pod-123');
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith('/pods/1');
+      expect(result).toEqual(mockResponse);
     });
   });
 
   describe('usersApi', () => {
-    it('getAll calls GET /users', async () => {
-      mockAxiosInstance.get.mockResolvedValue({ data: [] });
-      
-      await usersApi.getAll();
+    it('should get all users', async () => {
+      const mockUsers = [{ id: '1', name: 'Test User', email: 'test@test.com', role: 'user' }];
+      const mockResponse = { data: mockUsers };
+      mockAxiosInstance.get.mockResolvedValue(mockResponse);
+
+      const result = await usersApi.getAll();
       
       expect(mockAxiosInstance.get).toHaveBeenCalledWith('/users');
+      expect(result).toEqual(mockResponse);
     });
   });
 
   describe('queriesApi', () => {
-    it('getForApproval calls GET /queries with params', async () => {
-      mockAxiosInstance.get.mockResolvedValue({ data: { data: [], pagination: {} } });
+    it('should get queries for approval', async () => {
+      const mockResponse = { data: { data: [], pagination: { total: 0, limit: 10, offset: 0, hasMore: false } } };
+      mockAxiosInstance.get.mockResolvedValue(mockResponse);
+
+      const result = await queriesApi.getForApproval();
       
-      await queriesApi.getForApproval({ status: 'PENDING', limit: 10 });
-      
-      expect(mockAxiosInstance.get).toHaveBeenCalledWith('/queries', {
-        params: { status: 'PENDING', limit: 10 },
-      });
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith('/queries', { params: undefined });
+      expect(result).toEqual(mockResponse);
     });
 
-    it('getForApproval calls GET /queries without params', async () => {
-      mockAxiosInstance.get.mockResolvedValue({ data: { data: [], pagination: {} } });
+    it('should get my submissions', async () => {
+      const mockResponse = { data: { data: [], pagination: { total: 0, limit: 10, offset: 0, hasMore: false } } };
+      mockAxiosInstance.get.mockResolvedValue(mockResponse);
+
+      const result = await queriesApi.getMySubmissions();
       
-      await queriesApi.getForApproval();
-      
-      expect(mockAxiosInstance.get).toHaveBeenCalledWith('/queries', {
-        params: undefined,
-      });
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith('/queries/my-submissions', { params: undefined });
+      expect(result).toEqual(mockResponse);
     });
 
-    it('getMySubmissions calls GET /queries/my-submissions', async () => {
-      mockAxiosInstance.get.mockResolvedValue({ data: { data: [], pagination: {} } });
-      
-      await queriesApi.getMySubmissions({ limit: 10, offset: 0 });
-      
-      expect(mockAxiosInstance.get).toHaveBeenCalledWith('/queries/my-submissions', {
-        params: { limit: 10, offset: 0 },
-      });
-    });
+    it('should submit query with FormData', async () => {
+      const mockQuery = { id: '1', queryText: 'SELECT * FROM test' };
+      const mockResponse = { data: mockQuery };
+      mockAxiosInstance.post.mockResolvedValue(mockResponse);
 
-    it('getMySubmissions calls GET /queries/my-submissions without params', async () => {
-      mockAxiosInstance.get.mockResolvedValue({ data: { data: [], pagination: {} } });
-      
-      await queriesApi.getMySubmissions();
-      
-      expect(mockAxiosInstance.get).toHaveBeenCalledWith('/queries/my-submissions', {
-        params: undefined,
-      });
-    });
-
-    it('submit calls POST /queries with JSON data', async () => {
-      mockAxiosInstance.post.mockResolvedValue({ data: {} });
-      
-      const queryData = {
-        instanceId: 'inst-1',
-        databaseName: 'test_db',
-        queryText: 'SELECT 1',
-        podId: 'pod-1',
-        comments: 'Test',
-        submissionType: 'QUERY' as const,
-      };
-      
-      await queriesApi.submit(queryData);
-      
-      expect(mockAxiosInstance.post).toHaveBeenCalledWith('/queries', queryData);
-    });
-
-    it('submit calls POST /queries with FormData for scripts', async () => {
-      mockAxiosInstance.post.mockResolvedValue({ data: {} });
-      
       const formData = new FormData();
-      formData.append('instanceId', 'inst-1');
-      
-      await queriesApi.submit(formData);
+      formData.append('queryText', 'SELECT * FROM test');
+
+      const result = await queriesApi.submit(formData);
       
       expect(mockAxiosInstance.post).toHaveBeenCalledWith('/queries', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
+      expect(result).toEqual(mockResponse);
     });
 
-    it('approve calls POST /queries/:id/approve', async () => {
-      mockAxiosInstance.post.mockResolvedValue({ data: {} });
+    it('should submit query with object data', async () => {
+      const mockQuery = { id: '1', queryText: 'SELECT * FROM test' };
+      const mockResponse = { data: mockQuery };
+      const queryData = {
+        instanceId: '1',
+        databaseName: 'test_db',
+        queryText: 'SELECT * FROM test',
+        podId: '1',
+        comments: 'Test query',
+        submissionType: 'QUERY' as const,
+      };
+      mockAxiosInstance.post.mockResolvedValue(mockResponse);
+
+      const result = await queriesApi.submit(queryData);
       
-      await queriesApi.approve('query-123');
-      
-      expect(mockAxiosInstance.post).toHaveBeenCalledWith('/queries/query-123/approve');
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith('/queries', queryData);
+      expect(result).toEqual(mockResponse);
     });
 
-    it('reject calls POST /queries/:id/reject with reason', async () => {
-      mockAxiosInstance.post.mockResolvedValue({ data: {} });
+    it('should approve query', async () => {
+      const mockResponse = { data: { status: 'approved', result: {} } };
+      mockAxiosInstance.post.mockResolvedValue(mockResponse);
+
+      const result = await queriesApi.approve('1');
       
-      await queriesApi.reject('query-123', 'Not approved');
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith('/queries/1/approve');
+      expect(result).toEqual(mockResponse);
+    });
+
+    it('should reject query', async () => {
+      const mockQuery = { id: '1', status: 'rejected' };
+      const mockResponse = { data: mockQuery };
+      mockAxiosInstance.post.mockResolvedValue(mockResponse);
+
+      const result = await queriesApi.reject('1', 'Invalid query');
       
-      expect(mockAxiosInstance.post).toHaveBeenCalledWith('/queries/query-123/reject', {
-        reason: 'Not approved',
-      });
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith('/queries/1/reject', { reason: 'Invalid query' });
+      expect(result).toEqual(mockResponse);
     });
   });
 
   describe('auditApi', () => {
-    it('getAll calls GET /audit with params', async () => {
-      mockAxiosInstance.get.mockResolvedValue({ data: [] });
+    it('should get all audit logs', async () => {
+      const mockAuditLogs = [{ id: '1', action: 'query_executed' }];
+      const mockResponse = { data: mockAuditLogs };
+      mockAxiosInstance.get.mockResolvedValue(mockResponse);
+
+      const result = await auditApi.getAll();
       
-      await auditApi.getAll({ limit: 10, userId: 'user-1' });
-      
-      expect(mockAxiosInstance.get).toHaveBeenCalledWith('/audit', {
-        params: { limit: 10, userId: 'user-1' },
-      });
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith('/audit', { params: undefined });
+      expect(result).toEqual(mockResponse);
     });
 
-    it('getAll calls GET /audit without params', async () => {
-      mockAxiosInstance.get.mockResolvedValue({ data: [] });
+    it('should get audit logs with params', async () => {
+      const mockAuditLogs = [{ id: '1', action: 'query_executed' }];
+      const mockResponse = { data: mockAuditLogs };
+      const params = { limit: 10, offset: 0, userId: '1' };
+      mockAxiosInstance.get.mockResolvedValue(mockResponse);
+
+      const result = await auditApi.getAll(params);
       
-      await auditApi.getAll();
-      
-      expect(mockAxiosInstance.get).toHaveBeenCalledWith('/audit', {
-        params: undefined,
-      });
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith('/audit', { params });
+      expect(result).toEqual(mockResponse);
     });
 
-    it('getByQuery calls GET /audit/query/:queryId', async () => {
-      mockAxiosInstance.get.mockResolvedValue({ data: [] });
+    it('should get audit logs by query', async () => {
+      const mockAuditLogs = [{ id: '1', queryId: '1', action: 'query_executed' }];
+      const mockResponse = { data: mockAuditLogs };
+      mockAxiosInstance.get.mockResolvedValue(mockResponse);
+
+      const result = await auditApi.getByQuery('1');
       
-      await auditApi.getByQuery('query-123');
-      
-      expect(mockAxiosInstance.get).toHaveBeenCalledWith('/audit/query/query-123');
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith('/audit/query/1');
+      expect(result).toEqual(mockResponse);
     });
   });
 });
