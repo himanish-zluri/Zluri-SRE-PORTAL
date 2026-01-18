@@ -1,5 +1,18 @@
 import axios from 'axios';
 
+// Mock import.meta for Jest environment
+Object.defineProperty(globalThis, 'import', {
+  value: {
+    meta: {
+      env: {
+        MODE: 'test',
+        VITE_API_URL: '/api'
+      }
+    }
+  },
+  writable: true
+});
+
 // Mock process.env for Jest
 process.env.NODE_ENV = 'test';
 

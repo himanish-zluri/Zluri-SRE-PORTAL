@@ -4,12 +4,12 @@ import type { AuthResponse, DbInstance, Pod, Query, AuditLog } from '../types';
 // Use a function to get the API URL so it can be mocked in tests
 const getApiUrl = () => {
   // In test environment, use a default URL
-  if (process.env.NODE_ENV === 'test') {
+  if (import.meta.env?.MODE === 'test') {
     return '/api';
   }
   
-  // Use environment variable that works in both Vite and other environments
-  return process.env.VITE_API_URL || 'https://zluri-sre-backend.onrender.com/api';
+  // Use Vite environment variable
+  return import.meta.env.VITE_API_URL || 'https://zluri-sre-backend.onrender.com/api';
 };
 
 const api = axios.create({
@@ -39,7 +39,7 @@ api.interceptors.response.use(
       const refreshToken = localStorage.getItem('refreshToken');
       if (refreshToken) {
         try {
-          const refreshUrl = process.env.NODE_ENV === 'test' ? '/api/auth/refresh' : `${getApiUrl()}/auth/refresh`;
+          const refreshUrl = import.meta.env?.MODE === 'test' ? '/api/auth/refresh' : `${getApiUrl()}/auth/refresh`;
           const response = await axios.post(refreshUrl, { refreshToken });
           const { accessToken } = response.data;
           localStorage.setItem('accessToken', accessToken);
