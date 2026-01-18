@@ -6,152 +6,7 @@ import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { TextArea } from '../components/ui/TextArea';
 import { ResultDisplay } from '../components/ui/ResultDisplay';
-
-// Risk Analysis Types
-type RiskLevel = 'LOW' | 'MEDIUM' | 'HIGH';
-
-interface RiskAnalysis {
-  level: RiskLevel;
-  reasons: string[];
-}
-
-// Hybrid Risk Analysis Function
-/* istanbul ignore next */
-function analyzeRisk(query: Query): RiskAnalysis {
-  const reasons: string[] = [];
-  let score = 0;
-
-  // Scripts are inherently riskier
-  if (query.submission_type === 'SCRIPT') {
-    score += 2;
-    reasons.push('Script execution');
-    
-    const scriptContent = query.script_content?.toLowerCase() || '';
-    
-    // Check for dangerous patterns in scripts
-    if (/delete|remove|drop/i.test(scriptContent)) {
-      score += 3;
-      reasons.push('Contains DELETE/DROP operations');
-    }
-    if (/update|modify|alter/i.test(scriptContent)) {
-      score += 2;
-      reasons.push('Contains UPDATE/ALTER operations');
-    }
-    if (/truncate/i.test(scriptContent)) {
-      score += 4;
-      reasons.push('Contains TRUNCATE operation');
-    }
-    if (/exec|eval|spawn|child_process/i.test(scriptContent)) {
-      score += 3;
-      reasons.push('Contains code execution patterns');
-    }
-    if (/fs\.|writeFile|unlink|rmdir/i.test(scriptContent)) {
-      score += 3;
-      reasons.push('Contains file system operations');
-    }
-  } else {
-    // Query analysis
-    const queryText = query.query_text?.toUpperCase() || '';
-    const hasWhereClause = /WHERE\s+/i.test(queryText);
-    
-    // DROP operations - highest risk
-    if (/\bDROP\s+(TABLE|DATABASE|INDEX|SCHEMA)/i.test(queryText)) {
-      score += 5;
-      reasons.push('DROP operation detected');
-    }
-    
-    // TRUNCATE - high risk
-    if (/\bTRUNCATE\b/i.test(queryText)) {
-      score += 5;
-      reasons.push('TRUNCATE operation detected');
-    }
-    
-    // DELETE operations
-    if (/\bDELETE\s+FROM\b/i.test(queryText)) {
-      if (!hasWhereClause) {
-        score += 5;
-        reasons.push('DELETE without WHERE clause');
-      } else {
-        score += 2;
-        reasons.push('DELETE with WHERE clause');
-      }
-    }
-    
-    // UPDATE operations
-    if (/\bUPDATE\s+\w+\s+SET\b/i.test(queryText)) {
-      if (!hasWhereClause) {
-        score += 4;
-        reasons.push('UPDATE without WHERE clause');
-      } else {
-        score += 1;
-        reasons.push('UPDATE with WHERE clause');
-      }
-    }
-    
-    // ALTER operations
-    if (/\bALTER\s+(TABLE|DATABASE)/i.test(queryText)) {
-      score += 3;
-      reasons.push('ALTER operation detected');
-    }
-    
-    // INSERT operations - lower risk
-    if (/\bINSERT\s+INTO\b/i.test(queryText)) {
-      score += 1;
-      reasons.push('INSERT operation');
-    }
-    
-    // SELECT operations - lowest risk
-    if (/^\s*SELECT\b/i.test(queryText) && score === 0) {
-      reasons.push('Read-only SELECT query');
-    }
-    
-    // Check for multiple statements (potential SQL injection or batch)
-    if ((queryText.match(/;/g) || []).length > 1) {
-      score += 2;
-      reasons.push('Multiple SQL statements');
-    }
-  }
-
-  // Determine risk level based on score
-  let level: RiskLevel;
-  if (score >= 4) {
-    level = 'HIGH';
-  } else if (score >= 2) {
-    level = 'MEDIUM';
-  } else {
-    level = 'LOW';
-  }
-
-  if (reasons.length === 0) {
-    reasons.push('Standard operation');
-  }
-
-  return { level, reasons };
-}
-
-// Risk Badge Component
-function RiskBadge({ risk }: { risk: RiskAnalysis }) {
-  const colors = {
-    LOW: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-    MEDIUM: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
-    HIGH: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-  };
-
-  const icons = {
-    LOW: '🟢',
-    MEDIUM: '🟡',
-    HIGH: '🔴',
-  };
-
-  return (
-    <span 
-      className={`px-2 py-0.5 rounded text-xs font-medium ${colors[risk.level]} cursor-help`}
-      title={risk.reasons.join('\n')}
-    >
-      {icons[risk.level]} {risk.level}
-    </span>
-  );
-}
+import { Toast, useToast } from '../components/ui/Toast';
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 
@@ -160,7 +15,7 @@ export function ApprovalDashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('PENDING');
   const [typeFilter, setTypeFilter] = useState('');
-  const [riskFilter, setRiskFilter] = useState('');
+  // Removed risk filter to eliminate risk analysis bugs
   
   // Server-side pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -173,6 +28,9 @@ export function ApprovalDashboardPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
+
+  // Toast notifications
+  const { toast, showSuccess, showError, hideToast } = useToast();
 
   useEffect(() => {
     loadQueries();
@@ -197,10 +55,8 @@ export function ApprovalDashboardPage() {
     }
   };
 
-  // Filter queries by risk (client-side since risk is computed)
-  const filteredQueries = riskFilter 
-    ? queries.filter(q => analyzeRisk(q).level === riskFilter)
-    : queries;
+  // Remove risk filtering to eliminate bugs
+  const filteredQueries = queries;
 
   /* istanbul ignore next */
   const handleApprove = async (query: Query) => {
@@ -210,8 +66,9 @@ export function ApprovalDashboardPage() {
       await loadQueries();
       setSelectedQuery(null);
       setShowDetailModal(false);
+      showSuccess('Query approved successfully!');
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Failed to approve query');
+      showError(error.response?.data?.message || 'Failed to approve query');
       // Reload to show updated status (FAILED)
       await loadQueries();
       setSelectedQuery(null);
@@ -231,8 +88,9 @@ export function ApprovalDashboardPage() {
       setSelectedQuery(null);
       setShowRejectModal(false);
       setRejectReason('');
+      showSuccess('Query rejected successfully!');
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Failed to reject query');
+      showError(error.response?.data?.message || 'Failed to reject query');
     } finally {
       setActionLoading(false);
     }
@@ -274,10 +132,6 @@ export function ApprovalDashboardPage() {
     setCurrentPage(1);
   };
 
-  const handleRiskFilterChange = (newRisk: string) => {
-    setRiskFilter(newRisk);
-  };
-
   const handleItemsPerPageChange = (newLimit: number) => {
     setItemsPerPage(newLimit);
     setCurrentPage(1);
@@ -291,11 +145,47 @@ export function ApprovalDashboardPage() {
     );
   }
 
+  // Count queries by status for overview
+  const getStatusCounts = () => {
+    const safeQueries = Array.isArray(queries) ? queries : [];
+    return {
+      PENDING: safeQueries.filter(q => q?.status === 'PENDING').length,
+      EXECUTED: safeQueries.filter(q => q?.status === 'EXECUTED').length,
+      FAILED: safeQueries.filter(q => q?.status === 'FAILED').length,
+      REJECTED: safeQueries.filter(q => q?.status === 'REJECTED').length,
+    };
+  };
+
+  const statusCounts = getStatusCounts();
+
   return (
     <div>
-      <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">
-        Approval Dashboard
-      </h2>
+      {/* Header with Status Overview */}
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+          Approval Dashboard
+        </h2>
+        
+        {/* Status Overview Counters */}
+        <div className="flex items-center gap-4 text-sm">
+          <div className="flex items-center gap-1">
+            <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+            <span className="text-gray-600 dark:text-gray-400">Pending: {statusCounts.PENDING}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+            <span className="text-gray-600 dark:text-gray-400">Failed: {statusCounts.FAILED}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-2 h-2 bg-red-600 rounded-full"></div>
+            <span className="text-gray-600 dark:text-gray-400">Rejected: {statusCounts.REJECTED}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+            <span className="text-gray-600 dark:text-gray-400">Executed: {statusCounts.EXECUTED}</span>
+          </div>
+        </div>
+      </div>
 
       {/* Filters */}
       <div className="flex flex-wrap gap-4 mb-6">
@@ -325,19 +215,6 @@ export function ApprovalDashboardPage() {
             <option value="SCRIPT">Script</option>
           </select>
         </div>
-        <div className="flex items-center gap-2">
-          <label className="text-sm text-gray-600 dark:text-gray-400">Risk:</label>
-          <select
-            value={riskFilter}
-            onChange={(e) => handleRiskFilterChange(e.target.value)}
-            className="px-3 py-1.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white text-sm cursor-pointer"
-          >
-            <option value="">All</option>
-            <option value="LOW">🟢 Low</option>
-            <option value="MEDIUM">🟡 Medium</option>
-            <option value="HIGH">🔴 High</option>
-          </select>
-        </div>
       </div>
 
       {/* Table */}
@@ -349,7 +226,6 @@ export function ApprovalDashboardPage() {
               <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-400">Instance</th>
               <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-400">Database</th>
               <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-400">Type</th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-400">Risk</th>
               <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-400">POD</th>
               <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-400">Date</th>
               <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-400">Status</th>
@@ -359,13 +235,12 @@ export function ApprovalDashboardPage() {
           <tbody>
             {filteredQueries.length === 0 ? (
               <tr>
-                <td colSpan={9} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                <td colSpan={8} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                   No queries found
                 </td>
               </tr>
             ) : (
               filteredQueries.map((query) => {
-                const risk = analyzeRisk(query);
                 return (
                   <tr key={query.id} className="border-b border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50">
                     <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
@@ -386,9 +261,6 @@ export function ApprovalDashboardPage() {
                       }`}>
                         {query.submission_type}
                       </span>
-                    </td>
-                    <td className="px-4 py-3 text-sm">
-                      <RiskBadge risk={risk} />
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
                       {query.pod_id}
@@ -541,16 +413,6 @@ export function ApprovalDashboardPage() {
             </div>
 
             <div>
-              <label className="text-sm text-gray-500 dark:text-gray-400">Risk Assessment</label>
-              <div className="mt-1 flex items-center gap-2">
-                <RiskBadge risk={analyzeRisk(selectedQuery)} />
-                <span className="text-xs text-gray-500 dark:text-gray-400">
-                  ({analyzeRisk(selectedQuery).reasons.join(', ')})
-                </span>
-              </div>
-            </div>
-
-            <div>
               <label className="text-sm text-gray-500 dark:text-gray-400">Submitted By</label>
               <p className="text-gray-900 dark:text-white">{selectedQuery.requester_name}</p>
               <p className="text-xs text-gray-500 dark:text-gray-400">{selectedQuery.requester_email}</p>
@@ -645,6 +507,16 @@ export function ApprovalDashboardPage() {
           </div>
         )}
       </Modal>
+
+      {/* Toast Notifications */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          isVisible={toast.isVisible}
+          onClose={hideToast}
+        />
+      )}
     </div>
   );
 }
