@@ -64,6 +64,15 @@ app.use((_req, _res, next) => {
   }
 });
 
+// Health check route
+app.get('/', (_req, res) => {
+  res.json({ 
+    status: 'ok', 
+    message: 'DB Query Portal API is running',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Routes
 app.use('/api/instances', instanceRoutes);
 app.use('/api/databases', databaseRoutes);
