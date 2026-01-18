@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ApprovalDashboardPage } from '../ApprovalDashboardPage';
 
@@ -78,6 +78,10 @@ describe('ApprovalDashboardPage', () => {
     });
     (queriesApi.approve as jest.Mock).mockResolvedValue({ data: { status: 'EXECUTED' } });
     (queriesApi.reject as jest.Mock).mockResolvedValue({ data: { status: 'REJECTED' } });
+  });
+
+  afterEach(() => {
+    cleanup();
   });
 
   it('renders the page title', async () => {
@@ -298,6 +302,10 @@ describe('ApprovalDashboardPage - Risk Analysis', () => {
     (queriesApi.reject as jest.Mock).mockResolvedValue({ data: { status: 'REJECTED' } });
   });
 
+  afterEach(() => {
+    cleanup();
+  });
+
   it('shows LOW risk for SELECT queries', async () => {
     (queriesApi.getForApproval as jest.Mock).mockResolvedValue({
       data: {
@@ -461,6 +469,142 @@ describe('ApprovalDashboardPage - Risk Analysis', () => {
     await userEvent.selectOptions(riskSelect, 'HIGH');
     await waitFor(() => expect(screen.getByText('🔴 HIGH')).toBeInTheDocument());
   });
+
+  it('shows HIGH risk for INSERT with multiple statements', async () => {
+    (queriesApi.getForApproval as jest.Mock).mockResolvedValue({
+      data: {
+        data: [{
+          id: 'query-1', requester_name: 'Test User', requester_email: 'test@test.com',
+          instance_name: 'Test DB', database_name: 'test_db', submission_type: 'QUERY',
+          query_text: 'INSERT INTO users (name) VALUES ("test"); DROP TABLE users;', comments: 'Test', pod_id: 'pod-1',
+          status: 'PENDING', created_at: '2024-01-15T10:00:00Z',
+        }],
+        pagination: { total: 1, limit: 10, offset: 0, hasMore: false },
+      },
+    });
+    render(<ApprovalDashboardPage />);
+    await waitFor(() => expect(document.querySelector('.animate-spin')).not.toBeInTheDocument());
+    expect(screen.getByText('🔴 HIGH')).toBeInTheDocument();
+  });
+
+  it('shows LOW risk for INSERT operation', async () => {
+    (queriesApi.getForApproval as jest.Mock).mockResolvedValue({
+      data: {
+        data: [{
+          id: 'query-1', requester_name: 'Test User', requester_email: 'test@test.com',
+          instance_name: 'Test DB', database_name: 'test_db', submission_type: 'QUERY',
+          query_text: 'INSERT INTO users (name) VALUES ("test")', comments: 'Test', pod_id: 'pod-1',
+          status: 'PENDING', created_at: '2024-01-15T10:00:00Z',
+        }],
+        pagination: { total: 1, limit: 10, offset: 0, hasMore: false },
+      },
+    });
+    render(<ApprovalDashboardPage />);
+    await waitFor(() => expect(document.querySelector('.animate-spin')).not.toBeInTheDocument());
+    expect(screen.getByText('🟢 LOW')).toBeInTheDocument();
+  });
+
+  it('shows HIGH risk for scripts with file system operations', async () => {
+    (queriesApi.getForApproval as jest.Mock).mockResolvedValue({
+      data: {
+        data: [{
+          id: 'query-1', requester_name: 'Test User', requester_email: 'test@test.com',
+          instance_name: 'Test DB', database_name: 'test_db', submission_type: 'SCRIPT',
+          query_text: '', script_content: 'fs.writeFile("test.txt", "data")', comments: 'Test', pod_id: 'pod-1',
+          status: 'PENDING', created_at: '2024-01-15T10:00:00Z',
+        }],
+        pagination: { total: 1, limit: 10, offset: 0, hasMore: false },
+      },
+    });
+    render(<ApprovalDashboardPage />);
+    await waitFor(() => expect(document.querySelector('.animate-spin')).not.toBeInTheDocument());
+    expect(screen.getByText('🔴 HIGH')).toBeInTheDocument();
+  });
+
+  it('shows HIGH risk for scripts with exec operations', async () => {
+    (queriesApi.getForApproval as jest.Mock).mockResolvedValue({
+      data: {
+        data: [{
+          id: 'query-1', requester_name: 'Test User', requester_email: 'test@test.com',
+          instance_name: 'Test DB', database_name: 'test_db', submission_type: 'SCRIPT',
+          query_text: '', script_content: 'exec("rm -rf /")', comments: 'Test', pod_id: 'pod-1',
+          status: 'PENDING', created_at: '2024-01-15T10:00:00Z',
+        }],
+        pagination: { total: 1, limit: 10, offset: 0, hasMore: false },
+      },
+    });
+    render(<ApprovalDashboardPage />);
+    await waitFor(() => expect(document.querySelector('.animate-spin')).not.toBeInTheDocument());
+    expect(screen.getByText('🔴 HIGH')).toBeInTheDocument();
+  });
+
+  it('shows MEDIUM risk for UPDATE with WHERE clause', async () => {
+    (queriesApi.getForApproval as jest.Mock).mockResolvedValue({
+      data: {
+        data: [{
+          id: 'query-1', requester_name: 'Test User', requester_email: 'test@test.com',
+          instance_name: 'Test DB', database_name: 'test_db', submission_type: 'QUERY',
+          query_text: 'UPDATE users SET name = "test" WHERE id = 1', comments: 'Test', pod_id: 'pod-1',
+          status: 'PENDING', created_at: '2024-01-15T10:00:00Z',
+        }],
+        pagination: { total: 1, limit: 10, offset: 0, hasMore: false },
+      },
+    });
+    render(<ApprovalDashboardPage />);
+    await waitFor(() => expect(document.querySelector('.animate-spin')).not.toBeInTheDocument());
+    expect(screen.getByText('🟢 LOW')).toBeInTheDocument();
+  });
+
+  it('shows HIGH risk for DROP DATABASE', async () => {
+    (queriesApi.getForApproval as jest.Mock).mockResolvedValue({
+      data: {
+        data: [{
+          id: 'query-1', requester_name: 'Test User', requester_email: 'test@test.com',
+          instance_name: 'Test DB', database_name: 'test_db', submission_type: 'QUERY',
+          query_text: 'DROP DATABASE test_db', comments: 'Test', pod_id: 'pod-1',
+          status: 'PENDING', created_at: '2024-01-15T10:00:00Z',
+        }],
+        pagination: { total: 1, limit: 10, offset: 0, hasMore: false },
+      },
+    });
+    render(<ApprovalDashboardPage />);
+    await waitFor(() => expect(document.querySelector('.animate-spin')).not.toBeInTheDocument());
+    expect(screen.getByText('🔴 HIGH')).toBeInTheDocument();
+  });
+
+  it('handles queries with null/undefined content', async () => {
+    (queriesApi.getForApproval as jest.Mock).mockResolvedValue({
+      data: {
+        data: [{
+          id: 'query-1', requester_name: 'Test User', requester_email: 'test@test.com',
+          instance_name: 'Test DB', database_name: 'test_db', submission_type: 'QUERY',
+          query_text: null, comments: 'Test', pod_id: 'pod-1',
+          status: 'PENDING', created_at: '2024-01-15T10:00:00Z',
+        }],
+        pagination: { total: 1, limit: 10, offset: 0, hasMore: false },
+      },
+    });
+    render(<ApprovalDashboardPage />);
+    await waitFor(() => expect(document.querySelector('.animate-spin')).not.toBeInTheDocument());
+    expect(screen.getByText('🟢 LOW')).toBeInTheDocument();
+  });
+
+  it('handles scripts with null content', async () => {
+    (queriesApi.getForApproval as jest.Mock).mockResolvedValue({
+      data: {
+        data: [{
+          id: 'query-1', requester_name: 'Test User', requester_email: 'test@test.com',
+          instance_name: 'Test DB', database_name: 'test_db', submission_type: 'SCRIPT',
+          query_text: '', script_content: null, comments: 'Test', pod_id: 'pod-1',
+          status: 'PENDING', created_at: '2024-01-15T10:00:00Z',
+        }],
+        pagination: { total: 1, limit: 10, offset: 0, hasMore: false },
+      },
+    });
+    render(<ApprovalDashboardPage />);
+    await waitFor(() => expect(document.querySelector('.animate-spin')).not.toBeInTheDocument());
+    expect(screen.getByText('🟡 MEDIUM')).toBeInTheDocument();
+  });
 });
 
 describe('ApprovalDashboardPage - Detail Modal', () => {
@@ -471,6 +615,10 @@ describe('ApprovalDashboardPage - Detail Modal', () => {
     });
     (queriesApi.approve as jest.Mock).mockResolvedValue({ data: { status: 'EXECUTED' } });
     (queriesApi.reject as jest.Mock).mockResolvedValue({ data: { status: 'REJECTED' } });
+  });
+
+  afterEach(() => {
+    cleanup();
   });
 
   it('shows script content in detail modal', async () => {
@@ -518,6 +666,184 @@ describe('ApprovalDashboardPage - Detail Modal', () => {
     await userEvent.click(screen.getByRole('button', { name: /close/i }));
     await waitFor(() => expect(screen.queryByText('Query Details')).not.toBeInTheDocument());
   });
+
+  it('shows rejection reason in detail modal', async () => {
+    const queryWithRejection = {
+      ...mockQueries[0],
+      status: 'REJECTED',
+      rejection_reason: 'Security concerns',
+    };
+    
+    (queriesApi.getForApproval as jest.Mock).mockResolvedValue({
+      data: { 
+        data: [queryWithRejection], 
+        pagination: { total: 1, limit: 10, offset: 0, hasMore: false } 
+      },
+    });
+    
+    render(<ApprovalDashboardPage />);
+    await waitFor(() => expect(document.querySelector('.animate-spin')).not.toBeInTheDocument());
+    
+    const viewButtons = screen.getAllByText('View Details');
+    await userEvent.click(viewButtons[0]);
+    
+    expect(screen.getByText('Security concerns')).toBeInTheDocument();
+  });
+
+  it('shows execution result in detail modal', async () => {
+    const queryWithResult = {
+      ...mockQueries[0],
+      status: 'EXECUTED',
+      execution_result: { rows: [{ id: 1, name: 'test' }] },
+    };
+    
+    (queriesApi.getForApproval as jest.Mock).mockResolvedValue({
+      data: { 
+        data: [queryWithResult], 
+        pagination: { total: 1, limit: 10, offset: 0, hasMore: false } 
+      },
+    });
+    
+    render(<ApprovalDashboardPage />);
+    await waitFor(() => expect(document.querySelector('.animate-spin')).not.toBeInTheDocument());
+    
+    const viewButtons = screen.getAllByText('View Details');
+    await userEvent.click(viewButtons[0]);
+    
+    expect(screen.getByText('Execution Result')).toBeInTheDocument();
+  });
+
+  it('shows script file not available message', async () => {
+    const scriptQueryWithoutContent = {
+      ...mockQueries[1],
+      script_content: null,
+    };
+    
+    (queriesApi.getForApproval as jest.Mock).mockResolvedValue({
+      data: { 
+        data: [scriptQueryWithoutContent], 
+        pagination: { total: 1, limit: 10, offset: 0, hasMore: false } 
+      },
+    });
+    
+    render(<ApprovalDashboardPage />);
+    await waitFor(() => expect(document.querySelector('.animate-spin')).not.toBeInTheDocument());
+    
+    const viewButtons = screen.getAllByText('View Details');
+    await userEvent.click(viewButtons[0]);
+    
+    expect(screen.getByText('[Script file not available]')).toBeInTheDocument();
+  });
+
+  it('does not show approve/reject buttons for non-pending queries', async () => {
+    const executedQuery = {
+      ...mockQueries[0],
+      status: 'EXECUTED',
+    };
+    
+    (queriesApi.getForApproval as jest.Mock).mockResolvedValue({
+      data: { 
+        data: [executedQuery], 
+        pagination: { total: 1, limit: 10, offset: 0, hasMore: false } 
+      },
+    });
+    
+    render(<ApprovalDashboardPage />);
+    await waitFor(() => expect(document.querySelector('.animate-spin')).not.toBeInTheDocument());
+    
+    const viewButtons = screen.getAllByText('View Details');
+    await userEvent.click(viewButtons[0]);
+    
+    expect(screen.queryByText('✓ Approve')).not.toBeInTheDocument();
+    expect(screen.queryByText('✗ Reject')).not.toBeInTheDocument();
+  });
+
+  it('handles download script functionality', async () => {
+    render(<ApprovalDashboardPage />);
+    await waitFor(() => expect(document.querySelector('.animate-spin')).not.toBeInTheDocument());
+    
+    // Mock URL methods after render
+    Object.defineProperty(global, 'URL', {
+      value: {
+        createObjectURL: jest.fn(() => 'blob:test'),
+        revokeObjectURL: jest.fn(),
+      },
+      writable: true,
+    });
+
+    // Mock DOM methods after render - only mock when creating 'a' elements
+    const originalCreateElement = document.createElement;
+    const createElementSpy = jest.spyOn(document, 'createElement').mockImplementation((tagName: string) => {
+      if (tagName === 'a') {
+        return {
+          href: '',
+          download: '',
+          click: jest.fn(),
+          setAttribute: jest.fn(),
+          getAttribute: jest.fn(),
+          removeAttribute: jest.fn(),
+        } as any;
+      }
+      return originalCreateElement.call(document, tagName);
+    });
+    
+    const appendChildSpy = jest.spyOn(document.body, 'appendChild').mockImplementation(() => null as any);
+    const removeChildSpy = jest.spyOn(document.body, 'removeChild').mockImplementation(() => null as any);
+    
+    const viewButtons = screen.getAllByText('View Details');
+    await userEvent.click(viewButtons[1]); // Script query
+    
+    const downloadButton = screen.getByText(/download script/i);
+    await userEvent.click(downloadButton);
+    
+    expect(createElementSpy).toHaveBeenCalledWith('a');
+    expect(global.URL.createObjectURL).toHaveBeenCalled();
+    expect(global.URL.revokeObjectURL).toHaveBeenCalled();
+    
+    // Cleanup
+    createElementSpy.mockRestore();
+    appendChildSpy.mockRestore();
+    removeChildSpy.mockRestore();
+  });
+
+  it('does not show download button for queries without script content', async () => {
+    const scriptQueryWithoutContent = {
+      ...mockQueries[1],
+      script_content: null,
+    };
+    
+    (queriesApi.getForApproval as jest.Mock).mockResolvedValue({
+      data: { 
+        data: [scriptQueryWithoutContent], 
+        pagination: { total: 1, limit: 10, offset: 0, hasMore: false } 
+      },
+    });
+    
+    render(<ApprovalDashboardPage />);
+    await waitFor(() => expect(document.querySelector('.animate-spin')).not.toBeInTheDocument());
+    
+    const viewButtons = screen.getAllByText('View Details');
+    await userEvent.click(viewButtons[0]);
+    
+    expect(screen.queryByText(/download script/i)).not.toBeInTheDocument();
+  });
+
+  it('closes detail modal when clicking close button', async () => {
+    render(<ApprovalDashboardPage />);
+    await waitFor(() => expect(document.querySelector('.animate-spin')).not.toBeInTheDocument());
+    
+    const viewButtons = screen.getAllByText('View Details');
+    await userEvent.click(viewButtons[0]);
+    
+    expect(screen.getByText('Query Details')).toBeInTheDocument();
+    
+    const closeButton = screen.getByRole('button', { name: /close/i });
+    await userEvent.click(closeButton);
+    
+    await waitFor(() => {
+      expect(screen.queryByText('Query Details')).not.toBeInTheDocument();
+    });
+  });
 });
 
 describe('ApprovalDashboardPage - Error Handling', () => {
@@ -526,6 +852,10 @@ describe('ApprovalDashboardPage - Error Handling', () => {
     (queriesApi.getForApproval as jest.Mock).mockResolvedValue({
       data: { data: mockQueries, pagination: { total: 3, limit: 10, offset: 0, hasMore: false } },
     });
+  });
+
+  afterEach(() => {
+    cleanup();
   });
 
   it('shows error alert on reject failure', async () => {
@@ -549,5 +879,263 @@ describe('ApprovalDashboardPage - Error Handling', () => {
     render(<ApprovalDashboardPage />);
     await waitFor(() => expect(consoleSpy).toHaveBeenCalledWith('Failed to load queries:', expect.any(Error)));
     consoleSpy.mockRestore();
+  });
+
+  it('handles empty queries list', async () => {
+    (queriesApi.getForApproval as jest.Mock).mockResolvedValue({ 
+      data: { data: [], pagination: { total: 0, limit: 10, offset: 0, hasMore: false } }
+    });
+    
+    render(<ApprovalDashboardPage />);
+    await waitFor(() => {
+      expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
+    });
+    
+    expect(screen.getByText('No queries found')).toBeInTheDocument();
+  });
+
+  it('handles pagination correctly', async () => {
+    const mockLargeResponse = {
+      data: mockQueries,
+      pagination: { total: 25, limit: 10, offset: 0, hasMore: true },
+    };
+    (queriesApi.getForApproval as jest.Mock).mockResolvedValue({ data: mockLargeResponse });
+    
+    render(<ApprovalDashboardPage />);
+    await waitFor(() => {
+      expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
+    });
+    
+    expect(screen.getByText('Page 1 of 3')).toBeInTheDocument();
+    
+    // Test next page
+    const nextButton = screen.getByRole('button', { name: /next/i });
+    await userEvent.click(nextButton);
+    
+    await waitFor(() => {
+      expect(queriesApi.getForApproval).toHaveBeenCalledWith({
+        status: 'PENDING',
+        type: undefined,
+        limit: 10,
+        offset: 10
+      });
+    });
+  });
+
+  it('handles items per page change', async () => {
+    render(<ApprovalDashboardPage />);
+    await waitFor(() => {
+      expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
+    });
+    
+    const select = screen.getByDisplayValue('10');
+    await userEvent.selectOptions(select, '25');
+    
+    await waitFor(() => {
+      expect(queriesApi.getForApproval).toHaveBeenCalledWith({
+        status: 'PENDING',
+        type: undefined,
+        limit: 25,
+        offset: 0
+      });
+    });
+  });
+
+  it('handles status filter with empty string', async () => {
+    render(<ApprovalDashboardPage />);
+    await waitFor(() => {
+      expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
+    });
+    
+    const statusSelect = screen.getAllByRole('combobox')[0]; // First combobox is status
+    await userEvent.selectOptions(statusSelect, '');
+    
+    await waitFor(() => {
+      expect(queriesApi.getForApproval).toHaveBeenCalledWith({
+        status: undefined,
+        type: undefined,
+        limit: 10,
+        offset: 0
+      });
+    });
+  });
+
+  it('handles type filter with empty string', async () => {
+    render(<ApprovalDashboardPage />);
+    await waitFor(() => {
+      expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
+    });
+    
+    const typeSelect = screen.getAllByRole('combobox')[1]; // Second combobox is type
+    await userEvent.selectOptions(typeSelect, 'QUERY');
+    
+    await waitFor(() => {
+      expect(queriesApi.getForApproval).toHaveBeenCalledWith({
+        status: 'PENDING',
+        type: 'QUERY',
+        limit: 10,
+        offset: 0
+      });
+    });
+    
+    // Test empty type filter
+    await userEvent.selectOptions(typeSelect, '');
+    
+    await waitFor(() => {
+      expect(queriesApi.getForApproval).toHaveBeenCalledWith({
+        status: 'PENDING',
+        type: undefined,
+        limit: 10,
+        offset: 0
+      });
+    });
+  });
+
+  it('handles risk filter changes', async () => {
+    render(<ApprovalDashboardPage />);
+    await waitFor(() => {
+      expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
+    });
+    
+    const riskSelect = screen.getAllByRole('combobox')[2]; // Third combobox is risk
+    await userEvent.selectOptions(riskSelect, 'HIGH');
+    
+    // Should filter queries client-side
+    await waitFor(() => {
+      expect(screen.getByText('🔴 HIGH')).toBeInTheDocument();
+    });
+  });
+
+  it('handles pagination with previous button', async () => {
+    const mockLargeResponse = {
+      data: mockQueries,
+      pagination: { total: 25, limit: 10, offset: 10, hasMore: true },
+    };
+    (queriesApi.getForApproval as jest.Mock).mockResolvedValue({ data: mockLargeResponse });
+    
+    render(<ApprovalDashboardPage />);
+    await waitFor(() => {
+      expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
+    });
+    
+    // Simulate being on page 2
+    const prevButton = screen.getByRole('button', { name: /prev/i });
+    await userEvent.click(prevButton);
+    
+    await waitFor(() => {
+      expect(queriesApi.getForApproval).toHaveBeenCalledWith({
+        status: 'PENDING',
+        type: undefined,
+        limit: 10,
+        offset: 0
+      });
+    });
+  });
+
+  it('disables pagination buttons at boundaries', async () => {
+    const mockLargeResponse = {
+      data: mockQueries,
+      pagination: { total: 25, limit: 10, offset: 0, hasMore: true },
+    };
+    (queriesApi.getForApproval as jest.Mock).mockResolvedValue({ data: mockLargeResponse });
+    
+    render(<ApprovalDashboardPage />);
+    await waitFor(() => {
+      expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
+    });
+    
+    const prevButton = screen.getByRole('button', { name: /prev/i });
+    const nextButton = screen.getByRole('button', { name: /next/i });
+    
+    expect(prevButton).toBeDisabled();
+    expect(nextButton).not.toBeDisabled();
+  });
+
+  it('handles approve error without response message', async () => {
+    const alertMock = jest.spyOn(window, 'alert').mockImplementation(() => {});
+    (queriesApi.approve as jest.Mock).mockRejectedValue(new Error('Network error'));
+    
+    render(<ApprovalDashboardPage />);
+    await waitFor(() => expect(document.querySelector('.animate-spin')).not.toBeInTheDocument());
+    
+    const approveButtons = screen.getAllByText('✓ Approve');
+    await userEvent.click(approveButtons[0]);
+    
+    await waitFor(() => {
+      expect(alertMock).toHaveBeenCalledWith('Failed to approve query');
+    });
+    alertMock.mockRestore();
+  });
+
+  it('handles reject error without response message', async () => {
+    const alertMock = jest.spyOn(window, 'alert').mockImplementation(() => {});
+    (queriesApi.reject as jest.Mock).mockRejectedValue(new Error('Network error'));
+    
+    render(<ApprovalDashboardPage />);
+    await waitFor(() => expect(document.querySelector('.animate-spin')).not.toBeInTheDocument());
+    
+    const rejectButtons = screen.getAllByText('✗ Reject');
+    await userEvent.click(rejectButtons[0]);
+    await userEvent.type(screen.getByLabelText(/rejection reason/i), 'Test reason');
+    await userEvent.click(screen.getByRole('button', { name: /^reject$/i }));
+    
+    await waitFor(() => {
+      expect(alertMock).toHaveBeenCalledWith('Failed to reject query');
+    });
+    alertMock.mockRestore();
+  });
+
+  it('handles single page pagination (no pagination controls)', async () => {
+    const mockSinglePageResponse = {
+      data: mockQueries.slice(0, 2),
+      pagination: { total: 2, limit: 10, offset: 0, hasMore: false },
+    };
+    (queriesApi.getForApproval as jest.Mock).mockResolvedValue({ data: mockSinglePageResponse });
+    
+    render(<ApprovalDashboardPage />);
+    await waitFor(() => {
+      expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
+    });
+    
+    // Should not show pagination controls for single page
+    expect(screen.queryByRole('button', { name: /prev/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /next/i })).not.toBeInTheDocument();
+  });
+
+  it('handles queries with missing optional fields', async () => {
+    const queryWithMissingFields = {
+      ...mockQueries[0],
+      requester_name: null,
+      instance_name: null,
+      script_content: null,
+    };
+    
+    (queriesApi.getForApproval as jest.Mock).mockResolvedValue({
+      data: { 
+        data: [queryWithMissingFields], 
+        pagination: { total: 1, limit: 10, offset: 0, hasMore: false } 
+      },
+    });
+    
+    render(<ApprovalDashboardPage />);
+    await waitFor(() => {
+      expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
+    });
+    
+    expect(screen.getByText('Unknown')).toBeInTheDocument();
+    expect(screen.getByText('-')).toBeInTheDocument();
+  });
+
+  it('handles empty risk filter correctly', async () => {
+    render(<ApprovalDashboardPage />);
+    await waitFor(() => {
+      expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
+    });
+    
+    const riskSelect = screen.getAllByRole('combobox')[2];
+    await userEvent.selectOptions(riskSelect, '');
+    
+    // Should show all queries when risk filter is empty
+    expect(screen.getAllByText('John Doe').length).toBeGreaterThan(0);
   });
 });

@@ -203,7 +203,7 @@ describe('DatabaseService', () => {
       Pool.mockImplementation(() => mockPoolInstance);
 
       await expect(DatabaseService.listDatabasesFromInstance('inst-1'))
-        .rejects.toThrow('Query failed');
+        .rejects.toThrow('Could not connect to any database on this instance');
       expect(mockPoolInstance.end).toHaveBeenCalled();
     });
 

@@ -16,7 +16,20 @@ export function ResultDisplay({ result, maxHeight = '300px', queryId }: ResultDi
   // Check if there's any meaningful content to show buttons for
   const hasContent = () => {
     if (formatted.type === 'table') return formatted.data.length > 0;
-    if (formatted.type === 'json') return formatted.data !== null && formatted.data !== undefined;
+    if (formatted.type === 'json') {
+      if (formatted.data === null || formatted.data === undefined) return false;
+      if (Array.isArray(formatted.data)) return formatted.data.length > 0;
+      if (typeof formatted.data === 'string') return formatted.data.length > 0;
+      return true; // Objects, numbers, booleans are meaningful
+    }
+    // For text type, check if it's the default "No result" message
+    if (formatted.type === 'text') {
+      return formatted.data !== 'No result' && String(formatted.data).length > 0;
+    }
+    
+    // Handle primitive values that should show buttons (0, false are meaningful)
+    if (result === 0 || result === false) return true;
+    
     return String(formatted.data).length > 0;
   };
 

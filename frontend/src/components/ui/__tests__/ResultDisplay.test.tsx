@@ -284,4 +284,53 @@ describe('ResultDisplay', () => {
     });
   });
 
+  describe('edge cases', () => {
+    it('handles empty string result', () => {
+      render(<ResultDisplay result="" />);
+      
+      // Empty string should not show action buttons
+      expect(screen.queryByText('🔍 View Full Result')).not.toBeInTheDocument();
+      expect(screen.queryByText('⬇️ Download')).not.toBeInTheDocument();
+    });
+
+    it('handles zero value result', () => {
+      render(<ResultDisplay result={0} />);
+      
+      // Zero should show action buttons (it's meaningful content)
+      expect(screen.getByText('🔍 View Full Result')).toBeInTheDocument();
+      expect(screen.getByText('⬇️ Download')).toBeInTheDocument();
+    });
+
+    it('handles false value result', () => {
+      render(<ResultDisplay result={false} />);
+      
+      // False should show action buttons (it's meaningful content)
+      expect(screen.getByText('🔍 View Full Result')).toBeInTheDocument();
+      expect(screen.getByText('⬇️ Download')).toBeInTheDocument();
+    });
+
+    it('handles undefined result in hasContent check', () => {
+      render(<ResultDisplay result={undefined} />);
+      
+      // Undefined should not show action buttons
+      expect(screen.queryByText('🔍 View Full Result')).not.toBeInTheDocument();
+      expect(screen.queryByText('⬇️ Download')).not.toBeInTheDocument();
+    });
+
+    it('handles empty array result', () => {
+      render(<ResultDisplay result={[]} />);
+      
+      // Empty array should not show action buttons
+      expect(screen.queryByText('🔍 View Full Result')).not.toBeInTheDocument();
+      expect(screen.queryByText('⬇️ Download')).not.toBeInTheDocument();
+    });
+
+    it('handles single row table', () => {
+      const result = { rows: [{ id: 1 }] };
+      render(<ResultDisplay result={result} />);
+      
+      expect(screen.getByText('1 row returned')).toBeInTheDocument();
+    });
+  });
+
 });

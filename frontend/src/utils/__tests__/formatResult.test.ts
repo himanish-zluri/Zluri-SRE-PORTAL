@@ -180,9 +180,43 @@ describe('formatExecutionResult', () => {
       expect(result.data).toEqual({ key: 'value', num: 42 });
     });
   });
-});
+  describe('edge cases and error conditions', () => {
+    it('handles non-string input in parseConcatenatedJson', () => {
+      // This tests the /* istanbul ignore if */ branch
+      const result = formatExecutionResult({ customData: 123 });
+      expect(result.type).toBe('json');
+      expect(result.data).toEqual({ customData: 123 });
+    });
 
-describe('getTableColumns', () => {
+    it('handles array with concatenated JSON that fails to parse', () => {
+      // This tests the /* istanbul ignore else */ branch by providing invalid JSON
+      const result = formatExecutionResult(['{"invalid":json}']);
+      expect(result.type).toBe('json');
+      expect(result.data).toEqual(['{"invalid":json}']);
+    });
+
+    it('handles empty flattened array', () => {
+      // This tests the /* istanbul ignore if */ branch for empty flattened array
+      const result = formatExecutionResult([null, undefined]);
+      expect(result.type).toBe('table'); // null is typeof 'object' in JavaScript
+      expect(result.data).toEqual([null, undefined]);
+    });
+
+    it('handles array with non-object items after flattening', () => {
+      // This tests the /* istanbul ignore if */ branch for non-empty flattened array with primitives
+      const result = formatExecutionResult(['string1', 'string2']);
+      expect(result.type).toBe('json');
+      expect(result.data).toEqual(['string1', 'string2']);
+    });
+
+    it('handles original array with objects when flattening fails', () => {
+      // This tests the /* istanbul ignore if */ branch for original array handling
+      const result = formatExecutionResult([{ id: 1 }, { id: 2 }]);
+      expect(result.type).toBe('table');
+      expect(result.data).toEqual([{ id: 1 }, { id: 2 }]);
+    });
+  });
+});
   it('returns empty array for empty data', () => {
     expect(getTableColumns([])).toEqual([]);
   });
@@ -207,8 +241,6 @@ describe('getTableColumns', () => {
     expect(columns).toContain('name');
     expect(columns).toContain('email');
   });
-});
-
 describe('formatCellValue', () => {
   it('returns "NULL" for null', () => {
     expect(formatCellValue(null)).toBe('NULL');

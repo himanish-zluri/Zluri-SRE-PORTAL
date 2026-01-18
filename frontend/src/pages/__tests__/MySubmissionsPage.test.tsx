@@ -376,6 +376,108 @@ describe('MySubmissionsPage', () => {
     
     expect(screen.getByText('Jan 15')).toBeInTheDocument();
   });
+
+  it('handles loading failure gracefully', async () => {
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    (queriesApi.getMySubmissions as jest.Mock).mockRejectedValue(new Error('Load failed'));
+    
+    renderMySubmissions();
+    
+    await waitFor(() => {
+      expect(consoleSpy).toHaveBeenCalledWith('Failed to load queries:', expect.any(Error));
+    });
+    
+    consoleSpy.mockRestore();
+  });
+
+  it('handles pagination with multiple pages', async () => {
+    const mockLargeResponse = {
+      data: mockQueries,
+      pagination: { total: 25, limit: 10, offset: 0, hasMore: true },
+    };
+    (queriesApi.getMySubmissions as jest.Mock).mockResolvedValue({ data: mockLargeResponse });
+    
+    renderMySubmissions();
+    
+    await waitFor(() => {
+      expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
+    });
+    
+    expect(screen.getByText('Page 1 of 3')).toBeInTheDocument();
+    
+    // Test next page
+    const nextButton = screen.getByRole('button', { name: /next/i });
+    await userEvent.click(nextButton);
+    
+    await waitFor(() => {
+      expect(queriesApi.getMySubmissions).toHaveBeenCalledWith({
+        limit: 10,
+        offset: 10
+      });
+    });
+  });
+
+  it('handles single page pagination', async () => {
+    renderMySubmissions();
+    
+    await waitFor(() => {
+      expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
+    });
+    
+    // Should not show pagination navigation for single page (but "Per page" label is still shown)
+    expect(screen.queryByText(/page \d+ of \d+/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /prev/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /next/i })).not.toBeInTheDocument();
+  });
+
+  it('shows fallback pod_id when pod_manager_name is not available', async () => {
+    const mockQueriesWithoutManager = [
+      {
+        ...mockQueries[0],
+        pod_manager_name: undefined,
+        pod_id: 'pod-fallback'
+      }
+    ];
+    
+    (queriesApi.getMySubmissions as jest.Mock).mockResolvedValue({
+      data: { 
+        data: mockQueriesWithoutManager, 
+        pagination: { total: 1, limit: 10, offset: 0, hasMore: false } 
+      }
+    });
+    
+    renderMySubmissions();
+    
+    await waitFor(() => {
+      expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
+    });
+    
+    expect(screen.getByText('pod-fallback')).toBeInTheDocument();
+  });
+
+  it('shows fallback dash when instance_name is not available', async () => {
+    const mockQueriesWithoutInstance = [
+      {
+        ...mockQueries[0],
+        instance_name: undefined
+      }
+    ];
+    
+    (queriesApi.getMySubmissions as jest.Mock).mockResolvedValue({
+      data: { 
+        data: mockQueriesWithoutInstance, 
+        pagination: { total: 1, limit: 10, offset: 0, hasMore: false } 
+      }
+    });
+    
+    renderMySubmissions();
+    
+    await waitFor(() => {
+      expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
+    });
+    
+    expect(screen.getByText('-')).toBeInTheDocument();
+  });
 });
 
 

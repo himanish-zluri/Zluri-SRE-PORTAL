@@ -1,8 +1,16 @@
 import '@testing-library/jest-dom';
 
 // Polyfill TextEncoder/TextDecoder for react-router-dom
+const { TextEncoder, TextDecoder } = require('util');
 (global as any).TextEncoder = TextEncoder;
 (global as any).TextDecoder = TextDecoder;
+
+// Mock import.meta.env
+(global as any).importMeta = {
+  env: {
+    VITE_API_URL: 'http://localhost:3000/api'
+  }
+};
 
 // Mock window.matchMedia
 Object.defineProperty(window, 'matchMedia', {

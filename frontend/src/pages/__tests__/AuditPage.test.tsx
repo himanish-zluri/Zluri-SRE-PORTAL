@@ -587,4 +587,95 @@ describe('AuditPage', () => {
     
     expect(screen.getByRole('button', { name: /next/i })).toBeDisabled();
   });
+
+  it('handles loading failure gracefully', async () => {
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    (auditApi.getAll as jest.Mock).mockRejectedValue(new Error('Load failed'));
+    
+    render(<AuditPage />);
+    
+    await waitFor(() => {
+      expect(consoleSpy).toHaveBeenCalledWith('Failed to load audit logs:', expect.any(Error));
+    });
+    
+    consoleSpy.mockRestore();
+  });
+
+  it('handles users loading failure gracefully', async () => {
+    const consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    (usersApi.getAll as jest.Mock).mockRejectedValue(new Error('Users load failed'));
+    
+    render(<AuditPage />);
+    
+    await waitFor(() => {
+      expect(consoleSpy).toHaveBeenCalledWith('Could not load users (may not have permission)');
+    });
+    
+    consoleSpy.mockRestore();
+  });
+
+  it('handles instances loading failure gracefully', async () => {
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    (instancesApi.getAll as jest.Mock).mockRejectedValue(new Error('Instances load failed'));
+    
+    render(<AuditPage />);
+    
+    await waitFor(() => {
+      expect(consoleSpy).toHaveBeenCalledWith('Failed to load filter options:', expect.any(Error));
+    });
+    
+    consoleSpy.mockRestore();
+  });
+
+  it('handles databases loading failure gracefully', async () => {
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    (databasesApi.getByInstance as jest.Mock).mockRejectedValue(new Error('Databases load failed'));
+    
+    render(<AuditPage />);
+    
+    await waitFor(() => {
+      expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
+    });
+    
+    // Select instance to trigger database loading
+    await userEvent.selectOptions(screen.getByLabelText(/filter by instance/i), 'inst-1');
+    
+    await waitFor(() => {
+      expect(consoleSpy).toHaveBeenCalledWith('Failed to load databases:', expect.any(Error));
+    });
+    
+    consoleSpy.mockRestore();
+  });
+
+  it('shows empty state when no audit logs', async () => {
+    (auditApi.getAll as jest.Mock).mockResolvedValue({ data: [] });
+    
+    render(<AuditPage />);
+    
+    await waitFor(() => {
+      expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
+    });
+    
+    expect(screen.getByText('No audit logs found')).toBeInTheDocument();
+  });
+
+  it('clears filters correctly', async () => {
+    render(<AuditPage />);
+    
+    await waitFor(() => {
+      expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
+    });
+    
+    // Set some filters
+    await userEvent.selectOptions(screen.getByLabelText(/filter by user/i), 'user-1');
+    await userEvent.selectOptions(screen.getByLabelText(/filter by instance/i), 'inst-1');
+    
+    // Clear filters
+    await userEvent.click(screen.getByRole('button', { name: /clear/i }));
+    
+    await waitFor(() => {
+      expect(screen.getByLabelText(/filter by user/i)).toHaveValue('');
+      expect(screen.getByLabelText(/filter by instance/i)).toHaveValue('');
+    });
+  });
 });

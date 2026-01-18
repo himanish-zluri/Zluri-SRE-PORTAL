@@ -177,7 +177,7 @@ describe('DashboardPage', () => {
     await userEvent.selectOptions(screen.getByLabelText(/submission type/i), 'SCRIPT');
     
     await waitFor(() => {
-      expect(screen.getByText(/db is pre-injected/i)).toBeInTheDocument();
+      expect(screen.getByText(/db object is pre-injected/i)).toBeInTheDocument();
     });
   });
 

@@ -47,7 +47,7 @@ function parseConcatenatedJson(str: string): any[] | null {
  * Handles nested JSON strings and prettifies output
  */
 export function formatExecutionResult(result: any): { type: 'table' | 'json' | 'text'; data: any } {
-  if (!result) return { type: 'text', data: 'No result' };
+  if (result === null || result === undefined) return { type: 'text', data: 'No result' };
 
   // Handle script execution result with stdout/stderr (legacy format)
   if (result.stdout !== undefined) {

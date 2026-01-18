@@ -39,7 +39,8 @@ describe('PostgresQueryExecutor', () => {
         port: 5432,
         user: 'user',
         password: 'pass',
-        database: 'test_db'
+        database: 'test_db',
+        ssl: { rejectUnauthorized: false }
       });
       expect(mockPool.query).toHaveBeenCalledWith('SELECT * FROM users');
       expect(mockPool.end).toHaveBeenCalled();
