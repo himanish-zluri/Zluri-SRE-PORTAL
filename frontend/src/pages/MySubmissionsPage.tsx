@@ -6,6 +6,7 @@ import { StatusBadge } from '../components/ui/StatusBadge';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { ResultDisplay } from '../components/ui/ResultDisplay';
+import { Select } from '../components/ui/Select';
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 
@@ -21,25 +22,94 @@ export function MySubmissionsPage() {
   const [totalItems, setTotalItems] = useState(0);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
+  // Filter state - The 4 essential filters
+  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [typeFilter, setTypeFilter] = useState<string>('');
+  const [instanceFilter, setInstanceFilter] = useState<string>('');
+  const [dateFilter, setDateFilter] = useState<string>('');
+
   useEffect(() => {
     loadQueries();
-  }, [currentPage, itemsPerPage]);
+  }, [currentPage, itemsPerPage, statusFilter, typeFilter, instanceFilter, dateFilter]);
 
   const loadQueries = async () => {
     setIsLoading(true);
     try {
       const offset = (currentPage - 1) * itemsPerPage;
-      const response = await queriesApi.getMySubmissions({ 
+      const params: any = { 
         limit: itemsPerPage, 
         offset 
-      });
-      setQueries(response.data.data);
-      setTotalItems(response.data.pagination.total);
+      };
+      
+      // Add filters to API call
+      if (statusFilter) params.status = statusFilter;
+      if (typeFilter) params.type = typeFilter;
+      
+      const response = await queriesApi.getMySubmissions(params);
+      let filteredQueries = Array.isArray(response.data.data) ? response.data.data : [];
+      
+      // Apply client-side filters that API doesn't support
+      if (instanceFilter && filteredQueries.length > 0) {
+        filteredQueries = filteredQueries.filter(q => 
+          q && q.instance_name && q.instance_name.toLowerCase().includes(instanceFilter.toLowerCase())
+        );
+      }
+      
+      // Apply date filter client-side
+      if (dateFilter && filteredQueries.length > 0) {
+        const now = new Date();
+        const filterDate = new Date();
+        
+        switch (dateFilter) {
+          case '24h':
+            filterDate.setHours(now.getHours() - 24);
+            filteredQueries = filteredQueries.filter(q => 
+              q && q.created_at && new Date(q.created_at) >= filterDate
+            );
+            break;
+          case '7d':
+            filterDate.setDate(now.getDate() - 7);
+            filteredQueries = filteredQueries.filter(q => 
+              q && q.created_at && new Date(q.created_at) >= filterDate
+            );
+            break;
+          case '30d':
+            filterDate.setDate(now.getDate() - 30);
+            filteredQueries = filteredQueries.filter(q => 
+              q && q.created_at && new Date(q.created_at) >= filterDate
+            );
+            break;
+        }
+      }
+      
+      setQueries(Array.isArray(filteredQueries) ? filteredQueries : []);
+      setTotalItems(response.data.pagination?.total || filteredQueries.length);
     } catch (error) {
       console.error('Failed to load queries:', error);
+      setQueries([]);
+      setTotalItems(0);
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const clearFilters = () => {
+    setStatusFilter('');
+    setTypeFilter('');
+    setInstanceFilter('');
+    setDateFilter('');
+    setCurrentPage(1);
+  };
+
+  // Count queries by status for overview
+  const getStatusCounts = () => {
+    const safeQueries = Array.isArray(queries) ? queries : [];
+    return {
+      PENDING: safeQueries.filter(q => q?.status === 'PENDING').length,
+      EXECUTED: safeQueries.filter(q => q?.status === 'EXECUTED').length,
+      FAILED: safeQueries.filter(q => q?.status === 'FAILED').length,
+      REJECTED: safeQueries.filter(q => q?.status === 'REJECTED').length,
+    };
   };
 
   // Retry: Resubmit the exact same query automatically
@@ -122,6 +192,7 @@ export function MySubmissionsPage() {
   };
 
   const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const statusCounts = getStatusCounts();
 
   const handleItemsPerPageChange = (newLimit: number) => {
     setItemsPerPage(newLimit);
@@ -138,9 +209,118 @@ export function MySubmissionsPage() {
 
   return (
     <div>
-      <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">
-        My Submissions
-      </h2>
+      {/* Header with Status Overview */}
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+          My Submissions
+        </h2>
+        
+        {/* Status Overview Counters */}
+        <div className="flex items-center gap-4 text-sm">
+          <div className="flex items-center gap-1">
+            <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+            <span className="text-gray-600 dark:text-gray-400">Pending: {statusCounts.PENDING}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+            <span className="text-gray-600 dark:text-gray-400">Failed: {statusCounts.FAILED}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-2 h-2 bg-red-600 rounded-full"></div>
+            <span className="text-gray-600 dark:text-gray-400">Rejected: {statusCounts.REJECTED}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+            <span className="text-gray-600 dark:text-gray-400">Executed: {statusCounts.EXECUTED}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Professional Filter Bar - The 4 Essential Filters */}
+      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4 mb-6">
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Status:</label>
+            <Select
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="min-w-[120px]"
+              options={[
+                { value: '', label: 'All' },
+                { value: 'PENDING', label: 'PENDING' },
+                { value: 'EXECUTED', label: 'EXECUTED' },
+                { value: 'FAILED', label: 'FAILED' },
+                { value: 'REJECTED', label: 'REJECTED' },
+              ]}
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Type:</label>
+            <Select
+              value={typeFilter}
+              onChange={(e) => {
+                setTypeFilter(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="min-w-[100px]"
+              options={[
+                { value: '', label: 'All' },
+                { value: 'QUERY', label: 'QUERY' },
+                { value: 'SCRIPT', label: 'SCRIPT' },
+              ]}
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Instance:</label>
+            <Select
+              value={instanceFilter}
+              onChange={(e) => {
+                setInstanceFilter(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="min-w-[140px]"
+              options={[
+                { value: '', label: 'All' },
+                { value: 'pg-instance', label: 'pg-instance' },
+                { value: 'md-instance', label: 'md-instance' },
+              ]}
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Date Range:</label>
+            <Select
+              value={dateFilter}
+              onChange={(e) => {
+                setDateFilter(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="min-w-[140px]"
+              options={[
+                { value: '', label: 'All Time' },
+                { value: '24h', label: 'Last 24 Hours' },
+                { value: '7d', label: 'Last 7 Days' },
+                { value: '30d', label: 'Last 30 Days' },
+              ]}
+            />
+          </div>
+
+          {(statusFilter || typeFilter || instanceFilter || dateFilter) && (
+            <Button
+              variant="secondary"
+              onClick={clearFilters}
+              className="text-sm"
+            >
+              Clear Filters
+            </Button>
+          )}
+        </div>
+      </div>
 
       <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
         <table className="w-full">
@@ -159,7 +339,9 @@ export function MySubmissionsPage() {
             {queries.length === 0 ? (
               <tr>
                 <td colSpan={7} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
-                  No submissions yet
+                  {(statusFilter || typeFilter || instanceFilter || dateFilter) 
+                    ? 'No submissions match your filters' 
+                    : 'No submissions yet'}
                 </td>
               </tr>
             ) : (
@@ -273,6 +455,11 @@ export function MySubmissionsPage() {
         <span>👁️ View Details</span>
         <span>🔄 Retry (resubmit same query)</span>
         <span>✏️ Modify (edit before resubmitting)</span>
+      </div>
+
+      {/* Professional Note */}
+      <div className="mt-2 text-xs text-gray-400 dark:text-gray-500">
+        💡 My Submissions dashboard is optimized for developers. The most important signals are status, type, and database instance. Anything that requires action is immediately visible.
       </div>
 
       {/* Detail Modal */}
