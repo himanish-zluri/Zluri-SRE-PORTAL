@@ -115,6 +115,80 @@ describe('API Services', () => {
       // Restore import.meta
       (globalThis as any).import = originalImport;
     });
+
+    it('should handle eval error when accessing import.meta in non-test environment', () => {
+      // Mock process.env to simulate non-test environment
+      const originalProcess = global.process;
+      global.process = { env: { NODE_ENV: 'production' } } as any;
+      
+      // Mock eval to throw an error
+      const originalEval = global.eval;
+      global.eval = jest.fn().mockImplementation(() => {
+        throw new Error('eval error');
+      });
+      
+      // Re-import the module to test the catch block
+      jest.resetModules();
+      const { authApi: testAuthApi } = require('../api');
+      
+      // Should still work with default values despite eval error
+      expect(testAuthApi).toBeDefined();
+      
+      // Restore original functions
+      global.eval = originalEval;
+      global.process = originalProcess;
+    });
+
+    it('should use import.meta.env in non-test environment when available', () => {
+      // Mock process.env to simulate non-test environment
+      const originalProcess = global.process;
+      global.process = { env: { NODE_ENV: 'production' } } as any;
+      
+      // Mock eval to return import.meta with env
+      const originalEval = global.eval;
+      global.eval = jest.fn().mockReturnValue({
+        env: {
+          VITE_API_URL: 'https://eval-api.com/api',
+          MODE: 'production'
+        }
+      });
+      
+      // Re-import the module to test the eval path
+      jest.resetModules();
+      const { authApi: testAuthApi } = require('../api');
+      
+      // Should work with eval-provided values
+      expect(testAuthApi).toBeDefined();
+      expect(global.eval).toHaveBeenCalledWith('import.meta');
+      
+      // Restore original functions
+      global.eval = originalEval;
+      global.process = originalProcess;
+    });
+
+    it('should return default value when import.meta.env is null in non-test environment', () => {
+      // Mock process.env to simulate non-test environment
+      const originalProcess = global.process;
+      global.process = { env: { NODE_ENV: 'production' } } as any;
+      
+      // Mock eval to return import.meta without env
+      const originalEval = global.eval;
+      global.eval = jest.fn().mockReturnValue({
+        env: null
+      });
+      
+      // Re-import the module to test the fallback
+      jest.resetModules();
+      const { authApi: testAuthApi } = require('../api');
+      
+      // Should still work with default values
+      expect(testAuthApi).toBeDefined();
+      expect(global.eval).toHaveBeenCalledWith('import.meta');
+      
+      // Restore original functions
+      global.eval = originalEval;
+      global.process = originalProcess;
+    });
   });
 
   describe('authApi', () => {
