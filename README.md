@@ -223,7 +223,7 @@ Comprehensive API documentation is available at:
   - Query Submission: 10 submissions per 5 minutes per IP
 - **Speed Limiting**: Progressive delays after 50 requests (up to 20s max delay)
 - **Request Monitoring**: Real-time tracking and alerting for suspicious activity (>200 req/min)
-- **Security Stats**: Admin endpoint `/api/security/stats` for monitoring
+
 
 ### Security Headers & Protection
 - **Helmet.js Integration**: Comprehensive security headers

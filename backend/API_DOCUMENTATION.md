@@ -594,7 +594,7 @@ The API implements comprehensive protection against Distributed Denial of Servic
 #### Request Monitoring
 - **Real-time Tracking**: All requests are monitored and tracked by IP address
 - **Suspicious Activity Detection**: Automatic logging when IP exceeds 200 requests per minute
-- **Security Statistics**: Admin endpoint `/api/security/stats` provides monitoring data
+
 - **Automatic Cleanup**: Old tracking data is automatically purged
 
 ### Security Headers
@@ -663,11 +663,7 @@ Comprehensive input validation prevents various attack vectors:
 
 ### Security Monitoring
 
-#### Security Statistics Endpoint
-```http
-GET /api/security/stats
-Authorization: Bearer <admin_token>
-```
+
 
 **Response:**
 ```json

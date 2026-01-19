@@ -26,7 +26,7 @@ Implemented comprehensive DDoS/DoS protection for the Database Query Portal to p
 ### 4. Request Monitoring & Tracking
 - **Real-time Tracking**: All requests monitored and tracked by IP address
 - **Suspicious Activity Detection**: Automatic logging when IP exceeds 200 requests per minute
-- **Security Statistics**: Admin endpoint `/api/security/stats` for monitoring
+
 - **Automatic Cleanup**: Old tracking data automatically purged
 
 ### 5. Enhanced Input Validation
@@ -79,11 +79,7 @@ app.use('/api/queries', querySubmissionRateLimit, queryRoutes);
 
 ## Security Monitoring
 
-### Admin Monitoring Endpoint
-```http
-GET /api/security/stats
-Authorization: Bearer <admin_token>
-```
+
 
 **Response:**
 ```json

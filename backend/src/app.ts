@@ -114,16 +114,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/test', testRoutes);
 app.use('/api/audit', auditRoutes);
 
-// Security monitoring endpoint (admin only)
-app.get('/api/security/stats', (req, res) => {
-  // In production, this should be protected with admin authentication
-  const stats = getRequestStats();
-  res.json({
-    message: 'Security statistics',
-    timestamp: new Date().toISOString(),
-    ...stats
-  });
-});
+
 
 // Development only: Reset rate limits (DO NOT USE IN PRODUCTION)
 if (process.env.NODE_ENV === 'development') {
