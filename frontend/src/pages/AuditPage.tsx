@@ -170,57 +170,6 @@ export function AuditPage() {
     }
   };
 
-  const formatDetails = (action: string, details: Record<string, any>) => {
-    if (!details || Object.keys(details).length === 0) return '-';
-
-    switch (action) {
-      case 'SUBMITTED':
-        return (
-          <div className="space-y-0.5">
-            {details.submissionType && (
-              <div><span className="text-gray-500">Type:</span> {details.submissionType}</div>
-            )}
-            {details.podId && (
-              <div><span className="text-gray-500">POD:</span> {details.podId}</div>
-            )}
-          </div>
-        );
-      case 'REJECTED':
-        return (
-          <div>
-            <span className="text-gray-500">Reason:</span>{' '}
-            <span className="text-red-500">{details.reason || 'No reason provided'}</span>
-          </div>
-        );
-      case 'FAILED':
-        return (
-          <div>
-            <span className="text-gray-500">Error:</span>{' '}
-            <span className="text-orange-500 break-all">{details.error || 'Unknown error'}</span>
-          </div>
-        );
-      case 'EXECUTED':
-        return (
-          <div>
-            {details.instanceType && (
-              <div><span className="text-gray-500">Instance:</span> {details.instanceType}</div>
-            )}
-          </div>
-        );
-      /* istanbul ignore next */
-      default:
-        return (
-          <div className="text-xs">
-            {Object.entries(details).map(([key, value]) => (
-              <div key={key}>
-                <span className="text-gray-500">{key}:</span> {String(value)}
-              </div>
-            ))}
-          </div>
-        );
-    }
-  };
-
   return (
     <div>
       {/* Header with Action Overview */}
@@ -255,7 +204,7 @@ export function AuditPage() {
         {/* First row - Search and Date Range */}
         <div className="flex flex-wrap gap-4">
           <div className="flex items-center gap-2 flex-1 min-w-64">
-            <label className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">Search Query:</label>
+            <label className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">Search Query ID:</label>
             <input
               type="text"
               value={querySearch}
@@ -263,7 +212,7 @@ export function AuditPage() {
                 setQuerySearch(e.target.value);
                 setCurrentPage(1);
               }}
-              placeholder="Search in query text or script content..."
+              placeholder="Search by query ID..."
               className="flex-1 px-3 py-1.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white text-sm"
             />
           </div>
@@ -381,14 +330,13 @@ export function AuditPage() {
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-400">Action</th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-400">Performed By</th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-400">Query ID</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-400">Details</th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-400">Actions</th>
               </tr>
             </thead>
             <tbody>
               {logs.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                  <td colSpan={5} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                     No audit logs found
                   </td>
                 </tr>
@@ -407,9 +355,6 @@ export function AuditPage() {
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300 font-mono">
                       {log.query_request_id.substring(0, 8)}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
-                      {formatDetails(log.action, log.details)}
                     </td>
                     <td className="px-4 py-3">
                       <Button

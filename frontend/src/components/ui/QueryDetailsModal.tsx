@@ -233,8 +233,8 @@ export function QueryDetailsModal({ queryId, isOpen, onClose }: QueryDetailsModa
                   <label className="block text-sm font-medium text-red-600 dark:text-red-400 mb-2">
                     Rejection Reason
                   </label>
-                  <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-3">
-                    <div className="text-sm text-red-800 dark:text-red-200">
+                  <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-3 max-h-32 overflow-y-auto">
+                    <div className="text-sm text-red-800 dark:text-red-200 whitespace-pre-wrap">
                       {query.rejection_reason}
                     </div>
                   </div>

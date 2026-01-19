@@ -7,7 +7,7 @@ export interface AuditFilterOptions {
   userId?: string;
   databaseName?: string;
   action?: string;
-  querySearch?: string;
+  queryId?: string;
   startDate?: Date;
   endDate?: Date;
   limit?: number;
@@ -103,14 +103,11 @@ export class AuditRepository {
     if (options.action) {
       where.action = options.action;
     }
-    if (options.querySearch) {
-      // Search in both query text and script content
+    if (options.queryId) {
+      // Search by query request ID (partial match)
       where.queryRequest = { 
         ...where.queryRequest, 
-        $or: [
-          { queryText: { $ilike: `%${options.querySearch}%` } },
-          { scriptContent: { $ilike: `%${options.querySearch}%` } }
-        ]
+        id: { $ilike: `%${options.queryId}%` }
       };
     }
     if (options.startDate || options.endDate) {

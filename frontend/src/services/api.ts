@@ -165,7 +165,7 @@ export const auditApi = {
     queryId?: string; 
     databaseName?: string; 
     action?: string;
-    querySearch?: string;
+    querySearch?: string; // This will be used for query ID search
     startDate?: string;
     endDate?: string;
   }) =>

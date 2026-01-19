@@ -37,7 +37,7 @@ export class AuditController {
         userId: userId as string,
         databaseName: databaseName as string,
         action: action as string,
-        querySearch: querySearch as string,
+        queryId: querySearch as string, // Use querySearch as queryId for partial matching
         startDate: parsedStartDate,
         endDate: parsedEndDate,
         limit,
