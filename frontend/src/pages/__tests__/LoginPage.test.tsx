@@ -45,7 +45,7 @@ describe('LoginPage', () => {
     expect(screen.getByText('Database Query Portal')).toBeInTheDocument();
     expect(screen.getByText('Sign in to your account')).toBeInTheDocument();
     expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Enter your password')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /login/i })).toBeInTheDocument();
   });
 
@@ -74,7 +74,7 @@ describe('LoginPage', () => {
 
   it('updates password input on change', async () => {
     renderLoginPage();
-    const passwordInput = screen.getByLabelText(/password/i);
+    const passwordInput = screen.getByPlaceholderText('Enter your password');
     
     await userEvent.type(passwordInput, 'password123');
     expect(passwordInput).toHaveValue('password123');
@@ -85,7 +85,7 @@ describe('LoginPage', () => {
     renderLoginPage();
     
     await userEvent.type(screen.getByLabelText(/email/i), 'test@example.com');
-    await userEvent.type(screen.getByLabelText(/password/i), 'password123');
+    await userEvent.type(screen.getByPlaceholderText('Enter your password'), 'password123');
     await userEvent.click(screen.getByRole('button', { name: /login/i }));
     
     await waitFor(() => {
@@ -100,7 +100,7 @@ describe('LoginPage', () => {
     renderLoginPage();
     
     await userEvent.type(screen.getByLabelText(/email/i), 'test@example.com');
-    await userEvent.type(screen.getByLabelText(/password/i), 'wrongpassword');
+    await userEvent.type(screen.getByPlaceholderText('Enter your password'), 'wrongpassword');
     await userEvent.click(screen.getByRole('button', { name: /login/i }));
     
     await waitFor(() => {
@@ -113,7 +113,7 @@ describe('LoginPage', () => {
     renderLoginPage();
     
     await userEvent.type(screen.getByLabelText(/email/i), 'test@example.com');
-    await userEvent.type(screen.getByLabelText(/password/i), 'password');
+    await userEvent.type(screen.getByPlaceholderText('Enter your password'), 'password');
     await userEvent.click(screen.getByRole('button', { name: /login/i }));
     
     await waitFor(() => {
@@ -126,7 +126,7 @@ describe('LoginPage', () => {
     renderLoginPage();
     
     await userEvent.type(screen.getByLabelText(/email/i), 'test@example.com');
-    await userEvent.type(screen.getByLabelText(/password/i), 'password');
+    await userEvent.type(screen.getByPlaceholderText('Enter your password'), 'password');
     await userEvent.click(screen.getByRole('button', { name: /login/i }));
     
     // Button should show loading state (text changes to "Loading...")
@@ -166,7 +166,7 @@ describe('LoginPage', () => {
     renderLoginPage();
     
     expect(screen.getByLabelText(/email/i)).toBeRequired();
-    expect(screen.getByLabelText(/password/i)).toBeRequired();
+    expect(screen.getByPlaceholderText('Enter your password')).toBeRequired();
   });
 
   it('email input has correct type', () => {
@@ -176,6 +176,26 @@ describe('LoginPage', () => {
 
   it('password input has correct type', () => {
     renderLoginPage();
-    expect(screen.getByLabelText(/password/i)).toHaveAttribute('type', 'password');
+    expect(screen.getByPlaceholderText('Enter your password')).toHaveAttribute('type', 'password');
+  });
+
+  it('toggles password visibility when eye button is clicked', async () => {
+    renderLoginPage();
+    const passwordInput = screen.getByPlaceholderText('Enter your password');
+    const toggleButton = screen.getByLabelText('Show password');
+    
+    // Initially password should be hidden
+    expect(passwordInput).toHaveAttribute('type', 'password');
+    
+    // Click to show password
+    await userEvent.click(toggleButton);
+    expect(passwordInput).toHaveAttribute('type', 'text');
+    expect(screen.getByLabelText('Hide password')).toBeInTheDocument();
+    
+    // Click to hide password again
+    const hideButton = screen.getByLabelText('Hide password');
+    await userEvent.click(hideButton);
+    expect(passwordInput).toHaveAttribute('type', 'password');
+    expect(screen.getByLabelText('Show password')).toBeInTheDocument();
   });
 });
