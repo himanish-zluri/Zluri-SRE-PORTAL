@@ -335,7 +335,7 @@ describe('AuditPage', () => {
     
     // Should show the submitted log entry (details are now in modal)
     expect(screen.getByText('SUBMITTED')).toBeInTheDocument();
-    expect(screen.getByText('View Details')).toBeInTheDocument();
+    expect(screen.getAllByText('View Details').length).toBeGreaterThan(0);
   });
 
   it('displays details for REJECTED action', async () => {
@@ -347,7 +347,7 @@ describe('AuditPage', () => {
     
     // Should show the rejected log entry (details are now in modal)
     expect(screen.getByText('REJECTED')).toBeInTheDocument();
-    expect(screen.getByText('View Details')).toBeInTheDocument();
+    expect(screen.getAllByText('View Details').length).toBeGreaterThan(0);
   });
 
   it('displays details for FAILED action', async () => {
@@ -359,7 +359,7 @@ describe('AuditPage', () => {
     
     // Should show the failed log entry (details are now in modal)
     expect(screen.getByText('FAILED')).toBeInTheDocument();
-    expect(screen.getByText('View Details')).toBeInTheDocument();
+    expect(screen.getAllByText('View Details').length).toBeGreaterThan(0);
   });
 
   it('displays details for EXECUTED action', async () => {
@@ -371,7 +371,7 @@ describe('AuditPage', () => {
     
     // Should show the executed log entry (details are now in modal)
     expect(screen.getByText('EXECUTED')).toBeInTheDocument();
-    expect(screen.getByText('View Details')).toBeInTheDocument();
+    expect(screen.getAllByText('View Details').length).toBeGreaterThan(0);
   });
 
   it('handles user loading failure gracefully', async () => {

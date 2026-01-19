@@ -327,9 +327,17 @@ describe('Validation Schemas', () => {
             limit: '50',
             offset: '10',
             queryId: '550e8400-e29b-41d4-a716-446655440000',
+            instanceId: '550e8400-e29b-41d4-a716-446655440001',
           },
         });
         expect(result.success).toBe(true);
+      });
+
+      it('should fail with invalid instanceId', () => {
+        const result = getAuditLogsSchema.safeParse({
+          query: { instanceId: 'not-a-uuid' },
+        });
+        expect(result.success).toBe(false);
       });
 
       it('should fail with invalid queryId', () => {

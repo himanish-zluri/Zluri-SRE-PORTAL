@@ -91,6 +91,7 @@ export function AuditPage() {
       };
       
       if (selectedDatabase) params.databaseName = selectedDatabase;
+      if (selectedInstance) params.instanceId = selectedInstance;
       if (selectedUser) params.userId = selectedUser;
       if (selectedAction) params.action = selectedAction;
       if (querySearch.trim()) params.querySearch = querySearch.trim();

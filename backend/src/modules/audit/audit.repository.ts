@@ -5,6 +5,7 @@ export { AuditAction };
 
 export interface AuditFilterOptions {
   userId?: string;
+  instanceId?: string;
   databaseName?: string;
   action?: string;
   queryId?: string;
@@ -96,6 +97,9 @@ export class AuditRepository {
 
     if (options.userId) {
       where.performedBy = options.userId;
+    }
+    if (options.instanceId) {
+      where.queryRequest = { ...where.queryRequest, instance: options.instanceId };
     }
     if (options.databaseName) {
       where.queryRequest = { ...where.queryRequest, databaseName: options.databaseName };

@@ -228,6 +228,20 @@ describe('AuditRepository', () => {
       expect(result).toEqual(mockLogs);
     });
 
+    it('should filter by instanceId', async () => {
+      const mockLogs = [{ id: 'log-1' }];
+      mockEntityManager.find.mockResolvedValue(mockLogs);
+
+      const result = await AuditRepository.findWithFilters({ instanceId: 'instance-1' });
+
+      expect(mockEntityManager.find).toHaveBeenCalledWith(
+        expect.any(Function),
+        { queryRequest: { instance: 'instance-1' } },
+        expect.any(Object)
+      );
+      expect(result).toEqual(mockLogs);
+    });
+
     it('should filter by action', async () => {
       const mockLogs = [{ id: 'log-1' }];
       mockEntityManager.find.mockResolvedValue(mockLogs);

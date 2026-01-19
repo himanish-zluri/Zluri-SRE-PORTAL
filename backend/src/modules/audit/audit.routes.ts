@@ -37,6 +37,12 @@ const router = Router();
  *           format: uuid
  *         description: Filter by user ID
  *       - in: query
+ *         name: instanceId
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Filter by database instance ID
+ *       - in: query
  *         name: databaseName
  *         schema:
  *           type: string

@@ -92,6 +92,7 @@ describe('AuditController', () => {
 
       expect(AuditRepository.findWithFilters).toHaveBeenCalledWith({
         userId: 'user-1',
+        instanceId: undefined,
         databaseName: undefined,
         action: undefined,
         queryId: undefined,
@@ -118,7 +119,32 @@ describe('AuditController', () => {
 
       expect(AuditRepository.findWithFilters).toHaveBeenCalledWith({
         userId: undefined,
+        instanceId: undefined,
         databaseName: 'production_db',
+        action: undefined,
+        queryId: undefined,
+        startDate: undefined,
+        endDate: undefined,
+        limit: 50,
+        offset: 10,
+      });
+    });
+
+    it('should filter by instanceId when provided', async () => {
+      const mockLogs = [createMockLog('log-1', 'SUBMITTED')];
+      (AuditRepository.findWithFilters as jest.Mock).mockResolvedValue(mockLogs);
+
+      mockRequest = {
+        user: { id: 'admin-1', email: 'admin@test.com', role: 'ADMIN' },
+        query: { instanceId: 'instance-1', limit: '50', offset: '10' }
+      };
+
+      await AuditController.getAuditLogs(mockRequest as AuthenticatedRequest, mockResponse as Response);
+
+      expect(AuditRepository.findWithFilters).toHaveBeenCalledWith({
+        userId: undefined,
+        instanceId: 'instance-1',
+        databaseName: undefined,
         action: undefined,
         queryId: undefined,
         startDate: undefined,
@@ -141,6 +167,7 @@ describe('AuditController', () => {
 
       expect(AuditRepository.findWithFilters).toHaveBeenCalledWith({
         userId: undefined,
+        instanceId: undefined,
         databaseName: undefined,
         action: 'EXECUTED',
         queryId: undefined,
@@ -164,6 +191,7 @@ describe('AuditController', () => {
 
       expect(AuditRepository.findWithFilters).toHaveBeenCalledWith({
         userId: undefined,
+        instanceId: undefined,
         databaseName: undefined,
         action: undefined,
         queryId: 'abc123',
@@ -190,6 +218,7 @@ describe('AuditController', () => {
 
       expect(AuditRepository.findWithFilters).toHaveBeenCalledWith({
         userId: undefined,
+        instanceId: undefined,
         databaseName: undefined,
         action: undefined,
         queryId: undefined,
@@ -222,6 +251,7 @@ describe('AuditController', () => {
 
       expect(AuditRepository.findWithFilters).toHaveBeenCalledWith({
         userId: 'user-1',
+        instanceId: undefined,
         databaseName: 'prod_db',
         action: 'EXECUTED',
         queryId: 'abc123',
