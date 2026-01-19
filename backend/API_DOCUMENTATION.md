@@ -1,6 +1,8 @@
 # API Documentation
 
-Base URL: `http://localhost:3000/api`
+**Base URLs:**
+- Development: `http://localhost:3000/api`
+- Production: `https://zluri-sre-backend.onrender.com/api`
 
 ## Authentication
 
