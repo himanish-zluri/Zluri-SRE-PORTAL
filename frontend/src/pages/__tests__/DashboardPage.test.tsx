@@ -2,6 +2,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { DashboardPage } from '../DashboardPage';
+import { AuthProvider } from '../../context/AuthContext';
 
 // Mock the API
 jest.mock('../../services/api', () => ({
@@ -16,6 +17,9 @@ jest.mock('../../services/api', () => ({
   },
   queriesApi: {
     submit: jest.fn(),
+  },
+  authApi: {
+    refresh: jest.fn(),
   },
 }));
 
@@ -42,9 +46,11 @@ const mockPods = [
 
 const renderDashboard = (locationState?: any) => {
   return render(
-    <MemoryRouter initialEntries={[{ pathname: '/dashboard', state: locationState }]}>
-      <DashboardPage />
-    </MemoryRouter>
+    <AuthProvider>
+      <MemoryRouter initialEntries={[{ pathname: '/dashboard', state: locationState }]}>
+        <DashboardPage />
+      </MemoryRouter>
+    </AuthProvider>
   );
 };
 
