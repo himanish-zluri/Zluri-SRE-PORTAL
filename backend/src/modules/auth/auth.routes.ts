@@ -120,4 +120,9 @@ router.post('/logout', authRateLimit, validate(logoutSchema), asyncHandler(AuthC
  */
 router.post('/logout-all', authRateLimit, requireAuth, asyncHandler(AuthController.logoutAll));
 
+// Debug endpoint to check cookies (development only)
+if (process.env.NODE_ENV !== 'production') {
+  router.get('/debug-cookies', asyncHandler(AuthController.debugCookies));
+}
+
 export default router;

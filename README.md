@@ -204,7 +204,7 @@ npm test -- --watch        # Watch mode
 
 Comprehensive API documentation is available at:
 - **Backend API**: [backend/API_DOCUMENTATION.md](backend/API_DOCUMENTATION.md)
-- **OpenAPI Spec**: Available at `/api/docs` when server is running
+- **OpenAPI Spec**: Available at `/api-docs` when server is running
 
 ### Key Endpoints
 - `POST /api/auth/login` - User authentication
