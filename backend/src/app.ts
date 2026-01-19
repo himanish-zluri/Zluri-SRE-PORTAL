@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import swaggerUi from 'swagger-ui-express';
 import authRoutes from './modules/auth/auth.routes';
 import testRoutes from './routes/test.routes';
@@ -66,6 +67,9 @@ const corsOptions = {
   credentials: true,
 };
 app.use(cors(corsOptions));
+
+// Cookie parser middleware for HttpOnly cookies
+app.use(cookieParser());
 
 // Body parsing with size limits to prevent DoS attacks
 app.use(express.json({ 

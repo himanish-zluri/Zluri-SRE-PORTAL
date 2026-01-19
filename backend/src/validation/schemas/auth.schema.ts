@@ -7,16 +7,14 @@ export const loginSchema = z.object({
   }),
 });
 
+// Refresh token now comes from cookies, no body validation needed
 export const refreshSchema = z.object({
-  body: z.object({
-    refreshToken: z.string().min(1, 'Refresh token is required'),
-  }),
+  body: z.object({}).optional(),
 });
 
+// Logout token now comes from cookies, no body validation needed
 export const logoutSchema = z.object({
-  body: z.object({
-    refreshToken: z.string().min(1, 'Refresh token is required'),
-  }),
+  body: z.object({}).optional(),
 });
 
 export type LoginInput = z.infer<typeof loginSchema>['body'];

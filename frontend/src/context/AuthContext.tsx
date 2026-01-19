@@ -17,15 +17,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const initAuth = async () => {
-      const refreshToken = localStorage.getItem('refreshToken');
-      if (refreshToken) {
+      // Try to refresh token from HttpOnly cookie
+      const accessToken = localStorage.getItem('accessToken');
+      if (accessToken) {
         try {
-          const response = await authApi.refresh(refreshToken);
-          localStorage.setItem('accessToken', response.data.accessToken);
+          // Verify token is still valid by making a test request
+          const response = await authApi.refresh();
           setUser(response.data.user);
+          localStorage.setItem('accessToken', response.data.accessToken);
         } catch {
+          // Token refresh failed, clear access token
           localStorage.removeItem('accessToken');
-          localStorage.removeItem('refreshToken');
         }
       }
       setIsLoading(false);
@@ -35,23 +37,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string) => {
     const response = await authApi.login(email, password);
+    // Only store access token in localStorage (refresh token is in HttpOnly cookie)
     localStorage.setItem('accessToken', response.data.accessToken);
-    localStorage.setItem('refreshToken', response.data.refreshToken);
     setUser(response.data.user);
   };
 
   const logout = async () => {
-    const refreshToken = localStorage.getItem('refreshToken');
-    if (refreshToken) {
-      try {
-        await authApi.logout(refreshToken);
-      } catch {
-        // Ignore logout errors
-      }
+    try {
+      // Call logout endpoint to clear HttpOnly cookie
+      await authApi.logout();
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      // Always clear local state and access token
+      localStorage.removeItem('accessToken');
+      setUser(null);
     }
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-    setUser(null);
   };
 
   return (

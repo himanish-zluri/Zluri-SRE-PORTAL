@@ -39,6 +39,7 @@ const getApiUrl = () => {
 
 const api = axios.create({
   baseURL: getApiUrl(),
+  withCredentials: true, // Send cookies with requests
 });
 
 // Request interceptor to add auth token
@@ -61,20 +62,18 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
       
-      const refreshToken = localStorage.getItem('refreshToken');
-      if (refreshToken) {
-        try {
-          const refreshUrl = getEnvVar('MODE') === 'test' ? '/api/auth/refresh' : `${getApiUrl()}/auth/refresh`;
-          const response = await axios.post(refreshUrl, { refreshToken });
-          const { accessToken } = response.data;
-          localStorage.setItem('accessToken', accessToken);
-          originalRequest.headers.Authorization = `Bearer ${accessToken}`;
-          return api(originalRequest);
-        } catch {
-          localStorage.removeItem('accessToken');
-          localStorage.removeItem('refreshToken');
-          window.location.href = '/login';
-        }
+      try {
+        // Try to refresh token using HttpOnly cookie
+        const refreshUrl = getEnvVar('MODE') === 'test' ? '/api/auth/refresh' : `${getApiUrl()}/auth/refresh`;
+        const response = await axios.post(refreshUrl, {}, { withCredentials: true });
+        const { accessToken } = response.data;
+        localStorage.setItem('accessToken', accessToken);
+        originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+        return api(originalRequest);
+      } catch {
+        // Refresh failed, redirect to login
+        localStorage.removeItem('accessToken');
+        window.location.href = '/login';
       }
     }
     return Promise.reject(error);
@@ -84,13 +83,13 @@ api.interceptors.response.use(
 // Auth
 export const authApi = {
   login: (email: string, password: string) =>
-    api.post<AuthResponse>('/auth/login', { email, password }),
+    api.post<{ accessToken: string; user: AuthResponse['user'] }>('/auth/login', { email, password }),
   
-  refresh: (refreshToken: string) =>
-    api.post<{ accessToken: string; user: AuthResponse['user'] }>('/auth/refresh', { refreshToken }),
+  refresh: () =>
+    api.post<{ accessToken: string; user: AuthResponse['user'] }>('/auth/refresh'),
   
-  logout: (refreshToken: string) =>
-    api.post('/auth/logout', { refreshToken }),
+  logout: () =>
+    api.post('/auth/logout'),
   
   logoutAll: () =>
     api.post('/auth/logout-all'),
