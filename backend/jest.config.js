@@ -1,8 +1,8 @@
 module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
-  roots: ['<rootDir>/src', '<rootDir>/tests'],
-  testMatch: ['**/*.test.ts'],
+  roots: ['<rootDir>/src'],
+  testMatch: ['**/__tests__/**/*.test.ts'],
   collectCoverageFrom: [
     'src/**/*.ts',
     '!src/server.ts',
@@ -12,7 +12,8 @@ module.exports = {
     '!src/**/*.routes.ts',
     '!src/routes/**',
     '!src/execution/sandbox/index.ts',
-    '!src/execution/sandbox/*-script.executor.ts'
+    '!src/execution/sandbox/*-script.executor.ts',
+    '!src/**/__tests__/**'
   ],
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov', 'html'],

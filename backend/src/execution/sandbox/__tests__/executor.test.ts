@@ -1,0 +1,709 @@
+import { 
+  executeInSandbox, 
+  executePostgresScriptSandboxed, 
+  executeMongoScriptSandboxed,
+  DEFAULT_TIMEOUT_MS 
+} from '../executor';
+import { fork, ChildProcess } from 'child_process';
+import { EventEmitter } from 'events';
+import fs from 'fs';
+
+jest.mock('child_process');
+jest.mock('fs');
+
+describe('Sandbox Executor', () => {
+  let mockChild: EventEmitter & {
+    stdout: EventEmitter;
+    stderr: EventEmitter;
+    kill: jest.Mock;
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.useFakeTimers();
+
+    mockChild = Object.assign(new EventEmitter(), {
+      stdout: new EventEmitter(),
+      stderr: new EventEmitter(),
+      kill: jest.fn(),
+    });
+
+    (fork as jest.Mock).mockReturnValue(mockChild);
+    (fs.existsSync as jest.Mock).mockReturnValue(true); // Assume .js files exist
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  describe('executeInSandbox', () => {
+    it('should fork child process with config', async () => {
+      const config = { scriptPath: '/test.js', foo: 'bar' };
+      
+      const promise = executeInSandbox('/runner.js', config);
+      
+      // Simulate successful completion
+      mockChild.stdout.emit('data', JSON.stringify({ success: true, result: 'ok' }));
+      mockChild.emit('close', 0);
+
+      await promise;
+
+      expect(fork).toHaveBeenCalledWith(
+        '/runner.js',
+        [JSON.stringify(config)],
+        expect.objectContaining({
+          stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
+        })
+      );
+    });
+
+    it('should return parsed JSON result on success', async () => {
+      const promise = executeInSandbox('/runner.js', {});
+      
+      mockChild.stdout.emit('data', JSON.stringify({ 
+        success: true, 
+        result: { data: 'test' },
+        logs: ['log1', 'log2']
+      }));
+      mockChild.emit('close', 0);
+
+      const result = await promise;
+
+      expect(result.success).toBe(true);
+      expect(result.result).toEqual({ data: 'test' });
+      expect(result.logs).toEqual(['log1', 'log2']);
+    });
+
+    it('should handle non-JSON stdout', async () => {
+      const promise = executeInSandbox('/runner.js', {});
+      
+      mockChild.stdout.emit('data', 'plain text output');
+      mockChild.emit('close', 0);
+
+      const result = await promise;
+
+      expect(result.success).toBe(true);
+      expect(result.stdout).toBe('plain text output');
+    });
+
+    it('should capture stderr', async () => {
+      const promise = executeInSandbox('/runner.js', {});
+      
+      mockChild.stdout.emit('data', JSON.stringify({ success: true }));
+      mockChild.stderr.emit('data', 'warning message');
+      mockChild.emit('close', 0);
+
+      const result = await promise;
+
+      expect(result.stderr).toBe('warning message');
+    });
+
+    it('should return error on non-zero exit code', async () => {
+      const promise = executeInSandbox('/runner.js', {});
+      
+      mockChild.stdout.emit('data', JSON.stringify({ success: false, error: 'Script failed' }));
+      mockChild.emit('close', 1);
+
+      const result = await promise;
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Script failed');
+    });
+
+    it('should handle timeout and kill process', async () => {
+      const promise = executeInSandbox('/runner.js', {}, { timeoutMs: 1000 });
+      
+      // Advance time past timeout
+      jest.advanceTimersByTime(1001);
+      
+      // Process gets killed, then closes
+      mockChild.emit('close', null);
+
+      const result = await promise;
+
+      expect(mockChild.kill).toHaveBeenCalledWith('SIGKILL');
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('timed out');
+    });
+
+    it('should use default timeout', async () => {
+      expect(DEFAULT_TIMEOUT_MS).toBe(30000);
+    });
+
+    it('should reject on fork error', async () => {
+      const promise = executeInSandbox('/runner.js', {});
+      
+      mockChild.emit('error', new Error('Fork failed'));
+
+      await expect(promise).rejects.toThrow('Failed to start sandbox: Fork failed');
+    });
+
+    it('should handle stderr as error when exit code is non-zero and no JSON', async () => {
+      const promise = executeInSandbox('/runner.js', {});
+      
+      mockChild.stdout.emit('data', 'not json');
+      mockChild.stderr.emit('data', 'Error: something went wrong');
+      mockChild.emit('close', 1);
+
+      const result = await promise;
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Error: something went wrong');
+    });
+
+    it('should accumulate multiple stdout chunks', async () => {
+      const promise = executeInSandbox('/runner.js', {});
+      
+      mockChild.stdout.emit('data', '{"success":');
+      mockChild.stdout.emit('data', 'true}');
+      mockChild.emit('close', 0);
+
+      const result = await promise;
+
+      expect(result.success).toBe(true);
+    });
+
+    it('should clear timeout on successful completion', async () => {
+      const promise = executeInSandbox('/runner.js', {}, { timeoutMs: 5000 });
+      
+      mockChild.stdout.emit('data', JSON.stringify({ success: true }));
+      mockChild.emit('close', 0);
+
+      await promise;
+
+      // Advance time - should not trigger timeout since it was cleared
+      jest.advanceTimersByTime(10000);
+      
+      expect(mockChild.kill).not.toHaveBeenCalled();
+    });
+
+    it('should handle empty stdout with non-zero exit', async () => {
+      const promise = executeInSandbox('/runner.js', {});
+      
+      mockChild.emit('close', 1);
+
+      const result = await promise;
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Script execution failed');
+    });
+
+    it('should handle fork throwing synchronously', async () => {
+      (fork as jest.Mock).mockImplementation(() => {
+        throw new Error('Cannot fork');
+      });
+
+      await expect(executeInSandbox('/runner.js', {}))
+        .rejects.toThrow('Sandbox error: Cannot fork');
+    });
+
+    it('should use success from parsed JSON when code is 0', async () => {
+      const promise = executeInSandbox('/runner.js', {});
+      
+      // JSON says success: false but exit code is 0
+      mockChild.stdout.emit('data', JSON.stringify({ success: false, error: 'partial failure' }));
+      mockChild.emit('close', 0);
+
+      const result = await promise;
+
+      expect(result.success).toBe(false);
+    });
+
+    it('should default success to true when not in JSON and code is 0', async () => {
+      const promise = executeInSandbox('/runner.js', {});
+      
+      // JSON without success field
+      mockChild.stdout.emit('data', JSON.stringify({ result: 'data' }));
+      mockChild.emit('close', 0);
+
+      const result = await promise;
+
+      expect(result.success).toBe(true);
+    });
+  });
+
+  describe('executePostgresScriptSandboxed', () => {
+    it('should call executeInSandbox with postgres config and return parsed result', async () => {
+      const promise = executePostgresScriptSandboxed(
+        '/script.js',
+        {
+          PG_HOST: 'localhost',
+          PG_PORT: '5432',
+          PG_USER: 'user',
+          PG_PASSWORD: 'pass',
+          PG_DATABASE: 'testdb',
+        }
+      );
+
+      mockChild.stdout.emit('data', JSON.stringify({ success: true, result: { rows: [] } }));
+      mockChild.emit('close', 0);
+
+      const result = await promise;
+
+      // Now returns parsed result directly, not wrapped in stdout/stderr
+      expect(result).toEqual({ rows: [] });
+    });
+
+    it('should use .ts runner path when .js does not exist', async () => {
+      (fs.existsSync as jest.Mock).mockReturnValue(false);
+      
+      const promise = executePostgresScriptSandboxed(
+        '/script.js',
+        {
+          PG_HOST: 'localhost',
+          PG_PORT: '5432',
+          PG_USER: 'user',
+          PG_PASSWORD: 'pass',
+          PG_DATABASE: 'testdb',
+        }
+      );
+
+      mockChild.stdout.emit('data', JSON.stringify({ success: true, result: 'ok' }));
+      mockChild.emit('close', 0);
+
+      await promise;
+
+      // Verify fork was called with .ts path
+      expect(fork).toHaveBeenCalledWith(
+        expect.stringContaining('postgres-script.executor.ts'),
+        expect.any(Array),
+        expect.any(Object)
+      );
+    });
+
+    it('should throw error on failure', async () => {
+      const promise = executePostgresScriptSandboxed(
+        '/script.js',
+        {
+          PG_HOST: 'localhost',
+          PG_PORT: '5432',
+          PG_USER: 'user',
+          PG_PASSWORD: 'pass',
+          PG_DATABASE: 'testdb',
+        }
+      );
+
+      mockChild.stdout.emit('data', JSON.stringify({ success: false, error: 'DB error' }));
+      mockChild.emit('close', 1);
+
+      await expect(promise).rejects.toThrow('DB error');
+    });
+
+    it('should use logs when result is undefined', async () => {
+      const promise = executePostgresScriptSandboxed(
+        '/script.js',
+        {
+          PG_HOST: 'localhost',
+          PG_PORT: '5432',
+          PG_USER: 'user',
+          PG_PASSWORD: 'pass',
+          PG_DATABASE: 'testdb',
+        }
+      );
+
+      mockChild.stdout.emit('data', JSON.stringify({ success: true, logs: ['line1', 'line2'] }));
+      mockChild.emit('close', 0);
+
+      const result = await promise;
+
+      // Returns logs array when result is undefined
+      expect(result).toEqual(['line1', 'line2']);
+    });
+
+    it('should parse stdout as JSON when result and logs are undefined', async () => {
+      const promise = executePostgresScriptSandboxed(
+        '/script.js',
+        {
+          PG_HOST: 'localhost',
+          PG_PORT: '5432',
+          PG_USER: 'user',
+          PG_PASSWORD: 'pass',
+          PG_DATABASE: 'testdb',
+        }
+      );
+
+      mockChild.stdout.emit('data', JSON.stringify({ success: true }));
+      mockChild.emit('close', 0);
+
+      const result = await promise;
+
+      // Parses stdout as JSON when result and logs are undefined
+      expect(result).toEqual({ success: true });
+    });
+
+    it('should parse single log entry as JSON when it is a valid JSON string', async () => {
+      const promise = executePostgresScriptSandboxed(
+        '/script.js',
+        {
+          PG_HOST: 'localhost',
+          PG_PORT: '5432',
+          PG_USER: 'user',
+          PG_PASSWORD: 'pass',
+          PG_DATABASE: 'testdb',
+        }
+      );
+
+      // Single log entry that is a valid JSON string
+      mockChild.stdout.emit('data', JSON.stringify({ success: true, logs: ['{"data":"parsed"}'] }));
+      mockChild.emit('close', 0);
+
+      const result = await promise;
+
+      expect(result).toEqual({ data: 'parsed' });
+    });
+
+    it('should return single log entry as-is when it is not valid JSON', async () => {
+      const promise = executePostgresScriptSandboxed(
+        '/script.js',
+        {
+          PG_HOST: 'localhost',
+          PG_PORT: '5432',
+          PG_USER: 'user',
+          PG_PASSWORD: 'pass',
+          PG_DATABASE: 'testdb',
+        }
+      );
+
+      // Single log entry that is NOT valid JSON
+      mockChild.stdout.emit('data', JSON.stringify({ success: true, logs: ['plain text log'] }));
+      mockChild.emit('close', 0);
+
+      const result = await promise;
+
+      expect(result).toBe('plain text log');
+    });
+
+    it('should return fallback object when stdout is not valid JSON', async () => {
+      const promise = executePostgresScriptSandboxed(
+        '/script.js',
+        {
+          PG_HOST: 'localhost',
+          PG_PORT: '5432',
+          PG_USER: 'user',
+          PG_PASSWORD: 'pass',
+          PG_DATABASE: 'testdb',
+        }
+      );
+
+      // stdout is not valid JSON, no result, no logs
+      mockChild.stdout.emit('data', 'success: true\nplain output');
+      mockChild.emit('close', 0);
+
+      const result = await promise;
+
+      expect(result).toEqual({ output: 'success: true\nplain output', stderr: '' });
+    });
+
+    it('should throw default error when no error message', async () => {
+      const promise = executePostgresScriptSandboxed(
+        '/script.js',
+        {
+          PG_HOST: 'localhost',
+          PG_PORT: '5432',
+          PG_USER: 'user',
+          PG_PASSWORD: 'pass',
+          PG_DATABASE: 'testdb',
+        }
+      );
+
+      mockChild.stdout.emit('data', JSON.stringify({ success: false }));
+      mockChild.emit('close', 1);
+
+      await expect(promise).rejects.toThrow('Script execution failed');
+    });
+
+    it('should pass timeout option', async () => {
+      const promise = executePostgresScriptSandboxed(
+        '/script.js',
+        {
+          PG_HOST: 'localhost',
+          PG_PORT: '5432',
+          PG_USER: 'user',
+          PG_PASSWORD: 'pass',
+          PG_DATABASE: 'testdb',
+        },
+        { timeoutMs: 5000 }
+      );
+
+      jest.advanceTimersByTime(5001);
+      mockChild.emit('close', null);
+
+      await expect(promise).rejects.toThrow('timed out');
+    });
+
+    it('should skip error logs (logs with _error property)', async () => {
+      const promise = executePostgresScriptSandboxed(
+        '/script.js',
+        {
+          PG_HOST: 'localhost',
+          PG_PORT: '5432',
+          PG_USER: 'user',
+          PG_PASSWORD: 'pass',
+          PG_DATABASE: 'testdb',
+        }
+      );
+
+      // Logs include an error log that should be skipped
+      mockChild.stdout.emit('data', JSON.stringify({ 
+        success: true, 
+        logs: [
+          { _error: true, message: 'some error' },
+          { id: 1, name: 'valid' }
+        ] 
+      }));
+      mockChild.emit('close', 0);
+
+      const result = await promise;
+
+      // Should only return the valid log, not the error log
+      expect(result).toEqual({ id: 1, name: 'valid' });
+    });
+
+    it('should handle null/undefined logs in array', async () => {
+      const promise = executePostgresScriptSandboxed(
+        '/script.js',
+        {
+          PG_HOST: 'localhost',
+          PG_PORT: '5432',
+          PG_USER: 'user',
+          PG_PASSWORD: 'pass',
+          PG_DATABASE: 'testdb',
+        }
+      );
+
+      // Logs include null and undefined values
+      mockChild.stdout.emit('data', JSON.stringify({ 
+        success: true, 
+        logs: [null, undefined, { id: 1 }] 
+      }));
+      mockChild.emit('close', 0);
+
+      const result = await promise;
+
+      // Should only return the valid log
+      expect(result).toEqual({ id: 1 });
+    });
+
+    it('should flatten array logs', async () => {
+      const promise = executePostgresScriptSandboxed(
+        '/script.js',
+        {
+          PG_HOST: 'localhost',
+          PG_PORT: '5432',
+          PG_USER: 'user',
+          PG_PASSWORD: 'pass',
+          PG_DATABASE: 'testdb',
+        }
+      );
+
+      // Logs contain arrays that should be flattened
+      mockChild.stdout.emit('data', JSON.stringify({ 
+        success: true, 
+        logs: [
+          [{ id: 1 }, { id: 2 }],
+          [{ id: 3 }]
+        ] 
+      }));
+      mockChild.emit('close', 0);
+
+      const result = await promise;
+
+      // Should flatten all arrays
+      expect(result).toEqual([{ id: 1 }, { id: 2 }, { id: 3 }]);
+    });
+
+    it('should parse JSON string logs that contain arrays', async () => {
+      const promise = executePostgresScriptSandboxed(
+        '/script.js',
+        {
+          PG_HOST: 'localhost',
+          PG_PORT: '5432',
+          PG_USER: 'user',
+          PG_PASSWORD: 'pass',
+          PG_DATABASE: 'testdb',
+        }
+      );
+
+      // Logs contain JSON strings that are arrays
+      mockChild.stdout.emit('data', JSON.stringify({ 
+        success: true, 
+        logs: ['[{"id":1},{"id":2}]'] 
+      }));
+      mockChild.emit('close', 0);
+
+      const result = await promise;
+
+      // Should parse and flatten
+      expect(result).toEqual([{ id: 1 }, { id: 2 }]);
+    });
+
+    it('should parse JSON string logs that contain objects', async () => {
+      const promise = executePostgresScriptSandboxed(
+        '/script.js',
+        {
+          PG_HOST: 'localhost',
+          PG_PORT: '5432',
+          PG_USER: 'user',
+          PG_PASSWORD: 'pass',
+          PG_DATABASE: 'testdb',
+        }
+      );
+
+      // Logs contain JSON strings that are objects
+      mockChild.stdout.emit('data', JSON.stringify({ 
+        success: true, 
+        logs: ['{"id":1,"name":"test"}'] 
+      }));
+      mockChild.emit('close', 0);
+
+      const result = await promise;
+
+      expect(result).toEqual({ id: 1, name: 'test' });
+    });
+
+    it('should handle mixed log types', async () => {
+      const promise = executePostgresScriptSandboxed(
+        '/script.js',
+        {
+          PG_HOST: 'localhost',
+          PG_PORT: '5432',
+          PG_USER: 'user',
+          PG_PASSWORD: 'pass',
+          PG_DATABASE: 'testdb',
+        }
+      );
+
+      // Logs contain mixed types
+      mockChild.stdout.emit('data', JSON.stringify({ 
+        success: true, 
+        logs: [
+          [{ id: 1 }],
+          '{"id":2}',
+          { id: 3 },
+          'plain text',
+          null
+        ] 
+      }));
+      mockChild.emit('close', 0);
+
+      const result = await promise;
+
+      // Should handle all types
+      expect(result).toEqual([{ id: 1 }, { id: 2 }, { id: 3 }, 'plain text']);
+    });
+  });
+
+  describe('executeMongoScriptSandboxed', () => {
+    it('should call executeInSandbox with mongo config', async () => {
+      const promise = executeMongoScriptSandboxed(
+        '/script.js',
+        'mongodb://localhost:27017',
+        'testdb'
+      );
+
+      mockChild.stdout.emit('data', JSON.stringify({ success: true, result: { docs: [] } }));
+      mockChild.emit('close', 0);
+
+      const result = await promise;
+
+      expect(result).toEqual({ docs: [] });
+    });
+
+    it('should add ts-node execArgv when running under ts-node', async () => {
+      // Simulate ts-node environment
+      const originalArgv = process.argv;
+      process.argv = ['ts-node', 'script.ts'];
+      
+      const promise = executeMongoScriptSandboxed(
+        '/script.js',
+        'mongodb://localhost:27017',
+        'testdb'
+      );
+
+      mockChild.stdout.emit('data', JSON.stringify({ success: true, result: 'ok' }));
+      mockChild.emit('close', 0);
+
+      await promise;
+
+      expect(fork).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(Array),
+        expect.objectContaining({
+          execArgv: ['-r', 'ts-node/register']
+        })
+      );
+
+      process.argv = originalArgv;
+    });
+
+    it('should throw error on failure', async () => {
+      const promise = executeMongoScriptSandboxed(
+        '/script.js',
+        'mongodb://localhost:27017',
+        'testdb'
+      );
+
+      mockChild.stdout.emit('data', JSON.stringify({ success: false, error: 'Mongo error' }));
+      mockChild.emit('close', 1);
+
+      await expect(promise).rejects.toThrow('Mongo error');
+    });
+
+    it('should use last log when result is undefined', async () => {
+      const promise = executeMongoScriptSandboxed(
+        '/script.js',
+        'mongodb://localhost:27017',
+        'testdb'
+      );
+
+      mockChild.stdout.emit('data', JSON.stringify({ success: true, logs: ['first', 'last'] }));
+      mockChild.emit('close', 0);
+
+      const result = await promise;
+
+      expect(result).toBe('last');
+    });
+
+    it('should return default success when result and logs are undefined', async () => {
+      const promise = executeMongoScriptSandboxed(
+        '/script.js',
+        'mongodb://localhost:27017',
+        'testdb'
+      );
+
+      mockChild.stdout.emit('data', JSON.stringify({ success: true }));
+      mockChild.emit('close', 0);
+
+      const result = await promise;
+
+      expect(result).toEqual({ success: true });
+    });
+
+    it('should throw default error when no error message', async () => {
+      const promise = executeMongoScriptSandboxed(
+        '/script.js',
+        'mongodb://localhost:27017',
+        'testdb'
+      );
+
+      mockChild.stdout.emit('data', JSON.stringify({ success: false }));
+      mockChild.emit('close', 1);
+
+      await expect(promise).rejects.toThrow('Script execution failed');
+    });
+
+    it('should pass timeout option', async () => {
+      const promise = executeMongoScriptSandboxed(
+        '/script.js',
+        'mongodb://localhost:27017',
+        'testdb',
+        { timeoutMs: 10000 }
+      );
+
+      jest.advanceTimersByTime(10001);
+      mockChild.emit('close', null);
+
+      await expect(promise).rejects.toThrow('timed out');
+    });
+  });
+});
