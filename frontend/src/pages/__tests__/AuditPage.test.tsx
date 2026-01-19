@@ -49,17 +49,7 @@ const mockAuditLogs = [
     performed_by_name: 'Jane Smith',
     performed_by_email: 'jane@example.com',
     details: { 
-      submissionType: 'QUERY',
-      podId: 'pod-1',
-      podName: 'Analytics Pod',
-      instanceId: 'inst-1',
-      instanceName: 'Production DB',
-      instanceType: 'POSTGRES',
-      databaseName: 'analytics_db',
-      requesterName: 'John Doe',
-      requesterEmail: 'john@example.com',
-      executionTime: '2024-01-15T11:00:00Z',
-      approvedBy: 'Jane Smith'
+      instanceType: 'POSTGRES'
     },
     created_at: '2024-01-15T11:00:00Z',
   },
@@ -71,18 +61,7 @@ const mockAuditLogs = [
     performed_by_name: 'Jane Smith',
     performed_by_email: 'jane@example.com',
     details: { 
-      submissionType: 'SCRIPT',
-      podId: 'pod-2',
-      podName: 'Data Pod',
-      instanceId: 'inst-2',
-      instanceName: 'Dev DB',
-      instanceType: 'MONGODB',
-      databaseName: 'test_db',
-      requesterName: 'Bob Wilson',
-      requesterEmail: 'bob@example.com',
-      rejectionReason: 'Query too broad',
-      rejectionTime: '2024-01-14T15:00:00Z',
-      rejectedBy: 'Jane Smith'
+      reason: 'Query too broad'
     },
     created_at: '2024-01-14T15:00:00Z',
   },
@@ -94,18 +73,7 @@ const mockAuditLogs = [
     performed_by_name: 'John Doe',
     performed_by_email: 'john@example.com',
     details: { 
-      submissionType: 'QUERY',
-      podId: 'pod-1',
-      podName: 'Analytics Pod',
-      instanceId: 'inst-1',
-      instanceName: 'Production DB',
-      instanceType: 'POSTGRES',
-      databaseName: 'analytics_db',
-      requesterName: 'Alice Brown',
-      requesterEmail: 'alice@example.com',
-      error: 'Connection timeout',
-      failureTime: '2024-01-14T14:00:00Z',
-      approvedBy: 'John Doe'
+      error: 'Connection timeout'
     },
     created_at: '2024-01-14T14:00:00Z',
   },
@@ -397,8 +365,8 @@ describe('AuditPage', () => {
       expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
     });
     
-    // Check for instance type in the comprehensive details
-    expect(screen.getAllByText('Production DB (POSTGRES)').length).toBeGreaterThan(0);
+    // Check for instance type in the details
+    expect(screen.getByText('POSTGRES')).toBeInTheDocument();
   });
 
   it('handles user loading failure gracefully', async () => {

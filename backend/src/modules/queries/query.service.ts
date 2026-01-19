@@ -286,11 +286,7 @@ export class QueryService {
       queryRequestId: queryId,
       action: 'REJECTED',
       performedBy: managerId,
-      details: buildAuditDetails(query, {
-        rejectionReason: reason,
-        rejectionTime: new Date().toISOString(),
-        rejectedBy: managerName
-      })
+      details: { reason }
     });
 
     // Send Slack rejection notification (DM to requester only)
@@ -375,5 +371,31 @@ export class QueryService {
         hasMore: offset + queries.length < total
       }
     };
+  }
+
+  static async getQueryById(queryId: string, userId: string, userRole: string): Promise<any> {
+    const query = await QueryRepository.findById(queryId);
+    if (!query) {
+      throw new NotFoundError('Query not found');
+    }
+
+    // Check permissions
+    if (userRole === 'ADMIN') {
+      // Admin can see any query
+    } else if (userRole === 'MANAGER') {
+      // Manager can see queries for their PODs
+      const userPods = await UserRepository.getUserPods(userId);
+      const podIds = userPods.map((pod: any) => pod.id);
+      if (!podIds.includes(query.pod?.id || '')) {
+        throw new ForbiddenError('You can only view queries for your PODs');
+      }
+    } else {
+      // Regular users can only see their own queries
+      if (query.requester?.id !== userId) {
+        throw new ForbiddenError('You can only view your own queries');
+      }
+    }
+
+    return serializeQuery(query);
   }
 }

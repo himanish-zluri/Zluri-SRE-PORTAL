@@ -7,6 +7,9 @@ export interface AuditFilterOptions {
   userId?: string;
   databaseName?: string;
   action?: string;
+  querySearch?: string;
+  startDate?: Date;
+  endDate?: Date;
   limit?: number;
   offset?: number;
 }
@@ -99,6 +102,26 @@ export class AuditRepository {
     }
     if (options.action) {
       where.action = options.action;
+    }
+    if (options.querySearch) {
+      // Search in both query text and script content
+      where.queryRequest = { 
+        ...where.queryRequest, 
+        $or: [
+          { queryText: { $ilike: `%${options.querySearch}%` } },
+          { scriptContent: { $ilike: `%${options.querySearch}%` } }
+        ]
+      };
+    }
+    if (options.startDate || options.endDate) {
+      const dateFilter: any = {};
+      if (options.startDate) {
+        dateFilter.$gte = options.startDate;
+      }
+      if (options.endDate) {
+        dateFilter.$lte = options.endDate;
+      }
+      where.createdAt = dateFilter;
     }
 
     return em.find(

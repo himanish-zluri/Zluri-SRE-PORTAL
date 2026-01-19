@@ -83,8 +83,7 @@ export class QueryRepository {
     }
     
     return em.find(QueryRequest, where, {
-      populate: ['requester', 'pod', 'pod.manager', 'instance', 'approvedBy'],
-      orderBy: { createdAt: 'DESC' },
+      populate: ['requester', 'pod', 'pod.manager', 'instance', 'approvedBy'], orderBy: { createdAt: 'DESC' },
       limit: pagination?.limit,
       offset: pagination?.offset,
     });

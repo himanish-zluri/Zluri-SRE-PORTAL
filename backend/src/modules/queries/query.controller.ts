@@ -112,4 +112,17 @@ export class QueryController {
     const result = await QueryService.getQueriesByUser(userId, statusFilter, typeFilter, pagination);
     res.json(result);
   }
+
+  /**
+   * GET /api/queries/:id - Get query details by ID
+   * Admins can see any query, managers can see queries for their PODs, users can see their own queries
+   */
+  static async getQueryById(req: AuthenticatedRequest, res: Response) {
+    const queryId = req.params.id;
+    const userId = req.user!.id;
+    const userRole = req.user!.role as Role;
+
+    const query = await QueryService.getQueryById(queryId, userId, userRole);
+    res.json(query);
+  }
 }

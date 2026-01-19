@@ -109,6 +109,36 @@ router.get('/my-submissions', requireAuth, validate(getQueriesSchema), asyncHand
 
 /**
  * @openapi
+ * /api/queries/{id}:
+ *   get:
+ *     tags: [Queries]
+ *     summary: Get query details by ID
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Query request ID
+ *     responses:
+ *       200:
+ *         description: Query details
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/QueryRequest'
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Query not found
+ */
+router.get('/:id', requireAuth, validate(queryIdParamSchema), asyncHandler(QueryController.getQueryById));
+
+/**
+ * @openapi
  * /api/queries:
  *   post:
  *     tags: [Queries]

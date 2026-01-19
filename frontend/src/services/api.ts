@@ -129,6 +129,10 @@ export const queriesApi = {
   getMySubmissions: (params?: { status?: string; type?: string; limit?: number; offset?: number }) =>
     api.get<{ data: Query[]; pagination: { total: number; limit: number; offset: number; hasMore: boolean } }>('/queries/my-submissions', { params }),
   
+  // Get query details by ID
+  getById: (id: string) =>
+    api.get<Query>(`/queries/${id}`),
+  
   submit: (data: FormData | {
     instanceId: string;
     databaseName: string;
@@ -154,7 +158,17 @@ export const queriesApi = {
 
 // Audit
 export const auditApi = {
-  getAll: (params?: { limit?: number; offset?: number; userId?: string; queryId?: string; databaseName?: string }) =>
+  getAll: (params?: { 
+    limit?: number; 
+    offset?: number; 
+    userId?: string; 
+    queryId?: string; 
+    databaseName?: string; 
+    action?: string;
+    querySearch?: string;
+    startDate?: string;
+    endDate?: string;
+  }) =>
     api.get<AuditLog[]>('/audit', { params }),
   
   getByQuery: (queryId: string) =>

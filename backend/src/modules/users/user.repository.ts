@@ -1,5 +1,5 @@
 import { getEntityManager } from '../../config/database';
-import { User } from '../../entities';
+import { User, Pod } from '../../entities';
 
 export class UserRepository {
   static async findByEmail(email: string): Promise<User | null> {
@@ -22,5 +22,10 @@ export class UserRepository {
     const user = await em.findOneOrFail(User, { id: userId });
     user.slackId = slackId || undefined;
     await em.flush();
+  }
+
+  static async getUserPods(userId: string): Promise<Pod[]> {
+    const em = getEntityManager();
+    return em.find(Pod, { manager: { id: userId } });
   }
 }

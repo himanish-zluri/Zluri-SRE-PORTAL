@@ -21,18 +21,25 @@ export class AuditController {
   static async getAuditLogs(req: AuthenticatedRequest, res: Response) {
     const limit = parseInt(req.query.limit as string) || 100;
     const offset = parseInt(req.query.offset as string) || 0;
-    const { queryId, userId, databaseName, action } = req.query;
+    const { queryId, userId, databaseName, action, querySearch, startDate, endDate } = req.query;
 
     let logs;
 
     if (queryId) {
       logs = await AuditRepository.findByQueryId(queryId as string);
-    } else if (userId || databaseName || action) {
+    } else if (userId || databaseName || action || querySearch || startDate || endDate) {
+      // Parse dates if provided
+      const parsedStartDate = startDate ? new Date(startDate as string) : undefined;
+      const parsedEndDate = endDate ? new Date(endDate as string) : undefined;
+      
       // Use combined filter method
       logs = await AuditRepository.findWithFilters({
         userId: userId as string,
         databaseName: databaseName as string,
         action: action as string,
+        querySearch: querySearch as string,
+        startDate: parsedStartDate,
+        endDate: parsedEndDate,
         limit,
         offset,
       });

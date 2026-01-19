@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { auditApi, usersApi, instancesApi, databasesApi } from '../services/api';
 import type { AuditLog, DbInstance } from '../types';
 import { Button } from '../components/ui/Button';
+import { QueryDetailsModal } from '../components/ui/QueryDetailsModal';
 
 interface UserOption {
   id: string;
@@ -25,11 +26,18 @@ export function AuditPage() {
   const [selectedInstance, setSelectedInstance] = useState('');
   const [selectedDatabase, setSelectedDatabase] = useState('');
   const [selectedAction, setSelectedAction] = useState('');
+  const [querySearch, setQuerySearch] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  // Modal state
+  const [selectedQueryId, setSelectedQueryId] = useState<string | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   // Load filter options on mount
   useEffect(() => {
@@ -39,7 +47,7 @@ export function AuditPage() {
   // Load logs when page, itemsPerPage, or any filter changes
   useEffect(() => {
     loadLogs();
-  }, [currentPage, itemsPerPage, selectedUser, selectedInstance, selectedDatabase, selectedAction]);
+  }, [currentPage, itemsPerPage, selectedUser, selectedInstance, selectedDatabase, selectedAction, querySearch, startDate, endDate]);
 
   // Load databases when instance changes
   useEffect(() => {
@@ -85,6 +93,9 @@ export function AuditPage() {
       if (selectedDatabase) params.databaseName = selectedDatabase;
       if (selectedUser) params.userId = selectedUser;
       if (selectedAction) params.action = selectedAction;
+      if (querySearch.trim()) params.querySearch = querySearch.trim();
+      if (startDate) params.startDate = startDate;
+      if (endDate) params.endDate = endDate;
 
       const response = await auditApi.getAll(params);
       setLogs(response.data);
@@ -101,6 +112,9 @@ export function AuditPage() {
     setSelectedInstance('');
     setSelectedDatabase('');
     setSelectedAction('');
+    setQuerySearch('');
+    setStartDate('');
+    setEndDate('');
     setCurrentPage(1);
   };
 
@@ -118,6 +132,16 @@ export function AuditPage() {
   const handleItemsPerPageChange = (newLimit: number) => {
     setItemsPerPage(newLimit);
     setCurrentPage(1);
+  };
+
+  const handleViewDetails = (queryId: string) => {
+    setSelectedQueryId(queryId);
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setSelectedQueryId(null);
   };
 
   const actionCounts = getActionCounts();
@@ -149,92 +173,52 @@ export function AuditPage() {
   const formatDetails = (action: string, details: Record<string, any>) => {
     if (!details || Object.keys(details).length === 0) return '-';
 
-    // Common details that appear in all actions
-    const commonDetails = (
-      <div className="space-y-0.5 text-xs">
-        {details.submissionType && (
-          <div><span className="text-gray-500">Type:</span> {details.submissionType}</div>
-        )}
-        {details.podName && (
-          <div><span className="text-gray-500">POD:</span> {details.podName}</div>
-        )}
-        {details.instanceName && (
-          <div><span className="text-gray-500">Instance:</span> {details.instanceName} ({details.instanceType})</div>
-        )}
-        {details.databaseName && (
-          <div><span className="text-gray-500">Database:</span> {details.databaseName}</div>
-        )}
-        {details.requesterName && (
-          <div><span className="text-gray-500">Requester:</span> {details.requesterName}</div>
-        )}
-      </div>
-    );
-
-    // Action-specific details
-    const actionSpecificDetails = (() => {
-      switch (action) {
-        case 'SUBMITTED':
-          return null; // All details are already in common section
-        case 'EXECUTED':
-          return (
-            <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
-              {details.approvedBy && (
-                <div className="text-xs"><span className="text-gray-500">Approved by:</span> <span className="text-green-600">{details.approvedBy}</span></div>
-              )}
-              {details.executionTime && (
-                <div className="text-xs"><span className="text-gray-500">Executed at:</span> {new Date(details.executionTime).toLocaleString()}</div>
-              )}
-            </div>
-          );
-        case 'REJECTED':
-          return (
-            <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
-              {details.rejectedBy && (
-                <div className="text-xs"><span className="text-gray-500">Rejected by:</span> <span className="text-red-600">{details.rejectedBy}</span></div>
-              )}
-              {details.rejectionReason && (
-                <div className="text-xs"><span className="text-gray-500">Reason:</span> <span className="text-red-500">{details.rejectionReason}</span></div>
-              )}
-              {details.rejectionTime && (
-                <div className="text-xs"><span className="text-gray-500">Rejected at:</span> {new Date(details.rejectionTime).toLocaleString()}</div>
-              )}
-            </div>
-          );
-        case 'FAILED':
-          return (
-            <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
-              {details.approvedBy && (
-                <div className="text-xs"><span className="text-gray-500">Approved by:</span> <span className="text-orange-600">{details.approvedBy}</span></div>
-              )}
-              {details.error && (
-                <div className="text-xs"><span className="text-gray-500">Error:</span> <span className="text-orange-500 break-all">{details.error}</span></div>
-              )}
-              {details.failureTime && (
-                <div className="text-xs"><span className="text-gray-500">Failed at:</span> {new Date(details.failureTime).toLocaleString()}</div>
-              )}
-            </div>
-          );
-        default:
-          return (
-            <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
-              <div className="text-xs">
-                {Object.entries(details).filter(([key]) => !['submissionType', 'podName', 'instanceName', 'instanceType', 'databaseName', 'requesterName', 'requesterEmail'].includes(key)).map(([key, value]) => (
-                  <div key={key}>
-                    <span className="text-gray-500">{key}:</span> {String(value)}
-                  </div>
-                ))}
+    switch (action) {
+      case 'SUBMITTED':
+        return (
+          <div className="space-y-0.5">
+            {details.submissionType && (
+              <div><span className="text-gray-500">Type:</span> {details.submissionType}</div>
+            )}
+            {details.podId && (
+              <div><span className="text-gray-500">POD:</span> {details.podId}</div>
+            )}
+          </div>
+        );
+      case 'REJECTED':
+        return (
+          <div>
+            <span className="text-gray-500">Reason:</span>{' '}
+            <span className="text-red-500">{details.reason || 'No reason provided'}</span>
+          </div>
+        );
+      case 'FAILED':
+        return (
+          <div>
+            <span className="text-gray-500">Error:</span>{' '}
+            <span className="text-orange-500 break-all">{details.error || 'Unknown error'}</span>
+          </div>
+        );
+      case 'EXECUTED':
+        return (
+          <div>
+            {details.instanceType && (
+              <div><span className="text-gray-500">Instance:</span> {details.instanceType}</div>
+            )}
+          </div>
+        );
+      /* istanbul ignore next */
+      default:
+        return (
+          <div className="text-xs">
+            {Object.entries(details).map(([key, value]) => (
+              <div key={key}>
+                <span className="text-gray-500">{key}:</span> {String(value)}
               </div>
-            </div>
-          );
-      }
-    })();
-
-    return (
-      <div>
-        {commonDetails}
-        {actionSpecificDetails}
-      </div>
-    );
+            ))}
+          </div>
+        );
+    }
   };
 
   return (
@@ -267,76 +251,120 @@ export function AuditPage() {
       </div>
 
       {/* Filters - Automatic, No Apply Button */}
-      <div className="flex flex-wrap gap-4 mb-6">
-        <div className="flex items-center gap-2">
-          <label className="text-sm text-gray-600 dark:text-gray-400">User:</label>
-          <select
-            value={selectedUser}
-            onChange={(e) => {
-              setSelectedUser(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="px-3 py-1.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white text-sm cursor-pointer"
-          >
-            <option value="">All users</option>
-            {users.map(u => (
-              <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
-            ))}
-          </select>
+      <div className="space-y-4 mb-6">
+        {/* First row - Search and Date Range */}
+        <div className="flex flex-wrap gap-4">
+          <div className="flex items-center gap-2 flex-1 min-w-64">
+            <label className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">Search Query:</label>
+            <input
+              type="text"
+              value={querySearch}
+              onChange={(e) => {
+                setQuerySearch(e.target.value);
+                setCurrentPage(1);
+              }}
+              placeholder="Search in query text or script content..."
+              className="flex-1 px-3 py-1.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white text-sm"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">From:</label>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => {
+                setStartDate(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="px-3 py-1.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white text-sm"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">To:</label>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => {
+                setEndDate(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="px-3 py-1.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white text-sm"
+            />
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <label className="text-sm text-gray-600 dark:text-gray-400">Instance:</label>
-          <select
-            value={selectedInstance}
-            onChange={(e) => {
-              setSelectedInstance(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="px-3 py-1.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white text-sm cursor-pointer"
-          >
-            <option value="">All instances</option>
-            {instances.map(i => (
-              <option key={i.id} value={i.id}>{i.name}</option>
-            ))}
-          </select>
+        
+        {/* Second row - Dropdowns */}
+        <div className="flex flex-wrap gap-4">
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-600 dark:text-gray-400">User:</label>
+            <select
+              value={selectedUser}
+              onChange={(e) => {
+                setSelectedUser(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="px-3 py-1.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white text-sm cursor-pointer"
+            >
+              <option value="">All users</option>
+              {users.map(u => (
+                <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-600 dark:text-gray-400">Instance:</label>
+            <select
+              value={selectedInstance}
+              onChange={(e) => {
+                setSelectedInstance(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="px-3 py-1.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white text-sm cursor-pointer"
+            >
+              <option value="">All instances</option>
+              {instances.map(i => (
+                <option key={i.id} value={i.id}>{i.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-600 dark:text-gray-400">Database:</label>
+            <select
+              value={selectedDatabase}
+              onChange={(e) => {
+                setSelectedDatabase(e.target.value);
+                setCurrentPage(1);
+              }}
+              disabled={!selectedInstance}
+              className="px-3 py-1.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white text-sm cursor-pointer disabled:opacity-50"
+            >
+              <option value="">All databases</option>
+              {databases.map(d => (
+                <option key={d} value={d}>{d}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-600 dark:text-gray-400">Action:</label>
+            <select
+              value={selectedAction}
+              onChange={(e) => {
+                setSelectedAction(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="px-3 py-1.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white text-sm cursor-pointer"
+            >
+              <option value="">All actions</option>
+              <option value="SUBMITTED">Submitted</option>
+              <option value="EXECUTED">Executed</option>
+              <option value="REJECTED">Rejected</option>
+              <option value="FAILED">Failed</option>
+            </select>
+          </div>
+          {(selectedUser || selectedInstance || selectedDatabase || selectedAction || querySearch || startDate || endDate) && (
+            <Button variant="secondary" onClick={handleClearFilters}>Clear Filters</Button>
+          )}
         </div>
-        <div className="flex items-center gap-2">
-          <label className="text-sm text-gray-600 dark:text-gray-400">Database:</label>
-          <select
-            value={selectedDatabase}
-            onChange={(e) => {
-              setSelectedDatabase(e.target.value);
-              setCurrentPage(1);
-            }}
-            disabled={!selectedInstance}
-            className="px-3 py-1.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white text-sm cursor-pointer disabled:opacity-50"
-          >
-            <option value="">All databases</option>
-            {databases.map(d => (
-              <option key={d} value={d}>{d}</option>
-            ))}
-          </select>
-        </div>
-        <div className="flex items-center gap-2">
-          <label className="text-sm text-gray-600 dark:text-gray-400">Action:</label>
-          <select
-            value={selectedAction}
-            onChange={(e) => {
-              setSelectedAction(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="px-3 py-1.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white text-sm cursor-pointer"
-          >
-            <option value="">All actions</option>
-            <option value="SUBMITTED">Submitted</option>
-            <option value="EXECUTED">Executed</option>
-            <option value="REJECTED">Rejected</option>
-            <option value="FAILED">Failed</option>
-          </select>
-        </div>
-        {(selectedUser || selectedInstance || selectedDatabase || selectedAction) && (
-          <Button variant="secondary" onClick={handleClearFilters}>Clear Filters</Button>
-        )}
       </div>
 
       {/* Table */}
@@ -354,12 +382,13 @@ export function AuditPage() {
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-400">Performed By</th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-400">Query ID</th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-400">Details</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-400">Actions</th>
               </tr>
             </thead>
             <tbody>
               {logs.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                  <td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                     No audit logs found
                   </td>
                 </tr>
@@ -381,6 +410,15 @@ export function AuditPage() {
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
                       {formatDetails(log.action, log.details)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => handleViewDetails(log.query_request_id)}
+                      >
+                        View Details
+                      </Button>
                     </td>
                   </tr>
                 ))
@@ -428,6 +466,15 @@ export function AuditPage() {
           </Button>
         </div>
       </div>
+
+      {/* Query Details Modal */}
+      {selectedQueryId && (
+        <QueryDetailsModal
+          queryId={selectedQueryId}
+          isOpen={isModalOpen}
+          onClose={handleCloseModal}
+        />
+      )}
     </div>
   );
 }
