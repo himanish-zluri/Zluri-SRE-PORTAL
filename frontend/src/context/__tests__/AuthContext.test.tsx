@@ -26,14 +26,14 @@ function TestComponent() {
   );
 }
 
-describe('AuthContext', () => {
+describe('AuthContext with HttpOnly Cookies', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     localStorage.clear();
     (localStorage.getItem as jest.Mock).mockReturnValue(null);
   });
 
-  it('provides null user initially when no refresh token', async () => {
+  it('provides null user initially when no access token', async () => {
     render(
       <AuthProvider>
         <TestComponent />
@@ -47,8 +47,8 @@ describe('AuthContext', () => {
     expect(screen.getByTestId('user')).toHaveTextContent('No user');
   });
 
-  it('attempts to refresh token on mount if refresh token exists', async () => {
-    (localStorage.getItem as jest.Mock).mockReturnValue('refresh-token');
+  it('attempts to refresh token on mount if access token exists', async () => {
+    (localStorage.getItem as jest.Mock).mockReturnValue('existing-access-token');
     (authApi.refresh as jest.Mock).mockResolvedValue({
       data: {
         accessToken: 'new-access-token',
@@ -66,11 +66,13 @@ describe('AuthContext', () => {
       expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
     });
     
-    expect(authApi.refresh).toHaveBeenCalledWith('refresh-token');
+    // Should call refresh without parameters (uses HttpOnly cookie)
+    expect(authApi.refresh).toHaveBeenCalledWith();
+    expect(localStorage.setItem).toHaveBeenCalledWith('accessToken', 'new-access-token');
     expect(screen.getByTestId('user')).toHaveTextContent('test@test.com');
   });
 
-  it('clears tokens on refresh failure', async () => {
+  it('clears access token on refresh failure', async () => {
     (localStorage.getItem as jest.Mock).mockReturnValue('invalid-token');
     (authApi.refresh as jest.Mock).mockRejectedValue(new Error('Invalid token'));
     
@@ -85,15 +87,16 @@ describe('AuthContext', () => {
     });
     
     expect(localStorage.removeItem).toHaveBeenCalledWith('accessToken');
-    expect(localStorage.removeItem).toHaveBeenCalledWith('refreshToken');
+    // Should NOT try to remove refreshToken (it's in HttpOnly cookie)
+    expect(localStorage.removeItem).not.toHaveBeenCalledWith('refreshToken');
     expect(screen.getByTestId('user')).toHaveTextContent('No user');
   });
 
-  it('logs in user successfully', async () => {
+  it('logs in user successfully and only stores access token', async () => {
     (authApi.login as jest.Mock).mockResolvedValue({
       data: {
         accessToken: 'access-token',
-        refreshToken: 'refresh-token',
+        // No refreshToken in response (it's set as HttpOnly cookie)
         user: { id: '1', email: 'test@test.com', name: 'Test', role: 'DEVELOPER' },
       },
     });
@@ -116,14 +119,12 @@ describe('AuthContext', () => {
     
     expect(authApi.login).toHaveBeenCalledWith('test@test.com', 'password');
     expect(localStorage.setItem).toHaveBeenCalledWith('accessToken', 'access-token');
-    expect(localStorage.setItem).toHaveBeenCalledWith('refreshToken', 'refresh-token');
+    // Should NOT store refresh token in localStorage
+    expect(localStorage.setItem).not.toHaveBeenCalledWith('refreshToken', expect.anything());
   });
 
-  it('logs out user successfully', async () => {
-    (localStorage.getItem as jest.Mock).mockImplementation((key) => {
-      if (key === 'refreshToken') return 'refresh-token';
-      return null;
-    });
+  it('logs out user successfully using HttpOnly cookie', async () => {
+    (localStorage.getItem as jest.Mock).mockReturnValue('access-token');
     (authApi.refresh as jest.Mock).mockResolvedValue({
       data: {
         accessToken: 'access-token',
@@ -148,16 +149,15 @@ describe('AuthContext', () => {
       expect(screen.getByTestId('user')).toHaveTextContent('No user');
     });
     
-    expect(authApi.logout).toHaveBeenCalledWith('refresh-token');
+    // Should call logout without parameters (uses HttpOnly cookie)
+    expect(authApi.logout).toHaveBeenCalledWith();
     expect(localStorage.removeItem).toHaveBeenCalledWith('accessToken');
-    expect(localStorage.removeItem).toHaveBeenCalledWith('refreshToken');
+    // Should NOT try to remove refreshToken from localStorage
+    expect(localStorage.removeItem).not.toHaveBeenCalledWith('refreshToken');
   });
 
   it('handles logout API error gracefully', async () => {
-    (localStorage.getItem as jest.Mock).mockImplementation((key) => {
-      if (key === 'refreshToken') return 'refresh-token';
-      return null;
-    });
+    (localStorage.getItem as jest.Mock).mockReturnValue('access-token');
     (authApi.refresh as jest.Mock).mockResolvedValue({
       data: {
         accessToken: 'access-token',
@@ -165,6 +165,8 @@ describe('AuthContext', () => {
       },
     });
     (authApi.logout as jest.Mock).mockRejectedValue(new Error('Logout failed'));
+    
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
     
     render(
       <AuthProvider>
@@ -182,12 +184,14 @@ describe('AuthContext', () => {
       expect(screen.getByTestId('user')).toHaveTextContent('No user');
     });
     
-    // Should still clear tokens even if API fails
+    // Should still clear access token even if API fails
     expect(localStorage.removeItem).toHaveBeenCalledWith('accessToken');
-    expect(localStorage.removeItem).toHaveBeenCalledWith('refreshToken');
+    expect(consoleSpy).toHaveBeenCalledWith('Logout error:', expect.any(Error));
+    
+    consoleSpy.mockRestore();
   });
 
-  it('handles logout when no refresh token exists', async () => {
+  it('handles logout when no access token exists', async () => {
     render(
       <AuthProvider>
         <TestComponent />
@@ -201,7 +205,8 @@ describe('AuthContext', () => {
     fireEvent.click(screen.getByText('Logout'));
     
     await waitFor(() => {
-      expect(authApi.logout).not.toHaveBeenCalled();
+      // Should still call logout API to clear HttpOnly cookie
+      expect(authApi.logout).toHaveBeenCalledWith();
     });
   });
 
@@ -213,5 +218,22 @@ describe('AuthContext', () => {
     }).toThrow('useAuth must be used within an AuthProvider');
     
     consoleSpy.mockRestore();
+  });
+
+  it('does not attempt refresh when no access token exists', async () => {
+    (localStorage.getItem as jest.Mock).mockReturnValue(null);
+    
+    render(
+      <AuthProvider>
+        <TestComponent />
+      </AuthProvider>
+    );
+    
+    await waitFor(() => {
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
+    });
+    
+    expect(authApi.refresh).not.toHaveBeenCalled();
+    expect(screen.getByTestId('user')).toHaveTextContent('No user');
   });
 });

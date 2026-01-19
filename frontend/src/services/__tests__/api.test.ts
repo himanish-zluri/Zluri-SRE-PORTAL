@@ -205,27 +205,23 @@ describe('API Services', () => {
       expect(result).toEqual(mockResponse);
     });
 
-    it('should refresh token', async () => {
+    it('should refresh token without parameters (uses HttpOnly cookie)', async () => {
       const mockResponse = { data: { accessToken: 'new-token', user: { id: '1' } } };
       mockAxiosInstance.post.mockResolvedValue(mockResponse);
 
-      const result = await authApi.refresh('refresh-token');
+      const result = await authApi.refresh();
 
-      expect(mockAxiosInstance.post).toHaveBeenCalledWith('/auth/refresh', {
-        refreshToken: 'refresh-token'
-      });
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith('/auth/refresh');
       expect(result).toEqual(mockResponse);
     });
 
-    it('should logout with refresh token', async () => {
+    it('should logout without parameters (uses HttpOnly cookie)', async () => {
       const mockResponse = { data: { success: true } };
       mockAxiosInstance.post.mockResolvedValue(mockResponse);
 
-      const result = await authApi.logout('refresh-token');
+      const result = await authApi.logout();
 
-      expect(mockAxiosInstance.post).toHaveBeenCalledWith('/auth/logout', {
-        refreshToken: 'refresh-token'
-      });
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith('/auth/logout');
       expect(result).toEqual(mockResponse);
     });
 

@@ -9,19 +9,25 @@ describe('AuthController', () => {
   let mockResponse: Partial<Response>;
   let jsonMock: jest.Mock;
   let statusMock: jest.Mock;
+  let cookieMock: jest.Mock;
+  let clearCookieMock: jest.Mock;
 
   beforeEach(() => {
     jsonMock = jest.fn();
+    cookieMock = jest.fn();
+    clearCookieMock = jest.fn();
     statusMock = jest.fn().mockReturnValue({ json: jsonMock });
     mockResponse = {
       json: jsonMock,
-      status: statusMock
+      status: statusMock,
+      cookie: cookieMock,
+      clearCookie: clearCookieMock
     };
     jest.clearAllMocks();
   });
 
   describe('login', () => {
-    it('should return 200 with tokens on successful login', async () => {
+    it('should return 200 with access token and set HttpOnly cookie for refresh token', async () => {
       const mockResult = {
         accessToken: 'mock-access-token',
         refreshToken: 'mock-refresh-token',
@@ -36,8 +42,22 @@ describe('AuthController', () => {
       await AuthController.login(mockRequest as Request, mockResponse as Response);
 
       expect(AuthService.login).toHaveBeenCalledWith('test@example.com', 'password123');
+      
+      // Should set HttpOnly cookie for refresh token
+      expect(cookieMock).toHaveBeenCalledWith('refreshToken', 'mock-refresh-token', {
+        httpOnly: true,
+        secure: false, // false in test environment
+        sameSite: 'strict',
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+        path: '/'
+      });
+
       expect(statusMock).toHaveBeenCalledWith(200);
-      expect(jsonMock).toHaveBeenCalledWith(mockResult);
+      // Should NOT include refresh token in response body
+      expect(jsonMock).toHaveBeenCalledWith({
+        accessToken: 'mock-access-token',
+        user: { id: '1', email: 'test@example.com', name: 'Test', role: 'DEVELOPER' }
+      });
     });
 
     it('should throw error on invalid credentials (caught by global handler)', async () => {
@@ -54,7 +74,7 @@ describe('AuthController', () => {
   });
 
   describe('refresh', () => {
-    it('should return 200 with new access token', async () => {
+    it('should return 200 with new access token when refresh token cookie exists', async () => {
       const mockResult = {
         accessToken: 'new-access-token',
         user: { id: '1', email: 'test@example.com', name: 'Test', role: 'DEVELOPER' }
@@ -62,7 +82,7 @@ describe('AuthController', () => {
       (AuthService.refresh as jest.Mock).mockResolvedValue(mockResult);
 
       mockRequest = {
-        body: { refreshToken: 'valid-refresh-token' }
+        cookies: { refreshToken: 'valid-refresh-token' }
       };
 
       await AuthController.refresh(mockRequest as Request, mockResponse as Response);
@@ -72,12 +92,24 @@ describe('AuthController', () => {
       expect(jsonMock).toHaveBeenCalledWith(mockResult);
     });
 
+    it('should return 401 when refresh token cookie is missing', async () => {
+      mockRequest = {
+        cookies: {} // No refresh token cookie
+      };
+
+      await AuthController.refresh(mockRequest as Request, mockResponse as Response);
+
+      expect(AuthService.refresh).not.toHaveBeenCalled();
+      expect(statusMock).toHaveBeenCalledWith(401);
+      expect(jsonMock).toHaveBeenCalledWith({ error: 'Refresh token not found' });
+    });
+
     it('should throw error on invalid refresh token (caught by global handler)', async () => {
       const error = new Error('Invalid or expired refresh token');
       (AuthService.refresh as jest.Mock).mockRejectedValue(error);
 
       mockRequest = {
-        body: { refreshToken: 'invalid-token' }
+        cookies: { refreshToken: 'invalid-token' }
       };
 
       await expect(AuthController.refresh(mockRequest as Request, mockResponse as Response))
@@ -86,16 +118,43 @@ describe('AuthController', () => {
   });
 
   describe('logout', () => {
-    it('should return 200 on successful logout', async () => {
+    it('should return 200 and clear refresh token cookie on successful logout', async () => {
       (AuthService.logout as jest.Mock).mockResolvedValue(undefined);
 
       mockRequest = {
-        body: { refreshToken: 'valid-refresh-token' }
+        cookies: { refreshToken: 'valid-refresh-token' }
       };
 
       await AuthController.logout(mockRequest as Request, mockResponse as Response);
 
       expect(AuthService.logout).toHaveBeenCalledWith('valid-refresh-token');
+      
+      // Should clear the refresh token cookie
+      expect(clearCookieMock).toHaveBeenCalledWith('refreshToken', {
+        httpOnly: true,
+        secure: false, // false in test environment
+        sameSite: 'strict',
+        path: '/'
+      });
+
+      expect(statusMock).toHaveBeenCalledWith(200);
+      expect(jsonMock).toHaveBeenCalledWith({ message: 'Logged out successfully' });
+    });
+
+    it('should return 200 and clear cookie even when no refresh token exists', async () => {
+      mockRequest = {
+        cookies: {} // No refresh token
+      };
+
+      await AuthController.logout(mockRequest as Request, mockResponse as Response);
+
+      expect(AuthService.logout).not.toHaveBeenCalled();
+      expect(clearCookieMock).toHaveBeenCalledWith('refreshToken', {
+        httpOnly: true,
+        secure: false,
+        sameSite: 'strict',
+        path: '/'
+      });
       expect(statusMock).toHaveBeenCalledWith(200);
       expect(jsonMock).toHaveBeenCalledWith({ message: 'Logged out successfully' });
     });
@@ -105,7 +164,7 @@ describe('AuthController', () => {
       (AuthService.logout as jest.Mock).mockRejectedValue(error);
 
       mockRequest = {
-        body: { refreshToken: 'valid-token' }
+        cookies: { refreshToken: 'valid-token' }
       };
 
       await expect(AuthController.logout(mockRequest as Request, mockResponse as Response))
@@ -114,7 +173,7 @@ describe('AuthController', () => {
   });
 
   describe('logoutAll', () => {
-    it('should return 200 on successful logout from all devices', async () => {
+    it('should return 200 and clear refresh token cookie on successful logout from all devices', async () => {
       (AuthService.logoutAll as jest.Mock).mockResolvedValue(undefined);
 
       mockRequest = {
@@ -124,6 +183,15 @@ describe('AuthController', () => {
       await AuthController.logoutAll(mockRequest as any, mockResponse as Response);
 
       expect(AuthService.logoutAll).toHaveBeenCalledWith('user-1');
+      
+      // Should clear the refresh token cookie
+      expect(clearCookieMock).toHaveBeenCalledWith('refreshToken', {
+        httpOnly: true,
+        secure: false, // false in test environment
+        sameSite: 'strict',
+        path: '/'
+      });
+
       expect(statusMock).toHaveBeenCalledWith(200);
       expect(jsonMock).toHaveBeenCalledWith({ message: 'Logged out from all devices' });
     });
