@@ -59,7 +59,12 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
     
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // Don't try to refresh tokens on auth requests
+    const isAuthRequest = originalRequest.url?.includes('/auth/login') || 
+                         originalRequest.url?.includes('/auth/refresh') || 
+                         originalRequest.url?.includes('/auth/logout');
+    
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthRequest) {
       originalRequest._retry = true;
       
       try {
@@ -71,9 +76,11 @@ api.interceptors.response.use(
         originalRequest.headers.Authorization = `Bearer ${accessToken}`;
         return api(originalRequest);
       } catch {
-        // Refresh failed, redirect to login
+        // Refresh failed, clear token and redirect only if not already on login page
         localStorage.removeItem('accessToken');
-        window.location.href = '/login';
+        if (!window.location.pathname.includes('/login')) {
+          window.location.href = '/login';
+        }
       }
     }
     return Promise.reject(error);

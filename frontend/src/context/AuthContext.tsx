@@ -17,7 +17,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const initAuth = async () => {
-      // Try to refresh token from HttpOnly cookie
+      // Try to refresh token from HttpOnly cookie only if we have an access token
       const accessToken = localStorage.getItem('accessToken');
       if (accessToken) {
         try {
@@ -25,9 +25,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const response = await authApi.refresh();
           setUser(response.data.user);
           localStorage.setItem('accessToken', response.data.accessToken);
-        } catch {
-          // Token refresh failed, clear access token
+        } catch (error) {
+          // Token refresh failed, clear access token and don't redirect
+          // (user might be on login page already)
           localStorage.removeItem('accessToken');
+          console.log('Token refresh failed during initialization:', error);
         }
       }
       setIsLoading(false);
