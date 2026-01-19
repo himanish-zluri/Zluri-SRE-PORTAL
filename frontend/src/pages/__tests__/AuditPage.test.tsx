@@ -28,7 +28,17 @@ const mockAuditLogs = [
     performed_by: 'user-1',
     performed_by_name: 'John Doe',
     performed_by_email: 'john@example.com',
-    details: { submissionType: 'QUERY', podId: 'pod-1' },
+    details: { 
+      submissionType: 'QUERY', 
+      podId: 'pod-1',
+      podName: 'Analytics Pod',
+      instanceId: 'inst-1',
+      instanceName: 'Production DB',
+      instanceType: 'POSTGRES',
+      databaseName: 'analytics_db',
+      requesterName: 'John Doe',
+      requesterEmail: 'john@example.com'
+    },
     created_at: '2024-01-15T10:30:00Z',
   },
   {
@@ -38,7 +48,19 @@ const mockAuditLogs = [
     performed_by: 'user-2',
     performed_by_name: 'Jane Smith',
     performed_by_email: 'jane@example.com',
-    details: { instanceType: 'POSTGRES' },
+    details: { 
+      submissionType: 'QUERY',
+      podId: 'pod-1',
+      podName: 'Analytics Pod',
+      instanceId: 'inst-1',
+      instanceName: 'Production DB',
+      instanceType: 'POSTGRES',
+      databaseName: 'analytics_db',
+      requesterName: 'John Doe',
+      requesterEmail: 'john@example.com',
+      executionTime: '2024-01-15T11:00:00Z',
+      approvedBy: 'Jane Smith'
+    },
     created_at: '2024-01-15T11:00:00Z',
   },
   {
@@ -48,7 +70,20 @@ const mockAuditLogs = [
     performed_by: 'user-2',
     performed_by_name: 'Jane Smith',
     performed_by_email: 'jane@example.com',
-    details: { reason: 'Query too broad' },
+    details: { 
+      submissionType: 'SCRIPT',
+      podId: 'pod-2',
+      podName: 'Data Pod',
+      instanceId: 'inst-2',
+      instanceName: 'Dev DB',
+      instanceType: 'MONGODB',
+      databaseName: 'test_db',
+      requesterName: 'Bob Wilson',
+      requesterEmail: 'bob@example.com',
+      rejectionReason: 'Query too broad',
+      rejectionTime: '2024-01-14T15:00:00Z',
+      rejectedBy: 'Jane Smith'
+    },
     created_at: '2024-01-14T15:00:00Z',
   },
   {
@@ -58,7 +93,20 @@ const mockAuditLogs = [
     performed_by: 'user-1',
     performed_by_name: 'John Doe',
     performed_by_email: 'john@example.com',
-    details: { error: 'Connection timeout' },
+    details: { 
+      submissionType: 'QUERY',
+      podId: 'pod-1',
+      podName: 'Analytics Pod',
+      instanceId: 'inst-1',
+      instanceName: 'Production DB',
+      instanceType: 'POSTGRES',
+      databaseName: 'analytics_db',
+      requesterName: 'Alice Brown',
+      requesterEmail: 'alice@example.com',
+      error: 'Connection timeout',
+      failureTime: '2024-01-14T14:00:00Z',
+      approvedBy: 'John Doe'
+    },
     created_at: '2024-01-14T14:00:00Z',
   },
 ];
@@ -68,9 +116,14 @@ const mockUsers = [
   { id: 'user-2', name: 'Jane Smith', email: 'jane@example.com' },
 ];
 
-const mockInstances = [
+const mockPostgresInstances = [
   { id: 'inst-1', name: 'Production DB', type: 'POSTGRES' },
   { id: 'inst-2', name: 'Dev DB', type: 'POSTGRES' },
+];
+
+const mockMongoInstances = [
+  { id: 'inst-3', name: 'Mongo Prod', type: 'MONGODB' },
+  { id: 'inst-4', name: 'Mongo Dev', type: 'MONGODB' },
 ];
 
 const mockDatabases = [
@@ -83,7 +136,14 @@ describe('AuditPage', () => {
     jest.clearAllMocks();
     (auditApi.getAll as jest.Mock).mockResolvedValue({ data: mockAuditLogs });
     (usersApi.getAll as jest.Mock).mockResolvedValue({ data: mockUsers });
-    (instancesApi.getAll as jest.Mock).mockResolvedValue({ data: mockInstances });
+    (instancesApi.getAll as jest.Mock).mockImplementation((type) => {
+      if (type === 'POSTGRES') {
+        return Promise.resolve({ data: mockPostgresInstances });
+      } else if (type === 'MONGODB') {
+        return Promise.resolve({ data: mockMongoInstances });
+      }
+      return Promise.resolve({ data: [] });
+    });
     (databasesApi.getByInstance as jest.Mock).mockResolvedValue({ data: mockDatabases });
   });
 
@@ -305,7 +365,9 @@ describe('AuditPage', () => {
       expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
     });
     
-    expect(screen.getByText('Type:')).toBeInTheDocument();
+    // Check for common details that appear in all logs
+    expect(screen.getAllByText('Type:').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('QUERY').length).toBeGreaterThan(0);
   });
 
   it('displays details for REJECTED action', async () => {
@@ -335,7 +397,8 @@ describe('AuditPage', () => {
       expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
     });
     
-    expect(screen.getByText('POSTGRES')).toBeInTheDocument();
+    // Check for instance type in the comprehensive details
+    expect(screen.getAllByText('Production DB (POSTGRES)').length).toBeGreaterThan(0);
   });
 
   it('handles user loading failure gracefully', async () => {

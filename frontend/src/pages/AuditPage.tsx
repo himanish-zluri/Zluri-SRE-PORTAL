@@ -149,52 +149,92 @@ export function AuditPage() {
   const formatDetails = (action: string, details: Record<string, any>) => {
     if (!details || Object.keys(details).length === 0) return '-';
 
-    switch (action) {
-      case 'SUBMITTED':
-        return (
-          <div className="space-y-0.5">
-            {details.submissionType && (
-              <div><span className="text-gray-500">Type:</span> {details.submissionType}</div>
-            )}
-            {details.podId && (
-              <div><span className="text-gray-500">POD:</span> {details.podId}</div>
-            )}
-          </div>
-        );
-      case 'REJECTED':
-        return (
-          <div>
-            <span className="text-gray-500">Reason:</span>{' '}
-            <span className="text-red-500">{details.reason || 'No reason provided'}</span>
-          </div>
-        );
-      case 'FAILED':
-        return (
-          <div>
-            <span className="text-gray-500">Error:</span>{' '}
-            <span className="text-orange-500 break-all">{details.error || 'Unknown error'}</span>
-          </div>
-        );
-      case 'EXECUTED':
-        return (
-          <div>
-            {details.instanceType && (
-              <div><span className="text-gray-500">Instance:</span> {details.instanceType}</div>
-            )}
-          </div>
-        );
-      /* istanbul ignore next */
-      default:
-        return (
-          <div className="text-xs">
-            {Object.entries(details).map(([key, value]) => (
-              <div key={key}>
-                <span className="text-gray-500">{key}:</span> {String(value)}
+    // Common details that appear in all actions
+    const commonDetails = (
+      <div className="space-y-0.5 text-xs">
+        {details.submissionType && (
+          <div><span className="text-gray-500">Type:</span> {details.submissionType}</div>
+        )}
+        {details.podName && (
+          <div><span className="text-gray-500">POD:</span> {details.podName}</div>
+        )}
+        {details.instanceName && (
+          <div><span className="text-gray-500">Instance:</span> {details.instanceName} ({details.instanceType})</div>
+        )}
+        {details.databaseName && (
+          <div><span className="text-gray-500">Database:</span> {details.databaseName}</div>
+        )}
+        {details.requesterName && (
+          <div><span className="text-gray-500">Requester:</span> {details.requesterName}</div>
+        )}
+      </div>
+    );
+
+    // Action-specific details
+    const actionSpecificDetails = (() => {
+      switch (action) {
+        case 'SUBMITTED':
+          return null; // All details are already in common section
+        case 'EXECUTED':
+          return (
+            <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+              {details.approvedBy && (
+                <div className="text-xs"><span className="text-gray-500">Approved by:</span> <span className="text-green-600">{details.approvedBy}</span></div>
+              )}
+              {details.executionTime && (
+                <div className="text-xs"><span className="text-gray-500">Executed at:</span> {new Date(details.executionTime).toLocaleString()}</div>
+              )}
+            </div>
+          );
+        case 'REJECTED':
+          return (
+            <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+              {details.rejectedBy && (
+                <div className="text-xs"><span className="text-gray-500">Rejected by:</span> <span className="text-red-600">{details.rejectedBy}</span></div>
+              )}
+              {details.rejectionReason && (
+                <div className="text-xs"><span className="text-gray-500">Reason:</span> <span className="text-red-500">{details.rejectionReason}</span></div>
+              )}
+              {details.rejectionTime && (
+                <div className="text-xs"><span className="text-gray-500">Rejected at:</span> {new Date(details.rejectionTime).toLocaleString()}</div>
+              )}
+            </div>
+          );
+        case 'FAILED':
+          return (
+            <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+              {details.approvedBy && (
+                <div className="text-xs"><span className="text-gray-500">Approved by:</span> <span className="text-orange-600">{details.approvedBy}</span></div>
+              )}
+              {details.error && (
+                <div className="text-xs"><span className="text-gray-500">Error:</span> <span className="text-orange-500 break-all">{details.error}</span></div>
+              )}
+              {details.failureTime && (
+                <div className="text-xs"><span className="text-gray-500">Failed at:</span> {new Date(details.failureTime).toLocaleString()}</div>
+              )}
+            </div>
+          );
+        default:
+          return (
+            <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+              <div className="text-xs">
+                {Object.entries(details).filter(([key]) => !['submissionType', 'podName', 'instanceName', 'instanceType', 'databaseName', 'requesterName', 'requesterEmail'].includes(key)).map(([key, value]) => (
+                  <div key={key}>
+                    <span className="text-gray-500">{key}:</span> {String(value)}
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        );
-    }
+            </div>
+          );
+      }
+    })();
+
+    return (
+      <div>
+        {commonDetails}
+        {actionSpecificDetails}
+      </div>
+    );
   };
 
   return (

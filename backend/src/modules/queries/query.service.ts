@@ -50,6 +50,22 @@ function serializeQueries(queries: QueryRequest[]): any[] {
   return queries.map(serializeQuery);
 }
 
+// Helper to build consistent audit details
+function buildAuditDetails(query: QueryRequest, additionalDetails: Record<string, any> = {}): Record<string, any> {
+  return {
+    submissionType: query.submissionType,
+    podId: query.pod?.id,
+    podName: query.pod?.name,
+    instanceId: query.instance?.id,
+    instanceName: query.instance?.name,
+    instanceType: query.instance?.type,
+    databaseName: query.databaseName,
+    requesterName: query.requester?.name,
+    requesterEmail: query.requester?.email,
+    ...additionalDetails
+  };
+}
+
 // Helper to build query info for Slack notifications
 function buildSlackQueryInfo(query: QueryRequest): {
   id: string;
@@ -97,7 +113,7 @@ export class QueryService {
       queryRequestId: query.id,
       action: 'SUBMITTED',
       performedBy: input.requesterId,
-      details: { submissionType: input.submissionType, podId: input.podId }
+      details: buildAuditDetails(query)
     });
 
     // Send Slack notification for new submission
@@ -198,7 +214,10 @@ export class QueryService {
         queryRequestId: queryId,
         action: 'EXECUTED',
         performedBy: managerId,
-        details: { instanceType: instance.type }
+        details: buildAuditDetails(query, {
+          executionTime: new Date().toISOString(),
+          approvedBy: managerName
+        })
       });
 
       // Send Slack success notification
@@ -218,7 +237,11 @@ export class QueryService {
         queryRequestId: queryId,
         action: 'FAILED',
         performedBy: managerId,
-        details: { error: error.message }
+        details: buildAuditDetails(query, {
+          error: error.message,
+          failureTime: new Date().toISOString(),
+          approvedBy: managerName
+        })
       });
 
       // Send Slack failure notification
@@ -263,7 +286,11 @@ export class QueryService {
       queryRequestId: queryId,
       action: 'REJECTED',
       performedBy: managerId,
-      details: { reason }
+      details: buildAuditDetails(query, {
+        rejectionReason: reason,
+        rejectionTime: new Date().toISOString(),
+        rejectedBy: managerName
+      })
     });
 
     // Send Slack rejection notification (DM to requester only)
