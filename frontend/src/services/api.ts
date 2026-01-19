@@ -175,15 +175,4 @@ export const auditApi = {
     api.get<AuditLog[]>(`/audit/query/${queryId}`),
 };
 
-// Security (Admin only)
-export const securityApi = {
-  getStats: () =>
-    api.get<{
-      message: string;
-      timestamp: string;
-      totalUniqueIPs: number;
-      topRequesters: Array<{ ip: string; requests: number; duration: number }>;
-    }>('/security/stats'),
-};
-
 export default api;

@@ -7,8 +7,6 @@ import { TextArea } from '../components/ui/TextArea';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { FileUpload } from '../components/ui/FileUpload';
-import { SecurityStats } from '../components/SecurityStats';
-import { useAuth } from '../context/AuthContext';
 
 // Size limits (must match backend limits)
 const MAX_QUERY_SIZE = 50000;      // 50KB
@@ -26,7 +24,6 @@ interface PrefillData {
 }
 
 export function DashboardPage() {
-  const { user } = useAuth();
   const location = useLocation();
   const prefillData = (location.state as { prefill?: PrefillData })?.prefill;
   const prefillProcessed = useRef(false);
@@ -331,9 +328,6 @@ export function DashboardPage() {
       <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">
         Submit Query Request
       </h2>
-
-      {/* Security Stats - Admin Only */}
-      <SecurityStats />
 
       {error && (
         <div className="mb-4 p-3 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded-lg text-red-700 dark:text-red-400">

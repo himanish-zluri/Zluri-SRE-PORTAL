@@ -9,7 +9,6 @@ import databaseRoutes from './modules/databases/database.routes';
 import podsRoutes from './modules/pods/pods.routes';
 import auditRoutes from './modules/audit/audit.routes';
 import userRoutes from './modules/users/user.routes';
-import securityRoutes from './routes/security.routes';
 import { globalErrorHandler, notFoundHandler } from './middlewares/errorHandler.middleware';
 import { 
   generalRateLimit, 
@@ -114,9 +113,17 @@ app.use('/api/pods', podsRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/test', testRoutes);
 app.use('/api/audit', auditRoutes);
-app.use('/api/security', securityRoutes);
 
-
+// Security monitoring endpoint (admin only)
+app.get('/api/security/stats', (req, res) => {
+  // In production, this should be protected with admin authentication
+  const stats = getRequestStats();
+  res.json({
+    message: 'Security statistics',
+    timestamp: new Date().toISOString(),
+    ...stats
+  });
+});
 
 // Development only: Reset rate limits (DO NOT USE IN PRODUCTION)
 if (process.env.NODE_ENV === 'development') {
