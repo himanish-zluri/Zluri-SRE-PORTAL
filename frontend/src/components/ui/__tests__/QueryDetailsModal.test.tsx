@@ -2,9 +2,10 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryDetailsModal } from '../QueryDetailsModal';
 
-// Mock the API
+// Mock the entire API module
 jest.mock('../../../services/api');
 
+// Import the mocked module
 import { queriesApi } from '../../../services/api';
 
 // Cast to jest.Mock for TypeScript
@@ -68,7 +69,7 @@ describe('QueryDetailsModal', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     // Reset to default successful response
-    (mockQueriesApi.getById as any).mockResolvedValue({ data: mockQuery });
+    mockQueriesApi.getById.mockResolvedValue({ data: mockQuery } as any);
   });
 
   it('does not render when closed', () => {
@@ -83,20 +84,13 @@ describe('QueryDetailsModal', () => {
 
   it('loads and displays query details', async () => {
     // Ensure mock is set up correctly
-    (mockQueriesApi.getById as any).mockResolvedValue({ data: mockQuery });
+    mockQueriesApi.getById.mockResolvedValue({ data: mockQuery } as any);
     
     render(<QueryDetailsModal {...defaultProps} />);
     
     await waitFor(() => {
       expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
     });
-    
-    // Debug: check if error is shown
-    const errorElement = screen.queryByText('Failed to load query details');
-    if (errorElement) {
-      console.log('Error shown, API call failed');
-      console.log('Mock calls:', mockQueriesApi.getById.mock.calls);
-    }
     
     expect(screen.getByText('Query Details')).toBeInTheDocument();
     expect(screen.getByText('query-123456789')).toBeInTheDocument();
@@ -119,7 +113,7 @@ describe('QueryDetailsModal', () => {
   });
 
   it('displays script content for SCRIPT submission type', async () => {
-    (mockQueriesApi.getById as any).mockResolvedValue({ data: mockScriptQuery });
+    mockQueriesApi.getById.mockResolvedValue({ data: mockScriptQuery } as any);
     
     render(<QueryDetailsModal {...defaultProps} queryId="query-987654321" />);
     
@@ -154,7 +148,7 @@ describe('QueryDetailsModal', () => {
   });
 
   it('displays error details for failed queries', async () => {
-    (queriesApi.getById as jest.Mock).mockResolvedValue({ data: mockScriptQuery });
+    mockQueriesApi.getById.mockResolvedValue({ data: mockScriptQuery } as any);
     
     render(<QueryDetailsModal {...defaultProps} queryId="query-987654321" />);
     
@@ -168,7 +162,7 @@ describe('QueryDetailsModal', () => {
   });
 
   it('displays rejection reason for rejected queries', async () => {
-    (queriesApi.getById as jest.Mock).mockResolvedValue({ data: mockRejectedQuery });
+    mockQueriesApi.getById.mockResolvedValue({ data: mockRejectedQuery } as any);
     
     render(<QueryDetailsModal {...defaultProps} queryId="query-111111111" />);
     
@@ -203,7 +197,7 @@ describe('QueryDetailsModal', () => {
   });
 
   it('handles API error gracefully', async () => {
-    (queriesApi.getById as jest.Mock).mockRejectedValue(new Error('Not found'));
+    mockQueriesApi.getById.mockRejectedValue(new Error('Not found'));
     
     render(<QueryDetailsModal {...defaultProps} />);
     
@@ -222,7 +216,7 @@ describe('QueryDetailsModal', () => {
         }
       }
     };
-    (queriesApi.getById as jest.Mock).mockRejectedValue(error);
+    mockQueriesApi.getById.mockRejectedValue(error);
     
     render(<QueryDetailsModal {...defaultProps} />);
     
@@ -269,22 +263,22 @@ describe('QueryDetailsModal', () => {
       expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
     });
     
-    expect(queriesApi.getById).toHaveBeenCalledWith('query-123456789');
+    expect(mockQueriesApi.getById).toHaveBeenCalledWith('query-123456789');
     
     // Change queryId
     rerender(<QueryDetailsModal {...defaultProps} queryId="query-987654321" />);
     
     await waitFor(() => {
-      expect(queriesApi.getById).toHaveBeenCalledWith('query-987654321');
+      expect(mockQueriesApi.getById).toHaveBeenCalledWith('query-987654321');
     });
     
-    expect(queriesApi.getById).toHaveBeenCalledTimes(2);
+    expect(mockQueriesApi.getById).toHaveBeenCalledTimes(2);
   });
 
   it('does not load data when modal is closed', () => {
     render(<QueryDetailsModal {...defaultProps} isOpen={false} />);
     
-    expect(queriesApi.getById).not.toHaveBeenCalled();
+    expect(mockQueriesApi.getById).not.toHaveBeenCalled();
   });
 
   it('handles string execution result', async () => {
@@ -292,7 +286,7 @@ describe('QueryDetailsModal', () => {
       ...mockQuery,
       execution_result: 'Query executed successfully'
     };
-    (queriesApi.getById as jest.Mock).mockResolvedValue({ data: queryWithStringResult });
+    mockQueriesApi.getById.mockResolvedValue({ data: queryWithStringResult } as any);
     
     render(<QueryDetailsModal {...defaultProps} />);
     
@@ -308,7 +302,7 @@ describe('QueryDetailsModal', () => {
       ...mockQuery,
       execution_result: { status: 'success', count: 42, data: { users: 10 } }
     };
-    (queriesApi.getById as jest.Mock).mockResolvedValue({ data: queryWithJsonResult });
+    mockQueriesApi.getById.mockResolvedValue({ data: queryWithJsonResult } as any);
     
     render(<QueryDetailsModal {...defaultProps} />);
     

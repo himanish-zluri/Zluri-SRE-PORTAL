@@ -109,9 +109,10 @@ export class AuditRepository {
     }
     if (options.queryId) {
       // Search by query request ID (partial match)
+      // Since UUIDs are strings, we can use $like for partial matching
       where.queryRequest = { 
         ...where.queryRequest, 
-        id: { $ilike: `%${options.queryId}%` }
+        id: { $like: `%${options.queryId}%` }
       };
     }
     if (options.startDate || options.endDate) {

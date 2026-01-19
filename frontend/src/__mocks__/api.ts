@@ -26,6 +26,7 @@ export const usersApi = {
 export const queriesApi = {
   getForApproval: jest.fn(),
   getMySubmissions: jest.fn(),
+  getById: jest.fn(),
   submit: jest.fn(),
   approve: jest.fn(),
   reject: jest.fn(),

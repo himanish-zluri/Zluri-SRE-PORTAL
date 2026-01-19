@@ -10,9 +10,13 @@ export const getAuditLogsSchema = z.object({
       .optional(),
     offset: z.string().regex(/^\d+$/, 'Offset must be a positive integer').optional(),
     queryId: z.string().uuid('Invalid query ID').optional(),
+    querySearch: z.string().optional(), // For partial query ID search
     userId: z.string().uuid('Invalid user ID').optional(),
     instanceId: z.string().uuid('Invalid instance ID').optional(),
     databaseName: z.string().optional(),
+    action: z.string().optional(),
+    startDate: z.string().optional(),
+    endDate: z.string().optional(),
   }),
 });
 

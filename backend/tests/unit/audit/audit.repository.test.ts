@@ -264,7 +264,7 @@ describe('AuditRepository', () => {
 
       expect(mockEntityManager.find).toHaveBeenCalledWith(
         expect.any(Function),
-        { queryRequest: { id: { $ilike: '%abc123%' } } },
+        { queryRequest: { id: { $like: '%abc123%' } } },
         expect.any(Object)
       );
       expect(result).toEqual(mockLogs);
@@ -329,7 +329,7 @@ describe('AuditRepository', () => {
         expect.any(Function),
         { 
           queryRequest: { 
-            id: { $ilike: '%abc123%' },
+            id: { $like: '%abc123%' },
             databaseName: 'prod_db'
           }
         },
