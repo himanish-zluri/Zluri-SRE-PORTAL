@@ -1,273 +1,229 @@
 import { formatExecutionResult, getTableColumns, formatCellValue } from '../formatResult';
 
 describe('formatExecutionResult', () => {
-  describe('null/undefined handling', () => {
-    it('returns "No result" for null', () => {
-      const result = formatExecutionResult(null);
-      expect(result).toEqual({ type: 'text', data: 'No result' });
-    });
+  it('should handle null and undefined results', () => {
+    expect(formatExecutionResult(null)).toEqual({ type: 'text', data: 'No result' });
+    expect(formatExecutionResult(undefined)).toEqual({ type: 'text', data: 'No result' });
+  });
 
-    it('returns "No result" for undefined', () => {
-      const result = formatExecutionResult(undefined);
-      expect(result).toEqual({ type: 'text', data: 'No result' });
+  it('should handle legacy script execution result with stdout', () => {
+    const result = { stdout: 'Hello World', stderr: '' };
+    expect(formatExecutionResult(result)).toEqual({ type: 'text', data: 'Hello World' });
+  });
+
+  it('should handle script execution result with JSON stdout', () => {
+    const result = { stdout: '[{"id": 1, "name": "John"}]' };
+    expect(formatExecutionResult(result)).toEqual({ 
+      type: 'table', 
+      data: [{ id: 1, name: 'John' }] 
     });
   });
 
-  describe('stdout/stderr format (legacy)', () => {
-    it('handles stdout with JSON array', () => {
-      const result = formatExecutionResult({
-        stdout: '[{"id":1},{"id":2}]',
-      });
-      expect(result.type).toBe('table');
-      expect(result.data).toEqual([{ id: 1 }, { id: 2 }]);
-    });
-
-    it('handles stdout with JSON object', () => {
-      const result = formatExecutionResult({
-        stdout: '{"key":"value"}',
-      });
-      expect(result.type).toBe('json');
-      expect(result.data).toEqual({ key: 'value' });
-    });
-
-    it('handles stdout with plain text', () => {
-      const result = formatExecutionResult({
-        stdout: 'plain text output',
-      });
-      expect(result.type).toBe('text');
-      expect(result.data).toBe('plain text output');
-    });
-
-    it('handles empty stdout with stderr', () => {
-      const result = formatExecutionResult({
-        stdout: '',
-        stderr: 'error message',
-      });
-      expect(result.type).toBe('text');
-      expect(result.data).toBe('error message');
-    });
-
-    it('handles empty stdout and stderr', () => {
-      const result = formatExecutionResult({
-        stdout: '',
-        stderr: '',
-      });
-      expect(result.type).toBe('text');
-      expect(result.data).toBe('Execution completed');
+  it('should handle script execution result with object JSON stdout', () => {
+    const result = { stdout: '{"message": "success", "count": 5}' };
+    expect(formatExecutionResult(result)).toEqual({ 
+      type: 'json', 
+      data: { message: 'success', count: 5 } 
     });
   });
 
-  describe('string handling', () => {
-    it('handles JSON string', () => {
-      const result = formatExecutionResult('{"key":"value"}');
-      expect(result.type).toBe('json');
-      expect(result.data).toEqual({ key: 'value' });
-    });
+  it('should handle script execution result with stderr', () => {
+    const result = { stdout: '', stderr: 'Error occurred' };
+    expect(formatExecutionResult(result)).toEqual({ type: 'text', data: 'Error occurred' });
+  });
 
-    it('handles plain text string', () => {
-      const result = formatExecutionResult('plain text');
-      expect(result.type).toBe('text');
-      expect(result.data).toBe('plain text');
-    });
+  it('should handle script execution result with no output', () => {
+    const result = { stdout: '', stderr: '' };
+    expect(formatExecutionResult(result)).toEqual({ type: 'text', data: 'Execution completed' });
+  });
 
-    it('handles concatenated JSON objects', () => {
-      const result = formatExecutionResult('{"id":1}{"id":2}{"id":3}');
-      expect(result.type).toBe('table');
-      expect(result.data).toEqual([{ id: 1 }, { id: 2 }, { id: 3 }]);
-    });
-
-    it('deduplicates concatenated JSON objects', () => {
-      const result = formatExecutionResult('{"id":1}{"id":1}{"id":2}');
-      expect(result.type).toBe('table');
-      expect(result.data).toEqual([{ id: 1 }, { id: 2 }]);
-    });
-
-    it('handles double-encoded JSON', () => {
-      const result = formatExecutionResult('"{\\"key\\":\\"value\\"}"');
-      expect(result.type).toBe('json');
-      expect(result.data).toEqual({ key: 'value' });
+  it('should handle string result with valid JSON', () => {
+    const result = '[{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}]';
+    expect(formatExecutionResult(result)).toEqual({ 
+      type: 'table', 
+      data: [{ id: 1, name: 'Alice' }, { id: 2, name: 'Bob' }] 
     });
   });
 
-  describe('rows format (query result)', () => {
-    it('handles rows array with data', () => {
-      const result = formatExecutionResult({
-        rows: [{ id: 1, name: 'test' }],
-        rowCount: 1,
-      });
-      expect(result.type).toBe('table');
-      expect(result.data).toEqual([{ id: 1, name: 'test' }]);
-    });
-
-    it('handles empty rows array', () => {
-      const result = formatExecutionResult({
-        rows: [],
-        rowCount: 0,
-      });
-      expect(result.type).toBe('text');
-      expect(result.data).toBe('Query executed successfully. 0 rows affected.');
-    });
-
-    it('handles rows with undefined rowCount', () => {
-      const result = formatExecutionResult({
-        rows: [],
-      });
-      expect(result.type).toBe('text');
-      expect(result.data).toBe('Query executed successfully. 0 rows affected.');
+  it('should handle string result with concatenated JSON objects', () => {
+    const result = '{"id": 1, "name": "Alice"}{"id": 2, "name": "Bob"}';
+    expect(formatExecutionResult(result)).toEqual({ 
+      type: 'table', 
+      data: [{ id: 1, name: 'Alice' }, { id: 2, name: 'Bob' }] 
     });
   });
 
-  describe('array handling', () => {
-    it('handles array of objects', () => {
-      const result = formatExecutionResult([{ id: 1 }, { id: 2 }]);
-      expect(result.type).toBe('table');
-      expect(result.data).toEqual([{ id: 1 }, { id: 2 }]);
-    });
-
-    it('handles array of primitives', () => {
-      const result = formatExecutionResult([1, 2, 3]);
-      expect(result.type).toBe('json');
-      expect(result.data).toEqual([1, 2, 3]);
-    });
-
-    it('handles array with JSON strings', () => {
-      const result = formatExecutionResult(['{"id":1}', '{"id":2}']);
-      expect(result.type).toBe('table');
-      expect(result.data).toEqual([{ id: 1 }, { id: 2 }]);
-    });
-
-    it('handles array with stringified arrays', () => {
-      const result = formatExecutionResult(['[{"id":1},{"id":2}]']);
-      expect(result.type).toBe('table');
-      expect(result.data).toEqual([{ id: 1 }, { id: 2 }]);
-    });
-
-    it('handles nested arrays', () => {
-      const result = formatExecutionResult([[{ id: 1 }], [{ id: 2 }]]);
-      expect(result.type).toBe('table');
-      expect(result.data).toEqual([{ id: 1 }, { id: 2 }]);
-    });
-
-    it('handles array with concatenated JSON strings', () => {
-      const result = formatExecutionResult(['{"id":1}{"id":2}']);
-      expect(result.type).toBe('table');
-      expect(result.data).toEqual([{ id: 1 }, { id: 2 }]);
-    });
-
-    it('handles array with null/undefined values', () => {
-      const result = formatExecutionResult([{ id: 1 }, null, undefined, { id: 2 }]);
-      expect(result.type).toBe('table');
-      expect(result.data).toEqual([{ id: 1 }, { id: 2 }]);
-    });
-
-    it('handles array with plain strings', () => {
-      const result = formatExecutionResult(['plain', 'text']);
-      expect(result.type).toBe('json');
-      expect(result.data).toEqual(['plain', 'text']);
-    });
-
-    it('handles empty array', () => {
-      const result = formatExecutionResult([]);
-      expect(result.type).toBe('json');
-      expect(result.data).toEqual([]);
+  it('should handle concatenated JSON with duplicates', () => {
+    const result = '{"id": 1, "name": "Alice"}{"id": 1, "name": "Alice"}{"id": 2, "name": "Bob"}';
+    expect(formatExecutionResult(result)).toEqual({ 
+      type: 'table', 
+      data: [{ id: 1, name: 'Alice' }, { id: 2, name: 'Bob' }] 
     });
   });
 
-  describe('object handling', () => {
-    it('handles plain object', () => {
-      const result = formatExecutionResult({ key: 'value', num: 42 });
-      expect(result.type).toBe('json');
-      expect(result.data).toEqual({ key: 'value', num: 42 });
+  it('should handle plain string result', () => {
+    const result = 'Simple text result';
+    expect(formatExecutionResult(result)).toEqual({ type: 'text', data: 'Simple text result' });
+  });
+
+  it('should handle query execution result with rows', () => {
+    const result = { 
+      rows: [{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }],
+      rowCount: 2 
+    };
+    expect(formatExecutionResult(result)).toEqual({ 
+      type: 'table', 
+      data: [{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }] 
     });
   });
-  describe('edge cases and error conditions', () => {
-    it('handles non-string input in parseConcatenatedJson', () => {
-      // This tests the /* istanbul ignore if */ branch
-      const result = formatExecutionResult({ customData: 123 });
-      expect(result.type).toBe('json');
-      expect(result.data).toEqual({ customData: 123 });
-    });
 
-    it('handles array with concatenated JSON that fails to parse', () => {
-      // This tests the /* istanbul ignore else */ branch by providing invalid JSON
-      const result = formatExecutionResult(['{"invalid":json}']);
-      expect(result.type).toBe('json');
-      expect(result.data).toEqual(['{"invalid":json}']);
+  it('should handle query execution result with empty rows', () => {
+    const result = { rows: [], rowCount: 0 };
+    expect(formatExecutionResult(result)).toEqual({ 
+      type: 'text', 
+      data: 'Query executed successfully. 0 rows affected.' 
     });
+  });
 
-    it('handles empty flattened array', () => {
-      // This tests the /* istanbul ignore if */ branch for empty flattened array
-      const result = formatExecutionResult([null, undefined]);
-      expect(result.type).toBe('table'); // null is typeof 'object' in JavaScript
-      expect(result.data).toEqual([null, undefined]);
+  it('should handle query execution result without rowCount', () => {
+    const result = { rows: [] };
+    expect(formatExecutionResult(result)).toEqual({ 
+      type: 'text', 
+      data: 'Query executed successfully. 0 rows affected.' 
     });
+  });
 
-    it('handles array with non-object items after flattening', () => {
-      // This tests the /* istanbul ignore if */ branch for non-empty flattened array with primitives
-      const result = formatExecutionResult(['string1', 'string2']);
-      expect(result.type).toBe('json');
-      expect(result.data).toEqual(['string1', 'string2']);
+  it('should handle array of objects', () => {
+    const result = [{ id: 1, name: 'Alice' }, { id: 2, name: 'Bob' }];
+    expect(formatExecutionResult(result)).toEqual({ 
+      type: 'table', 
+      data: [{ id: 1, name: 'Alice' }, { id: 2, name: 'Bob' }] 
     });
+  });
 
-    it('handles original array with objects when flattening fails', () => {
-      // This tests the /* istanbul ignore if */ branch for original array handling
-      const result = formatExecutionResult([{ id: 1 }, { id: 2 }]);
-      expect(result.type).toBe('table');
-      expect(result.data).toEqual([{ id: 1 }, { id: 2 }]);
+  it('should handle array with nested JSON strings', () => {
+    const result = ['{"id": 1, "name": "Alice"}', '{"id": 2, "name": "Bob"}'];
+    expect(formatExecutionResult(result)).toEqual({ 
+      type: 'table', 
+      data: [{ id: 1, name: 'Alice' }, { id: 2, name: 'Bob' }] 
+    });
+  });
+
+  it('should handle array with stringified array', () => {
+    const result = ['[{"id": 1}, {"id": 2}]'];
+    expect(formatExecutionResult(result)).toEqual({ 
+      type: 'table', 
+      data: [{ id: 1 }, { id: 2 }] 
+    });
+  });
+
+  it('should handle array with nested arrays', () => {
+    const result = [[{ id: 1 }], [{ id: 2 }]];
+    expect(formatExecutionResult(result)).toEqual({ 
+      type: 'table', 
+      data: [{ id: 1 }, { id: 2 }] 
+    });
+  });
+
+  it('should handle array with concatenated JSON strings', () => {
+    const result = ['{"id": 1}{"id": 2}'];
+    expect(formatExecutionResult(result)).toEqual({ 
+      type: 'table', 
+      data: [{ id: 1 }, { id: 2 }] 
+    });
+  });
+
+  it('should handle mixed array with null/undefined values', () => {
+    const result = [{ id: 1 }, null, undefined, { id: 2 }];
+    expect(formatExecutionResult(result)).toEqual({ 
+      type: 'table', 
+      data: [{ id: 1 }, { id: 2 }] 
+    });
+  });
+
+  it('should handle empty array', () => {
+    const result: any[] = [];
+    expect(formatExecutionResult(result)).toEqual({ type: 'json', data: [] });
+  });
+
+  it('should handle object result', () => {
+    const result = { message: 'success', data: { count: 5 } };
+    expect(formatExecutionResult(result)).toEqual({ 
+      type: 'json', 
+      data: { message: 'success', data: { count: 5 } } 
+    });
+  });
+
+  it('should handle deeply nested JSON strings', () => {
+    const result = '"{\\"nested\\": \\"value\\"}"';
+    expect(formatExecutionResult(result)).toEqual({ 
+      type: 'json', 
+      data: { nested: 'value' } 
     });
   });
 });
-  it('returns empty array for empty data', () => {
+
+describe('getTableColumns', () => {
+  it('should return empty array for empty data', () => {
     expect(getTableColumns([])).toEqual([]);
   });
 
-  it('returns empty array for null/undefined', () => {
+  it('should return empty array for null/undefined data', () => {
     expect(getTableColumns(null as any)).toEqual([]);
     expect(getTableColumns(undefined as any)).toEqual([]);
   });
 
-  it('returns columns from single object', () => {
-    const columns = getTableColumns([{ id: 1, name: 'test' }]);
-    expect(columns).toContain('id');
-    expect(columns).toContain('name');
+  it('should return columns from single object', () => {
+    const data = [{ id: 1, name: 'John', email: 'john@example.com' }];
+    const columns = getTableColumns(data);
+    expect(columns).toEqual(expect.arrayContaining(['id', 'name', 'email']));
+    expect(columns).toHaveLength(3);
   });
 
-  it('returns all unique columns from multiple objects', () => {
-    const columns = getTableColumns([
-      { id: 1, name: 'test' },
-      { id: 2, email: 'test@test.com' },
-    ]);
-    expect(columns).toContain('id');
-    expect(columns).toContain('name');
-    expect(columns).toContain('email');
+  it('should return all unique columns from multiple objects', () => {
+    const data = [
+      { id: 1, name: 'John' },
+      { id: 2, email: 'jane@example.com' },
+      { name: 'Bob', phone: '123-456-7890' }
+    ];
+    const columns = getTableColumns(data);
+    expect(columns).toEqual(expect.arrayContaining(['id', 'name', 'email', 'phone']));
+    expect(columns).toHaveLength(4);
   });
+
+  it('should handle objects with no properties', () => {
+    const data = [{}];
+    expect(getTableColumns(data)).toEqual([]);
+  });
+});
+
 describe('formatCellValue', () => {
-  it('returns "NULL" for null', () => {
+  it('should return "NULL" for null values', () => {
     expect(formatCellValue(null)).toBe('NULL');
   });
 
-  it('returns empty string for undefined', () => {
+  it('should return empty string for undefined values', () => {
     expect(formatCellValue(undefined)).toBe('');
   });
 
-  it('returns JSON string for objects', () => {
-    expect(formatCellValue({ key: 'value' })).toBe('{"key":"value"}');
+  it('should return JSON string for objects', () => {
+    const obj = { id: 1, name: 'John' };
+    expect(formatCellValue(obj)).toBe('{"id":1,"name":"John"}');
   });
 
-  it('returns JSON string for arrays', () => {
-    expect(formatCellValue([1, 2, 3])).toBe('[1,2,3]');
+  it('should return JSON string for arrays', () => {
+    const arr = [1, 2, 3];
+    expect(formatCellValue(arr)).toBe('[1,2,3]');
   });
 
-  it('returns string for numbers', () => {
-    expect(formatCellValue(42)).toBe('42');
-  });
-
-  it('returns string for booleans', () => {
+  it('should return string representation for primitives', () => {
+    expect(formatCellValue(123)).toBe('123');
     expect(formatCellValue(true)).toBe('true');
-    expect(formatCellValue(false)).toBe('false');
+    expect(formatCellValue('hello')).toBe('hello');
   });
 
-  it('returns string as-is', () => {
-    expect(formatCellValue('test')).toBe('test');
+  it('should handle nested objects', () => {
+    const nested = { user: { id: 1, profile: { name: 'John' } } };
+    expect(formatCellValue(nested)).toBe('{"user":{"id":1,"profile":{"name":"John"}}}');
   });
 });

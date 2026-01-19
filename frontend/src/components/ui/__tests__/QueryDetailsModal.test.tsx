@@ -1,342 +1,627 @@
-import { render, screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { QueryDetailsModal } from '../QueryDetailsModal';
 
-// Mock the API module at the module level
-const mockGetById = jest.fn();
-
-jest.mock('../../../services/api', () => ({
+// Mock the API service directly
+jest.mock('../../services/api', () => ({
   queriesApi: {
-    getById: mockGetById,
-    getForApproval: jest.fn(),
-    getMySubmissions: jest.fn(),
-    submit: jest.fn(),
-    approve: jest.fn(),
-    reject: jest.fn(),
-  },
-  authApi: {
-    login: jest.fn(),
-    refresh: jest.fn(),
-    logout: jest.fn(),
-    logoutAll: jest.fn(),
-  },
-  instancesApi: {
-    getAll: jest.fn(),
-  },
-  databasesApi: {
-    getByInstance: jest.fn(),
-  },
-  podsApi: {
-    getAll: jest.fn(),
     getById: jest.fn(),
-  },
-  usersApi: {
-    getAll: jest.fn(),
-  },
-  auditApi: {
-    getAll: jest.fn(),
-    getByQuery: jest.fn(),
   },
 }));
 
+// Helper function to get the mocked API
+const getMockQueriesApi = () => {
+  const { queriesApi } = require('../../services/api');
+  return queriesApi;
+};
+
+// Mock Button component
+jest.mock('../Button', () => ({
+  Button: ({ children, onClick, variant }: any) => (
+    <button onClick={onClick} data-variant={variant}>
+      {children}
+    </button>
+  )
+}));
+
 const mockQuery = {
-  id: 'query-123456789',
-  requester_id: 'user-1',
+  id: 'query-123',
   requester_name: 'John Doe',
-  requester_email: 'john@example.com',
-  pod_id: 'pod-1',
-  pod_manager_name: 'Jane Smith',
-  instance_id: 'inst-1',
-  instance_name: 'Production DB',
-  database_name: 'analytics_db',
+  requester_email: 'john@test.com',
+  instance_name: 'Test Instance',
+  database_name: 'test_db',
   submission_type: 'QUERY' as const,
-  query_text: 'SELECT * FROM users WHERE active = true',
-  script_content: undefined,
-  comments: 'Need to check active users for monthly report',
-  status: 'EXECUTED' as const,
-  approved_by: 'user-2',
-  rejection_reason: undefined,
-  execution_result: {
-    rows: [
-      { id: 1, name: 'John', active: true },
-      { id: 2, name: 'Jane', active: true }
-    ]
-  },
+  pod_id: 'pod-1',
+  pod_manager_name: 'Manager Name',
   created_at: '2024-01-15T10:30:00Z',
-  updated_at: '2024-01-15T11:00:00Z',
-};
-
-const mockScriptQuery = {
-  ...mockQuery,
-  id: 'query-987654321',
-  submission_type: 'SCRIPT' as const,
-  query_text: '',
-  script_content: 'db.users.find({ active: true })',
-  status: 'FAILED' as const,
-  execution_result: {
-    stderr: 'Connection timeout',
-    stdout: ''
-  }
-};
-
-const mockRejectedQuery = {
-  ...mockQuery,
-  id: 'query-111111111',
-  status: 'REJECTED' as const,
-  rejection_reason: 'Query too broad, please add more specific filters',
-  execution_result: undefined
+  status: 'PENDING' as const,
+  query_text: 'SELECT * FROM users WHERE id = 1',
+  comments: 'This is a test query for user lookup',
+  execution_result: null,
+  rejection_reason: null,
+  script_content: null
 };
 
 describe('QueryDetailsModal', () => {
   const defaultProps = {
-    queryId: 'query-123456789',
+    queryId: 'query-123',
     isOpen: true,
     onClose: jest.fn(),
   };
 
   beforeEach(() => {
     jest.clearAllMocks();
-    // Reset to default successful response
-    mockGetById.mockResolvedValue({ data: mockQuery });
+    getMockQueriesApi().getById.mockClear();
   });
 
-  it('does not render when closed', () => {
-    render(<QueryDetailsModal {...defaultProps} isOpen={false} />);
-    expect(screen.queryByText('Query Details')).not.toBeInTheDocument();
-  });
-
-  it('shows loading spinner initially', () => {
-    render(<QueryDetailsModal {...defaultProps} />);
-    expect(document.querySelector('.animate-spin')).toBeInTheDocument();
-  });
-
-  it('loads and displays query details', async () => {
-    render(<QueryDetailsModal {...defaultProps} />);
-    
-    await waitFor(() => {
-      expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
+  describe('Modal visibility', () => {
+    it('should not render when isOpen is false', () => {
+      render(<QueryDetailsModal {...defaultProps} isOpen={false} />);
+      expect(screen.queryByText('Query Details')).not.toBeInTheDocument();
     });
-    
-    expect(screen.getByText('Query Details')).toBeInTheDocument();
-    expect(screen.getByText('query-123456789')).toBeInTheDocument();
-    expect(screen.getByText('John Doe')).toBeInTheDocument();
-    expect(screen.getByText('john@example.com')).toBeInTheDocument();
-    expect(screen.getByText('analytics_db')).toBeInTheDocument();
-    expect(screen.getByText('Production DB')).toBeInTheDocument();
-    expect(screen.getByText('EXECUTED')).toBeInTheDocument();
-  });
 
-  it('displays query text for QUERY submission type', async () => {
-    render(<QueryDetailsModal {...defaultProps} />);
-    
-    await waitFor(() => {
-      expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
+    it('should render when isOpen is true', () => {
+      getMockQueriesApi().getById.mockImplementation(() => new Promise(() => {})); // Never resolves
+      render(<QueryDetailsModal {...defaultProps} />);
+      expect(screen.getByText('Query Details')).toBeInTheDocument();
     });
-    
-    expect(screen.getByText('Query Text')).toBeInTheDocument();
-    expect(screen.getByText('SELECT * FROM users WHERE active = true')).toBeInTheDocument();
   });
 
-  it('displays script content for SCRIPT submission type', async () => {
-    mockGetById.mockResolvedValue({ data: mockScriptQuery });
-    
-    render(<QueryDetailsModal {...defaultProps} queryId="query-987654321" />);
-    
-    await waitFor(() => {
-      expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
+  describe('Loading state', () => {
+    it('should show loading spinner while fetching query details', () => {
+      getMockQueriesApi().getById.mockImplementation(() => new Promise(() => {})); // Never resolves
+      render(<QueryDetailsModal {...defaultProps} />);
+      expect(screen.getByTestId('loading-spinner')).toBeInTheDocument();
     });
-    
-    expect(screen.getByText('Script Content')).toBeInTheDocument();
-    expect(screen.getByText('db.users.find({ active: true })')).toBeInTheDocument();
-  });
 
-  it('displays comments when present', async () => {
-    render(<QueryDetailsModal {...defaultProps} />);
-    
-    await waitFor(() => {
-      expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
+    it('should call API when modal opens with queryId', () => {
+      getMockQueriesApi().getById.mockImplementation(() => new Promise(() => {}));
+      render(<QueryDetailsModal {...defaultProps} />);
+      expect(getMockQueriesApi().getById).toHaveBeenCalledWith('query-123');
     });
-    
-    expect(screen.getByText('Comments')).toBeInTheDocument();
-    expect(screen.getByText('Need to check active users for monthly report')).toBeInTheDocument();
-  });
 
-  it('displays execution result for successful queries', async () => {
-    render(<QueryDetailsModal {...defaultProps} />);
-    
-    await waitFor(() => {
-      expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
+    it('should not call API when modal is closed', () => {
+      render(<QueryDetailsModal {...defaultProps} isOpen={false} />);
+      expect(getMockQueriesApi().getById).not.toHaveBeenCalled();
     });
-    
-    expect(screen.getByText('Execution Result')).toBeInTheDocument();
-    expect(screen.getByText('2 rows returned')).toBeInTheDocument();
-  });
 
-  it('displays error details for failed queries', async () => {
-    mockGetById.mockResolvedValue({ data: mockScriptQuery });
-    
-    render(<QueryDetailsModal {...defaultProps} queryId="query-987654321" />);
-    
-    await waitFor(() => {
-      expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
+    it('should not call API when queryId is empty', () => {
+      render(<QueryDetailsModal {...defaultProps} queryId="" />);
+      expect(getMockQueriesApi().getById).not.toHaveBeenCalled();
     });
-    
-    expect(screen.getByText('Error Details')).toBeInTheDocument();
-    expect(screen.getByText('Error Output:')).toBeInTheDocument();
-    expect(screen.getByText('Connection timeout')).toBeInTheDocument();
   });
 
-  it('displays rejection reason for rejected queries', async () => {
-    mockGetById.mockResolvedValue({ data: mockRejectedQuery });
-    
-    render(<QueryDetailsModal {...defaultProps} queryId="query-111111111" />);
-    
-    await waitFor(() => {
-      expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
-    });
-    
-    expect(screen.getByText('Rejection Reason')).toBeInTheDocument();
-    expect(screen.getByText('Query too broad, please add more specific filters')).toBeInTheDocument();
-  });
-
-  it('displays status with correct styling', async () => {
-    render(<QueryDetailsModal {...defaultProps} />);
-    
-    await waitFor(() => {
-      expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
-    });
-    
-    const statusElement = screen.getByText('EXECUTED');
-    expect(statusElement).toHaveClass('text-green-600');
-  });
-
-  it('formats dates correctly', async () => {
-    render(<QueryDetailsModal {...defaultProps} />);
-    
-    await waitFor(() => {
-      expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
-    });
-    
-    // Check that the date is formatted (exact format may vary by locale)
-    expect(screen.getByText(/Jan 15, 2024/)).toBeInTheDocument();
-  });
-
-  it('handles API error gracefully', async () => {
-    mockGetById.mockRejectedValue(new Error('Not found'));
-    
-    render(<QueryDetailsModal {...defaultProps} />);
-    
-    await waitFor(() => {
-      expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
-    });
-    
-    expect(screen.getByText('Failed to load query details')).toBeInTheDocument();
-  });
-
-  it('handles API error with response message', async () => {
-    const error = {
-      response: {
-        data: {
-          message: 'Query not found'
+  describe('Error handling', () => {
+    it('should display error message when API call fails with response message', async () => {
+      const mockError = {
+        response: {
+          data: {
+            message: 'Query not found'
+          }
         }
-      }
-    };
-    mockGetById.mockRejectedValue(error);
-    
-    render(<QueryDetailsModal {...defaultProps} />);
-    
-    await waitFor(() => {
-      expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
+      };
+      getMockQueriesApi().getById.mockRejectedValue(mockError);
+      
+      render(<QueryDetailsModal {...defaultProps} />);
+      
+      await waitFor(() => {
+        expect(screen.getByText('Query not found')).toBeInTheDocument();
+      });
     });
-    
-    expect(screen.getByText('Query not found')).toBeInTheDocument();
+
+    it('should display default error message when API call fails without response message', async () => {
+      getMockQueriesApi().getById.mockRejectedValue(new Error('Network error'));
+      
+      render(<QueryDetailsModal {...defaultProps} />);
+      
+      await waitFor(() => {
+        expect(screen.getByText('Failed to load query details')).toBeInTheDocument();
+      });
+    });
+
+    it('should display default error message when error has no response', async () => {
+      const mockError = { message: 'Some error' };
+      getMockQueriesApi().getById.mockRejectedValue(mockError);
+      
+      render(<QueryDetailsModal {...defaultProps} />);
+      
+      await waitFor(() => {
+        expect(screen.getByText('Failed to load query details')).toBeInTheDocument();
+      });
+    });
   });
 
-  it('calls onClose when close button is clicked', async () => {
-    const onClose = jest.fn();
-    render(<QueryDetailsModal {...defaultProps} onClose={onClose} />);
-    
-    await waitFor(() => {
-      expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
+  describe('Query details display', () => {
+    it('should display basic query information', async () => {
+      getMockQueriesApi().getById.mockResolvedValue({ data: mockQuery });
+      
+      render(<QueryDetailsModal {...defaultProps} />);
+      
+      await waitFor(() => {
+        expect(screen.getByText('query-123')).toBeInTheDocument();
+      });
+      
+      expect(screen.getByText('John Doe')).toBeInTheDocument();
+      expect(screen.getByText('john@test.com')).toBeInTheDocument();
+      expect(screen.getByText('test_db')).toBeInTheDocument();
+      expect(screen.getByText('Test Instance')).toBeInTheDocument();
+      expect(screen.getByText('pod-1')).toBeInTheDocument();
+      expect(screen.getByText('Manager: Manager Name')).toBeInTheDocument();
+      expect(screen.getByText('This is a test query for user lookup')).toBeInTheDocument();
+      expect(screen.getByText('SELECT * FROM users WHERE id = 1')).toBeInTheDocument();
     });
-    
-    const closeButton = screen.getByRole('button', { name: /close/i });
-    await userEvent.click(closeButton);
-    
-    expect(onClose).toHaveBeenCalledTimes(1);
+
+    it('should format date correctly', async () => {
+      getMockQueriesApi().getById.mockResolvedValue({ data: mockQuery });
+      
+      render(<QueryDetailsModal {...defaultProps} />);
+      
+      await waitFor(() => {
+        // The date formatting depends on the system timezone, so we'll check for the date part
+        expect(screen.getByText(/Jan 15, 2024/)).toBeInTheDocument();
+      });
+    });
+
+    it('should not display pod manager when not available', async () => {
+      const queryWithoutManager = { ...mockQuery, pod_manager_name: null };
+      getMockQueriesApi().getById.mockResolvedValue({ data: queryWithoutManager });
+      
+      render(<QueryDetailsModal {...defaultProps} />);
+      
+      await waitFor(() => {
+        expect(screen.getByText('pod-1')).toBeInTheDocument();
+      });
+      
+      expect(screen.queryByText('Manager:')).not.toBeInTheDocument();
+    });
+
+    it('should not display comments section when comments is null', async () => {
+      const queryWithoutComments = { ...mockQuery, comments: null };
+      getMockQueriesApi().getById.mockResolvedValue({ data: queryWithoutComments });
+      
+      render(<QueryDetailsModal {...defaultProps} />);
+      
+      await waitFor(() => {
+        expect(screen.getByText('Query Details')).toBeInTheDocument();
+      });
+      
+      expect(screen.queryByText('Comments')).not.toBeInTheDocument();
+    });
+
+    it('should not display comments section when comments is empty string', async () => {
+      const queryWithoutComments = { ...mockQuery, comments: '' };
+      getMockQueriesApi().getById.mockResolvedValue({ data: queryWithoutComments });
+      
+      render(<QueryDetailsModal {...defaultProps} />);
+      
+      await waitFor(() => {
+        expect(screen.getByText('Query Details')).toBeInTheDocument();
+      });
+      
+      expect(screen.queryByText('Comments')).not.toBeInTheDocument();
+    });
   });
 
-  it('calls onClose when X button is clicked', async () => {
-    const onClose = jest.fn();
-    render(<QueryDetailsModal {...defaultProps} onClose={onClose} />);
-    
-    await waitFor(() => {
-      expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
+  describe('Status colors', () => {
+    it('should display PENDING status with correct color', async () => {
+      const pendingQuery = { ...mockQuery, status: 'PENDING' as const };
+      getMockQueriesApi().getById.mockResolvedValue({ data: pendingQuery });
+      
+      render(<QueryDetailsModal {...defaultProps} />);
+      
+      await waitFor(() => {
+        const statusElement = screen.getByText('PENDING');
+        expect(statusElement).toHaveClass('text-yellow-600');
+      });
     });
-    
-    // Find the X button (SVG close icon)
-    const xButton = screen.getByRole('button', { name: '' }); // X button has no text
-    await userEvent.click(xButton);
-    
-    expect(onClose).toHaveBeenCalledTimes(1);
+
+    it('should display EXECUTED status with correct color', async () => {
+      const executedQuery = { ...mockQuery, status: 'EXECUTED' as const };
+      getMockQueriesApi().getById.mockResolvedValue({ data: executedQuery });
+      
+      render(<QueryDetailsModal {...defaultProps} />);
+      
+      await waitFor(() => {
+        const statusElement = screen.getByText('EXECUTED');
+        expect(statusElement).toHaveClass('text-green-600');
+      });
+    });
+
+    it('should display REJECTED status with correct color', async () => {
+      const rejectedQuery = { ...mockQuery, status: 'REJECTED' as const };
+      getMockQueriesApi().getById.mockResolvedValue({ data: rejectedQuery });
+      
+      render(<QueryDetailsModal {...defaultProps} />);
+      
+      await waitFor(() => {
+        const statusElement = screen.getByText('REJECTED');
+        expect(statusElement).toHaveClass('text-red-600');
+      });
+    });
+
+    it('should display FAILED status with correct color', async () => {
+      const failedQuery = { ...mockQuery, status: 'FAILED' as const };
+      getMockQueriesApi().getById.mockResolvedValue({ data: failedQuery });
+      
+      render(<QueryDetailsModal {...defaultProps} />);
+      
+      await waitFor(() => {
+        const statusElement = screen.getByText('FAILED');
+        expect(statusElement).toHaveClass('text-orange-600');
+      });
+    });
+
+    it('should display unknown status with default color', async () => {
+      const unknownQuery = { ...mockQuery, status: 'UNKNOWN' as any };
+      getMockQueriesApi().getById.mockResolvedValue({ data: unknownQuery });
+      
+      render(<QueryDetailsModal {...defaultProps} />);
+      
+      await waitFor(() => {
+        const statusElement = screen.getByText('UNKNOWN');
+        expect(statusElement).toHaveClass('text-gray-600');
+      });
+    });
   });
 
-  it('reloads data when queryId changes', async () => {
-    const { rerender } = render(<QueryDetailsModal {...defaultProps} />);
-    
-    await waitFor(() => {
-      expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
+  describe('Submission types', () => {
+    it('should display Query Text label for QUERY submission type', async () => {
+      const querySubmission = { ...mockQuery, submission_type: 'QUERY' as const };
+      getMockQueriesApi().getById.mockResolvedValue({ data: querySubmission });
+      
+      render(<QueryDetailsModal {...defaultProps} />);
+      
+      await waitFor(() => {
+        expect(screen.getByText('Query Text')).toBeInTheDocument();
+      });
     });
-    
-    expect(mockGetById).toHaveBeenCalledWith('query-123456789');
-    
-    // Change queryId
-    rerender(<QueryDetailsModal {...defaultProps} queryId="query-987654321" />);
-    
-    await waitFor(() => {
-      expect(mockGetById).toHaveBeenCalledWith('query-987654321');
+
+    it('should display Script Content label for SCRIPT submission type', async () => {
+      const scriptSubmission = {
+        ...mockQuery,
+        submission_type: 'SCRIPT' as const,
+        script_content: 'console.log("Hello World");',
+        query_text: null
+      };
+      getMockQueriesApi().getById.mockResolvedValue({ data: scriptSubmission });
+      
+      render(<QueryDetailsModal {...defaultProps} />);
+      
+      await waitFor(() => {
+        expect(screen.getByText('Script Content')).toBeInTheDocument();
+        expect(screen.getByText('console.log("Hello World");')).toBeInTheDocument();
+      });
     });
-    
-    expect(mockGetById).toHaveBeenCalledTimes(2);
   });
 
-  it('does not load data when modal is closed', () => {
-    render(<QueryDetailsModal {...defaultProps} isOpen={false} />);
-    
-    expect(mockGetById).not.toHaveBeenCalled();
+  describe('Rejection reason', () => {
+    it('should display rejection reason for REJECTED status', async () => {
+      const rejectedQuery = {
+        ...mockQuery,
+        status: 'REJECTED' as const,
+        rejection_reason: 'Query is too broad and may impact performance'
+      };
+      getMockQueriesApi().getById.mockResolvedValue({ data: rejectedQuery });
+      
+      render(<QueryDetailsModal {...defaultProps} />);
+      
+      await waitFor(() => {
+        expect(screen.getByText('Rejection Reason')).toBeInTheDocument();
+        expect(screen.getByText('Query is too broad and may impact performance')).toBeInTheDocument();
+      });
+    });
+
+    it('should not display rejection reason for non-REJECTED status', async () => {
+      const pendingQuery = {
+        ...mockQuery,
+        status: 'PENDING' as const,
+        rejection_reason: 'Some reason'
+      };
+      getMockQueriesApi().getById.mockResolvedValue({ data: pendingQuery });
+      
+      render(<QueryDetailsModal {...defaultProps} />);
+      
+      await waitFor(() => {
+        expect(screen.getByText('PENDING')).toBeInTheDocument();
+      });
+      
+      expect(screen.queryByText('Rejection Reason')).not.toBeInTheDocument();
+    });
+
+    it('should not display rejection reason when reason is null', async () => {
+      const rejectedQuery = {
+        ...mockQuery,
+        status: 'REJECTED' as const,
+        rejection_reason: null
+      };
+      getMockQueriesApi().getById.mockResolvedValue({ data: rejectedQuery });
+      
+      render(<QueryDetailsModal {...defaultProps} />);
+      
+      await waitFor(() => {
+        expect(screen.getByText('REJECTED')).toBeInTheDocument();
+      });
+      
+      expect(screen.queryByText('Rejection Reason')).not.toBeInTheDocument();
+    });
   });
 
-  it('handles string execution result', async () => {
-    const queryWithStringResult = {
-      ...mockQuery,
-      execution_result: 'Query executed successfully'
-    };
-    mockGetById.mockResolvedValue({ data: queryWithStringResult });
-    
-    render(<QueryDetailsModal {...defaultProps} />);
-    
-    await waitFor(() => {
-      expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
+  describe('Execution results', () => {
+    it('should display execution result for EXECUTED status', async () => {
+      const executedQuery = {
+        ...mockQuery,
+        status: 'EXECUTED' as const,
+        execution_result: {
+          rows: [
+            { id: 1, name: 'John', email: 'john@test.com' },
+            { id: 2, name: 'Jane', email: 'jane@test.com' }
+          ]
+        }
+      };
+      getMockQueriesApi().getById.mockResolvedValue({ data: executedQuery });
+      
+      render(<QueryDetailsModal {...defaultProps} />);
+      
+      await waitFor(() => {
+        expect(screen.getByText('Execution Result')).toBeInTheDocument();
+        expect(screen.getByText('2 rows returned')).toBeInTheDocument();
+      });
     });
-    
-    expect(screen.getByText('Query executed successfully')).toBeInTheDocument();
+
+    it('should display error details for FAILED status', async () => {
+      const failedQuery = {
+        ...mockQuery,
+        status: 'FAILED' as const,
+        execution_result: {
+          stderr: 'Connection timeout error'
+        }
+      };
+      getMockQueriesApi().getById.mockResolvedValue({ data: failedQuery });
+      
+      render(<QueryDetailsModal {...defaultProps} />);
+      
+      await waitFor(() => {
+        expect(screen.getByText('Error Details')).toBeInTheDocument();
+        expect(screen.getByText('Connection timeout error')).toBeInTheDocument();
+      });
+    });
+
+    it('should not display execution result for PENDING status', async () => {
+      const pendingQuery = {
+        ...mockQuery,
+        status: 'PENDING' as const,
+        execution_result: { rows: [] }
+      };
+      getMockQueriesApi().getById.mockResolvedValue({ data: pendingQuery });
+      
+      render(<QueryDetailsModal {...defaultProps} />);
+      
+      await waitFor(() => {
+        expect(screen.getByText('PENDING')).toBeInTheDocument();
+      });
+      
+      expect(screen.queryByText('Execution Result')).not.toBeInTheDocument();
+      expect(screen.queryByText('Error Details')).not.toBeInTheDocument();
+    });
+
+    it('should not display execution result when result is null', async () => {
+      const executedQuery = {
+        ...mockQuery,
+        status: 'EXECUTED' as const,
+        execution_result: null
+      };
+      getMockQueriesApi().getById.mockResolvedValue({ data: executedQuery });
+      
+      render(<QueryDetailsModal {...defaultProps} />);
+      
+      await waitFor(() => {
+        expect(screen.getByText('EXECUTED')).toBeInTheDocument();
+      });
+      
+      expect(screen.queryByText('Execution Result')).not.toBeInTheDocument();
+    });
   });
 
-  it('handles complex JSON execution result', async () => {
-    const queryWithJsonResult = {
-      ...mockQuery,
-      execution_result: { status: 'success', count: 42, data: { users: 10 } }
-    };
-    mockGetById.mockResolvedValue({ data: queryWithJsonResult });
-    
-    render(<QueryDetailsModal {...defaultProps} />);
-    
-    await waitFor(() => {
-      expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
+  describe('formatResult function branches', () => {
+    it('should return null for null result', async () => {
+      const executedQuery = {
+        ...mockQuery,
+        status: 'EXECUTED' as const,
+        execution_result: null
+      };
+      getMockQueriesApi().getById.mockResolvedValue({ data: executedQuery });
+      
+      render(<QueryDetailsModal {...defaultProps} />);
+      
+      await waitFor(() => {
+        expect(screen.getByText('EXECUTED')).toBeInTheDocument();
+      });
+      
+      expect(screen.queryByText('Execution Result')).not.toBeInTheDocument();
     });
-    
-    // Should display JSON formatted result
-    expect(screen.getByText(/"status": "success"/)).toBeInTheDocument();
-    expect(screen.getByText(/"count": 42/)).toBeInTheDocument();
+
+    it('should handle string result', async () => {
+      const executedQuery = {
+        ...mockQuery,
+        status: 'EXECUTED' as const,
+        execution_result: 'Simple string result'
+      };
+      getMockQueriesApi().getById.mockResolvedValue({ data: executedQuery });
+      
+      render(<QueryDetailsModal {...defaultProps} />);
+      
+      await waitFor(() => {
+        expect(screen.getByText('Execution Result')).toBeInTheDocument();
+        expect(screen.getByText('Simple string result')).toBeInTheDocument();
+      });
+    });
+
+    it('should handle result with rows (single row)', async () => {
+      const executedQuery = {
+        ...mockQuery,
+        status: 'EXECUTED' as const,
+        execution_result: {
+          rows: [{ id: 1, name: 'John' }]
+        }
+      };
+      getMockQueriesApi().getById.mockResolvedValue({ data: executedQuery });
+      
+      render(<QueryDetailsModal {...defaultProps} />);
+      
+      await waitFor(() => {
+        expect(screen.getByText('Execution Result')).toBeInTheDocument();
+        expect(screen.getByText('1 row returned')).toBeInTheDocument();
+      });
+    });
+
+    it('should handle result with stdout only', async () => {
+      const executedQuery = {
+        ...mockQuery,
+        status: 'EXECUTED' as const,
+        execution_result: {
+          stdout: 'Command executed successfully'
+        }
+      };
+      getMockQueriesApi().getById.mockResolvedValue({ data: executedQuery });
+      
+      render(<QueryDetailsModal {...defaultProps} />);
+      
+      await waitFor(() => {
+        expect(screen.getByText('Execution Result')).toBeInTheDocument();
+        expect(screen.getByText('Output:')).toBeInTheDocument();
+        expect(screen.getByText('Command executed successfully')).toBeInTheDocument();
+      });
+    });
+
+    it('should handle result with stderr only', async () => {
+      const failedQuery = {
+        ...mockQuery,
+        status: 'FAILED' as const,
+        execution_result: {
+          stderr: 'Error occurred during execution'
+        }
+      };
+      getMockQueriesApi().getById.mockResolvedValue({ data: failedQuery });
+      
+      render(<QueryDetailsModal {...defaultProps} />);
+      
+      await waitFor(() => {
+        expect(screen.getByText('Error Details')).toBeInTheDocument();
+        expect(screen.getByText('Error Output:')).toBeInTheDocument();
+        expect(screen.getByText('Error occurred during execution')).toBeInTheDocument();
+      });
+    });
+
+    it('should handle result with both stdout and stderr', async () => {
+      const failedQuery = {
+        ...mockQuery,
+        status: 'FAILED' as const,
+        execution_result: {
+          stdout: 'Partial output',
+          stderr: 'Error occurred'
+        }
+      };
+      getMockQueriesApi().getById.mockResolvedValue({ data: failedQuery });
+      
+      render(<QueryDetailsModal {...defaultProps} />);
+      
+      await waitFor(() => {
+        expect(screen.getByText('Error Details')).toBeInTheDocument();
+        expect(screen.getByText('Output:')).toBeInTheDocument();
+        expect(screen.getByText('Partial output')).toBeInTheDocument();
+        expect(screen.getByText('Error Output:')).toBeInTheDocument();
+        expect(screen.getByText('Error occurred')).toBeInTheDocument();
+      });
+    });
+
+    it('should handle complex object result (fallback case)', async () => {
+      const executedQuery = {
+        ...mockQuery,
+        status: 'EXECUTED' as const,
+        execution_result: {
+          data: { key: 'value' },
+          metadata: { count: 5 }
+        }
+      };
+      getMockQueriesApi().getById.mockResolvedValue({ data: executedQuery });
+      
+      render(<QueryDetailsModal {...defaultProps} />);
+      
+      await waitFor(() => {
+        expect(screen.getByText('Execution Result')).toBeInTheDocument();
+        // Should display JSON stringified version
+        expect(screen.getByText(/"data": {/)).toBeInTheDocument();
+        expect(screen.getByText(/"key": "value"/)).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('Modal interactions', () => {
+    it('should call onClose when X button is clicked', async () => {
+      const mockOnClose = jest.fn();
+      getMockQueriesApi().getById.mockResolvedValue({ data: mockQuery });
+      
+      render(<QueryDetailsModal {...defaultProps} onClose={mockOnClose} />);
+      
+      await waitFor(() => {
+        expect(screen.getByText('query-123')).toBeInTheDocument();
+      });
+      
+      const xButton = screen.getByRole('button', { name: /close/i });
+      fireEvent.click(xButton);
+      
+      expect(mockOnClose).toHaveBeenCalled();
+    });
+
+    it('should call onClose when Close button is clicked', async () => {
+      const mockOnClose = jest.fn();
+      getMockQueriesApi().getById.mockResolvedValue({ data: mockQuery });
+      
+      render(<QueryDetailsModal {...defaultProps} onClose={mockOnClose} />);
+      
+      await waitFor(() => {
+        expect(screen.getByText('query-123')).toBeInTheDocument();
+      });
+      
+      const closeButton = screen.getByText('Close');
+      fireEvent.click(closeButton);
+      
+      expect(mockOnClose).toHaveBeenCalled();
+    });
+  });
+
+  describe('Effect dependencies', () => {
+    it('should reload query when queryId changes', async () => {
+      getMockQueriesApi().getById.mockResolvedValue({ data: mockQuery });
+      
+      const { rerender } = render(<QueryDetailsModal {...defaultProps} />);
+      
+      await waitFor(() => {
+        expect(getMockQueriesApi().getById).toHaveBeenCalledWith('query-123');
+      });
+      
+      // Change queryId
+      rerender(<QueryDetailsModal {...defaultProps} queryId="query-456" />);
+      
+      await waitFor(() => {
+        expect(getMockQueriesApi().getById).toHaveBeenCalledWith('query-456');
+      });
+      
+      expect(getMockQueriesApi().getById).toHaveBeenCalledTimes(2);
+    });
+
+    it('should reload query when modal reopens', async () => {
+      getMockQueriesApi().getById.mockResolvedValue({ data: mockQuery });
+      
+      const { rerender } = render(<QueryDetailsModal {...defaultProps} isOpen={false} />);
+      
+      expect(getMockQueriesApi().getById).not.toHaveBeenCalled();
+      
+      // Open modal
+      rerender(<QueryDetailsModal {...defaultProps} isOpen={true} />);
+      
+      await waitFor(() => {
+        expect(getMockQueriesApi().getById).toHaveBeenCalledWith('query-123');
+      });
+    });
   });
 });

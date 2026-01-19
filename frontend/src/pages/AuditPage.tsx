@@ -3,6 +3,7 @@ import { auditApi, usersApi, instancesApi, databasesApi } from '../services/api'
 import type { AuditLog, DbInstance } from '../types';
 import { Button } from '../components/ui/Button';
 import { QueryDetailsModal } from '../components/ui/QueryDetailsModal';
+import { useDebounce } from '../hooks/useDebounce';
 
 interface UserOption {
   id: string;
@@ -30,6 +31,9 @@ export function AuditPage() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   
+  // Use custom debounce hook
+  const debouncedQuerySearch = useDebounce(querySearch, 500);
+  
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -47,7 +51,12 @@ export function AuditPage() {
   // Load logs when page, itemsPerPage, or any filter changes
   useEffect(() => {
     loadLogs();
-  }, [currentPage, itemsPerPage, selectedUser, selectedInstance, selectedDatabase, selectedAction, querySearch, startDate, endDate]);
+  }, [currentPage, itemsPerPage, selectedUser, selectedInstance, selectedDatabase, selectedAction, debouncedQuerySearch, startDate, endDate]);
+
+  // Reset page to 1 when debounced search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedQuerySearch]);
 
   // Load databases when instance changes
   useEffect(() => {
@@ -94,7 +103,7 @@ export function AuditPage() {
       if (selectedInstance) params.instanceId = selectedInstance;
       if (selectedUser) params.userId = selectedUser;
       if (selectedAction) params.action = selectedAction;
-      if (querySearch.trim()) params.querySearch = querySearch.trim();
+      if (debouncedQuerySearch.trim()) params.querySearch = debouncedQuerySearch.trim();
       if (startDate) params.startDate = startDate;
       if (endDate) params.endDate = endDate;
 
@@ -211,7 +220,6 @@ export function AuditPage() {
               value={querySearch}
               onChange={(e) => {
                 setQuerySearch(e.target.value);
-                setCurrentPage(1);
               }}
               placeholder="Search by query ID..."
               className="flex-1 px-3 py-1.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white text-sm"
@@ -273,7 +281,7 @@ export function AuditPage() {
             >
               <option value="">All instances</option>
               {instances.map(i => (
-                <option key={i.id} value={i.id}>{i.name}</option>
+                <option key={`${i.type}-${i.id}`} value={i.id}>{i.name}</option>
               ))}
             </select>
           </div>
