@@ -226,8 +226,9 @@ export function AuditPage() {
             />
           </div>
           <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">From:</label>
+            <label htmlFor="start-date" className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">From:</label>
             <input
+              id="start-date"
               type="date"
               value={startDate}
               onChange={(e) => {
@@ -238,8 +239,9 @@ export function AuditPage() {
             />
           </div>
           <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">To:</label>
+            <label htmlFor="end-date" className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">To:</label>
             <input
+              id="end-date"
               type="date"
               value={endDate}
               onChange={(e) => {
@@ -281,7 +283,7 @@ export function AuditPage() {
             >
               <option value="">All instances</option>
               {instances.map(i => (
-                <option key={`${i.type}-${i.id}`} value={i.id}>{i.name}</option>
+                <option key={i.id} value={i.id}>{i.name}</option>
               ))}
             </select>
           </div>
@@ -343,14 +345,14 @@ export function AuditPage() {
               </tr>
             </thead>
             <tbody>
-              {logs.length === 0 ? (
+              {Array.isArray(logs) && logs.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                     No audit logs found
                   </td>
                 </tr>
               ) : (
-                logs.map((log) => (
+                (Array.isArray(logs) ? logs : []).map((log) => (
                   <tr key={log.id} className="border-b border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50">
                     <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
                       {formatDate(log.created_at)}

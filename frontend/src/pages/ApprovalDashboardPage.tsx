@@ -56,9 +56,8 @@ export function ApprovalDashboardPage() {
   };
 
   // Remove risk filtering to eliminate bugs
-  const filteredQueries = queries;
+  const filteredQueries = Array.isArray(queries) ? queries : [];
 
-  /* istanbul ignore next */
   const handleApprove = async (query: Query) => {
     setActionLoading(true);
     try {
@@ -78,7 +77,6 @@ export function ApprovalDashboardPage() {
     }
   };
 
-  /* istanbul ignore next */
   const handleReject = async () => {
     if (!selectedQuery) return;
     setActionLoading(true);
@@ -106,7 +104,6 @@ export function ApprovalDashboardPage() {
     setShowDetailModal(true);
   };
 
-  /* istanbul ignore next */
   const downloadScript = (query: Query) => {
     if (!query.script_content) return;
     const blob = new Blob([query.script_content], { type: 'text/javascript' });
@@ -324,7 +321,6 @@ export function ApprovalDashboardPage() {
             </select>
           </div>
         </div>
-        {/* istanbul ignore next */}
         {totalPages > 1 && (
           <div className="flex items-center gap-2">
             <button
@@ -357,7 +353,6 @@ export function ApprovalDashboardPage() {
         }}
         title="Reject Query"
       >
-        {/* istanbul ignore next */}
         <div className="space-y-4">
           <TextArea
             label="Rejection Reason"
@@ -396,7 +391,6 @@ export function ApprovalDashboardPage() {
         }}
         title="Query Details"
       >
-        {/* istanbul ignore next */}
         {selectedQuery && (
           <div className="space-y-4 max-h-[70vh] overflow-y-auto">
             <div className="grid grid-cols-2 gap-4">

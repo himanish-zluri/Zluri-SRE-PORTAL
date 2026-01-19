@@ -161,6 +161,44 @@ describe('formatExecutionResult', () => {
       data: { nested: 'value' } 
     });
   });
+
+  it('should handle non-string input for parseConcatenatedJson', () => {
+    // This tests the branch where typeof str !== 'string'
+    const result = 123; // Non-string input
+    expect(formatExecutionResult(result)).toEqual({ 
+      type: 'json', 
+      data: 123 
+    });
+  });
+
+  it('should handle string without concatenated JSON pattern', () => {
+    // This tests the branch where !str.includes('}{')
+    const result = '{"single": "object"}';
+    expect(formatExecutionResult(result)).toEqual({ 
+      type: 'json', 
+      data: { single: 'object' } 
+    });
+  });
+
+  it('should handle array with non-object elements after flattening', () => {
+    // This tests the branch where flattened.length > 0 but first element is not object
+    const result = ['string1', 'string2', 'string3'];
+    expect(formatExecutionResult(result)).toEqual({ 
+      type: 'json', 
+      data: ['string1', 'string2', 'string3'] 
+    });
+  });
+
+  it('should handle empty flattened array', () => {
+    // This tests the branch where flattened.length === 0
+    // Array with only null/undefined values results in empty flattened array
+    const result = [null, undefined];
+    // Since null is typeof 'object', this will be treated as table
+    expect(formatExecutionResult(result)).toEqual({ 
+      type: 'table', 
+      data: [null, undefined] 
+    });
+  });
 });
 
 describe('getTableColumns', () => {

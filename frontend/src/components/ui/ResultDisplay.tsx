@@ -33,7 +33,6 @@ export function ResultDisplay({ result, maxHeight = '300px', queryId }: ResultDi
     return String(formatted.data).length > 0;
   };
 
-  /* istanbul ignore next */
   const downloadResult = () => {
     let content: string;
     let filename: string;
@@ -170,7 +169,6 @@ export function ResultDisplay({ result, maxHeight = '300px', queryId }: ResultDi
           >
             🔍 View Full Result
           </button>
-          {/* istanbul ignore next */}
           <button
             onClick={downloadResult}
             className="text-xs text-blue-500 hover:text-blue-400 cursor-pointer flex items-center gap-1"
@@ -185,11 +183,9 @@ export function ResultDisplay({ result, maxHeight = '300px', queryId }: ResultDi
         onClose={() => setShowFullModal(false)}
         title="Full Execution Result"
       >
-        {/* istanbul ignore next */}
         <div className="space-y-4">
           {renderContent(true)}
           <div className="flex justify-end gap-2 pt-2 border-t border-gray-200 dark:border-gray-700">
-            {/* istanbul ignore next */}
             <Button variant="secondary" onClick={downloadResult}>
               ⬇️ Download
             </Button>

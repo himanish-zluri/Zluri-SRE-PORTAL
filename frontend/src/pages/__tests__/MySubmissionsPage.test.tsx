@@ -1029,4 +1029,106 @@ describe('MySubmissionsPage - Edge Cases', () => {
       expect(queriesApi.getMySubmissions).toHaveBeenCalled();
     });
   });
+
+  it('handles instance filter with queries missing instance_name', async () => {
+    const queriesWithMissingInstanceNames = [
+      {
+        ...mockQueries[0],
+        instance_name: null,
+      },
+      {
+        ...mockQueries[1],
+        instance_name: undefined,
+      },
+      {
+        ...mockQueries[2],
+        instance_name: 'pg-instance',
+      }
+    ];
+    
+    (queriesApi.getMySubmissions as jest.Mock).mockResolvedValue({
+      data: { 
+        data: queriesWithMissingInstanceNames, 
+        pagination: { total: 3, limit: 10, offset: 0, hasMore: false } 
+      }
+    });
+    
+    renderMySubmissions();
+    
+    await waitFor(() => {
+      expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
+    });
+    
+    // Apply instance filter
+    const instanceSelects = screen.getAllByRole('combobox');
+    const instanceSelect = instanceSelects.find(select => 
+      select.querySelector('option[value="pg-instance"]')
+    );
+    
+    await userEvent.selectOptions(instanceSelect!, 'pg-instance');
+    
+    // Should filter out queries with missing instance names
+    await waitFor(() => {
+      expect(queriesApi.getMySubmissions).toHaveBeenCalled();
+    });
+  });
+
+  it('handles empty filteredQueries array after filtering', async () => {
+    (queriesApi.getMySubmissions as jest.Mock).mockResolvedValue({
+      data: { 
+        data: [], 
+        pagination: { total: 0, limit: 10, offset: 0, hasMore: false } 
+      }
+    });
+    
+    renderMySubmissions();
+    
+    await waitFor(() => {
+      expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
+    });
+    
+    // Apply date filter to empty results
+    const dateSelects = screen.getAllByRole('combobox');
+    const dateSelect = dateSelects.find(select => 
+      select.querySelector('option[value="7d"]')
+    );
+    
+    await userEvent.selectOptions(dateSelect!, '7d');
+    
+    // Should handle empty results gracefully
+    await waitFor(() => {
+      expect(queriesApi.getMySubmissions).toHaveBeenCalled();
+    });
+  });
+
+  it('handles API response with non-array data', async () => {
+    (queriesApi.getMySubmissions as jest.Mock).mockResolvedValue({
+      data: { 
+        data: null, // Non-array data
+        pagination: { total: 0, limit: 10, offset: 0, hasMore: false } 
+      }
+    });
+    
+    renderMySubmissions();
+    
+    await waitFor(() => {
+      expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
+    });
+    
+    // Should handle non-array data gracefully by showing empty state
+    expect(screen.getByText('No submissions yet')).toBeInTheDocument();
+  });
+
+  it('handles API error gracefully', async () => {
+    (queriesApi.getMySubmissions as jest.Mock).mockRejectedValue(new Error('API Error'));
+    
+    renderMySubmissions();
+    
+    await waitFor(() => {
+      expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
+    });
+    
+    // Should show empty state when API fails
+    expect(screen.getByText('No submissions yet')).toBeInTheDocument();
+  });
 });

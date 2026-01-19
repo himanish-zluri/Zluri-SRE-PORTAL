@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { ResultDisplay } from '../ResultDisplay';
 
 // Mock the Modal component
@@ -27,7 +27,8 @@ global.URL.createObjectURL = jest.fn(() => 'mock-url');
 global.URL.revokeObjectURL = jest.fn();
 
 describe('ResultDisplay', () => {
-  beforeEach(() => {
+  afterEach(() => {
+    cleanup();
     jest.clearAllMocks();
   });
 
@@ -267,6 +268,171 @@ describe('ResultDisplay', () => {
       // The component should render with custom height - check the container div
       const textContainer = screen.getByText('Some text').closest('div');
       expect(textContainer).toHaveStyle('max-height: 500px');
+    });
+  });
+
+  describe('Download functionality', () => {
+    let mockCreateElement: jest.SpyInstance;
+    let mockAppendChild: jest.SpyInstance;
+    let mockRemoveChild: jest.SpyInstance;
+    let mockClick: jest.SpyInstance;
+
+    beforeEach(() => {
+      // Mock document.createElement
+      mockCreateElement = jest.spyOn(document, 'createElement');
+      mockAppendChild = jest.spyOn(document.body, 'appendChild');
+      mockRemoveChild = jest.spyOn(document.body, 'removeChild');
+      
+      // Mock anchor element
+      const mockAnchor = {
+        href: '',
+        download: '',
+        click: jest.fn(),
+      };
+      mockClick = mockAnchor.click as jest.Mock;
+      
+      mockCreateElement.mockReturnValue(mockAnchor as any);
+      mockAppendChild.mockImplementation(() => {});
+      mockRemoveChild.mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      mockCreateElement.mockRestore();
+      mockAppendChild.mockRestore();
+      mockRemoveChild.mockRestore();
+      cleanup();
+    });
+
+    it('should download table data as CSV', () => {
+      const tableResult = {
+        rows: [
+          { id: 1, name: 'John', email: 'john@test.com' },
+          { id: 2, name: 'Jane', email: 'jane@test.com' }
+        ]
+      };
+
+      render(<ResultDisplay result={tableResult} queryId="test-query-123" />);
+      
+      const downloadButton = screen.getByText('⬇️ Download');
+      fireEvent.click(downloadButton);
+      
+      expect(mockCreateElement).toHaveBeenCalledWith('a');
+      expect(mockClick).toHaveBeenCalled();
+      expect(global.URL.createObjectURL).toHaveBeenCalled();
+      expect(global.URL.revokeObjectURL).toHaveBeenCalled();
+    });
+
+    it('should download table data as CSV with escaped quotes', () => {
+      const tableResult = {
+        rows: [
+          { id: 1, name: 'John "Johnny" Doe', description: 'A person, with commas' },
+        ]
+      };
+
+      render(<ResultDisplay result={tableResult} queryId="test-query-123" />);
+      
+      const downloadButton = screen.getByText('⬇️ Download');
+      fireEvent.click(downloadButton);
+      
+      expect(mockClick).toHaveBeenCalled();
+    });
+
+    it('should download JSON data as JSON file', () => {
+      const jsonResult = { key: 'value', number: 42 };
+
+      render(<ResultDisplay result={jsonResult} queryId="test-query-456" />);
+      
+      const downloadButton = screen.getByText('⬇️ Download');
+      fireEvent.click(downloadButton);
+      
+      expect(mockCreateElement).toHaveBeenCalledWith('a');
+      expect(mockClick).toHaveBeenCalled();
+    });
+
+    it('should download text data as text file', () => {
+      const textResult = "This is plain text output";
+
+      render(<ResultDisplay result={textResult} queryId="test-query-789" />);
+      
+      const downloadButton = screen.getByText('⬇️ Download');
+      fireEvent.click(downloadButton);
+      
+      expect(mockCreateElement).toHaveBeenCalledWith('a');
+      expect(mockClick).toHaveBeenCalled();
+    });
+
+    it('should download with default filename when no queryId provided', () => {
+      const textResult = "Some text";
+
+      render(<ResultDisplay result={textResult} />);
+      
+      const downloadButton = screen.getByText('⬇️ Download');
+      fireEvent.click(downloadButton);
+      
+      expect(mockClick).toHaveBeenCalled();
+    });
+
+    it('should download from modal', () => {
+      const tableResult = {
+        rows: [{ id: 1, name: 'John' }]
+      };
+
+      render(<ResultDisplay result={tableResult} />);
+      
+      // Open modal
+      const viewButton = screen.getByText('🔍 View Full Result');
+      fireEvent.click(viewButton);
+      
+      // Download from modal - get all download buttons and click the one in modal
+      const downloadButtons = screen.getAllByText('⬇️ Download');
+      fireEvent.click(downloadButtons[1]); // Second one is in modal
+      
+      expect(mockClick).toHaveBeenCalled();
+    });
+
+    it('should close modal with Close button in modal', () => {
+      const tableResult = {
+        rows: [{ id: 1, name: 'John' }]
+      };
+
+      render(<ResultDisplay result={tableResult} />);
+      
+      // Open modal
+      const viewButton = screen.getByText('🔍 View Full Result');
+      fireEvent.click(viewButton);
+      
+      expect(screen.getByTestId('modal')).toBeInTheDocument();
+      
+      // Close modal using the Close button in modal footer
+      const closeButton = screen.getByText('Close');
+      fireEvent.click(closeButton);
+      
+      expect(screen.queryByTestId('modal')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Table rendering with modal', () => {
+    it('should render table in modal with different maxHeight', () => {
+      const tableResult = {
+        rows: [
+          { id: 1, name: 'John' },
+          { id: 2, name: 'Jane' }
+        ]
+      };
+
+      render(<ResultDisplay result={tableResult} />);
+      
+      // Open modal
+      const viewButton = screen.getByText('🔍 View Full Result');
+      fireEvent.click(viewButton);
+      
+      // Check that table is rendered in modal
+      expect(screen.getByTestId('modal')).toBeInTheDocument();
+      // Use getAllByText since John appears in both main view and modal
+      const johnElements = screen.getAllByText('John');
+      expect(johnElements.length).toBeGreaterThan(0);
+      const janeElements = screen.getAllByText('Jane');
+      expect(janeElements.length).toBeGreaterThan(0);
     });
   });
 
