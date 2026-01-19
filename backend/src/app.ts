@@ -12,14 +12,11 @@ import userRoutes from './modules/users/user.routes';
 import { globalErrorHandler, notFoundHandler } from './middlewares/errorHandler.middleware';
 import { 
   generalRateLimit, 
-  authRateLimit, 
-  loginRateLimit,
   querySubmissionRateLimit,
   speedLimiter,
   helmetConfig,
   additionalSecurityHeaders,
-  requestTracking,
-  getRequestStats
+  requestTracking
 } from './middlewares/security.middleware';
 import { RequestContext } from '@mikro-orm/core';
 import { orm } from './config/database';
@@ -43,7 +40,7 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [
   'https://zluri-sre-portal.vercel.app'
 ];
 
-// Allow all Vercel preview deployments
+// Secure CORS - only allow specific domains
 const corsOptions = {
   origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
     // Allow requests with no origin (mobile apps, etc.)
@@ -52,10 +49,18 @@ const corsOptions = {
     // Allow configured origins
     if (allowedOrigins.includes(origin)) return callback(null, true);
     
-    // Allow all Vercel preview deployments
-    if (origin.includes('vercel.app')) return callback(null, true);
+    // SECURITY: Only allow your specific Vercel deployments
+    const allowedVercelDomains = [
+      'https://zluri-sre-portal.vercel.app', // Your production site
+      // Add other specific preview URLs only if you need them
+      // Check your Vercel dashboard for exact URLs
+    ];
     
-    // Reject other origins
+    if (allowedVercelDomains.includes(origin)) {
+      return callback(null, true);
+    }
+    
+    // Reject all other origins
     callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
@@ -114,21 +119,6 @@ app.use('/api/users', userRoutes);
 app.use('/api/test', testRoutes);
 app.use('/api/audit', auditRoutes);
 
-
-
-// Development only: Reset rate limits (DO NOT USE IN PRODUCTION)
-if (process.env.NODE_ENV === 'development') {
-  app.post('/api/dev/reset-rate-limits', (req, res) => {
-    console.log('🔄 Resetting rate limits for development testing...');
-    
-    res.json({
-      message: 'Rate limits reset for development testing',
-      note: 'Rate limits will reset automatically. Try making login requests now.',
-      ip: req.ip,
-      timestamp: new Date().toISOString()
-    });
-  });
-}
 
 // 404 handler for undefined routes (must be after all routes)
 app.use(notFoundHandler);
