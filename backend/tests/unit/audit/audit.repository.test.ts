@@ -258,15 +258,26 @@ describe('AuditRepository', () => {
 
     it('should filter by queryId with partial matching', async () => {
       const mockLogs = [{ id: 'log-1' }];
-      mockEntityManager.find.mockResolvedValue(mockLogs);
+      const mockQueryBuilder = {
+        leftJoinAndSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        offset: jest.fn().mockReturnThis(),
+        getResultList: jest.fn().mockResolvedValue(mockLogs),
+      };
+      mockEntityManager.createQueryBuilder.mockReturnValue(mockQueryBuilder);
 
       const result = await AuditRepository.findWithFilters({ queryId: 'abc123' });
 
-      expect(mockEntityManager.find).toHaveBeenCalledWith(
-        expect.any(Function),
-        { $and: [{ $raw: `"query_request_id"::text ILIKE '%abc123%'` }] },
-        expect.any(Object)
-      );
+      expect(mockEntityManager.createQueryBuilder).toHaveBeenCalledWith(expect.any(Function), 'audit');
+      expect(mockQueryBuilder.leftJoinAndSelect).toHaveBeenCalledWith('audit.performedBy', 'user');
+      expect(mockQueryBuilder.leftJoinAndSelect).toHaveBeenCalledWith('audit.queryRequest', 'query');
+      expect(mockQueryBuilder.where).toHaveBeenCalledWith('query.id::text ILIKE ?', ['%abc123%']);
+      expect(mockQueryBuilder.orderBy).toHaveBeenCalledWith({ 'audit.createdAt': 'DESC' });
+      expect(mockQueryBuilder.limit).toHaveBeenCalledWith(100);
+      expect(mockQueryBuilder.offset).toHaveBeenCalledWith(0);
       expect(result).toEqual(mockLogs);
     });
 
@@ -318,23 +329,25 @@ describe('AuditRepository', () => {
 
     it('should combine queryId with databaseName filters', async () => {
       const mockLogs = [{ id: 'log-1' }];
-      mockEntityManager.find.mockResolvedValue(mockLogs);
+      const mockQueryBuilder = {
+        leftJoinAndSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        offset: jest.fn().mockReturnThis(),
+        getResultList: jest.fn().mockResolvedValue(mockLogs),
+      };
+      mockEntityManager.createQueryBuilder.mockReturnValue(mockQueryBuilder);
 
       const result = await AuditRepository.findWithFilters({ 
         queryId: 'abc123',
         databaseName: 'prod_db'
       });
 
-      expect(mockEntityManager.find).toHaveBeenCalledWith(
-        expect.any(Function),
-        { 
-          queryRequest: { 
-            databaseName: 'prod_db'
-          },
-          $and: [{ $raw: `"query_request_id"::text ILIKE '%abc123%'` }]
-        },
-        expect.any(Object)
-      );
+      expect(mockEntityManager.createQueryBuilder).toHaveBeenCalledWith(expect.any(Function), 'audit');
+      expect(mockQueryBuilder.where).toHaveBeenCalledWith('query.id::text ILIKE ?', ['%abc123%']);
+      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith('query.databaseName = ?', ['prod_db']);
       expect(result).toEqual(mockLogs);
     });
 

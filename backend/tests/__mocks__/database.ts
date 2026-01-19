@@ -8,6 +8,7 @@ export const mockEntityManager = {
   flush: jest.fn(),
   nativeDelete: jest.fn(),
   fork: jest.fn(),
+  createQueryBuilder: jest.fn(),
 };
 
 // Make fork return the same mock

@@ -93,6 +93,51 @@ export class AuditRepository {
 
   static async findWithFilters(options: AuditFilterOptions): Promise<QueryAuditLog[]> {
     const em = getEntityManager();
+    
+    // If we have a queryId search, use a different approach
+    if (options.queryId) {
+      try {
+        // Use the query builder for complex queries with UUID casting
+        const qb = em.createQueryBuilder(QueryAuditLog, 'audit')
+          .leftJoinAndSelect('audit.performedBy', 'user')
+          .leftJoinAndSelect('audit.queryRequest', 'query')
+          .where(`query.id::text ILIKE ?`, [`%${options.queryId}%`]);
+        
+        // Add other filters
+        if (options.userId) {
+          qb.andWhere('audit.performedBy = ?', [options.userId]);
+        }
+        if (options.instanceId) {
+          qb.andWhere('query.instance = ?', [options.instanceId]);
+        }
+        if (options.databaseName) {
+          qb.andWhere('query.databaseName = ?', [options.databaseName]);
+        }
+        if (options.action) {
+          qb.andWhere('audit.action = ?', [options.action]);
+        }
+        if (options.startDate) {
+          qb.andWhere('audit.createdAt >= ?', [options.startDate]);
+        }
+        if (options.endDate) {
+          qb.andWhere('audit.createdAt <= ?', [options.endDate]);
+        }
+        
+        qb.orderBy({ 'audit.createdAt': 'DESC' })
+          .limit(options.limit || 100)
+          .offset(options.offset || 0);
+        
+        return qb.getResultList();
+      } catch (error) {
+        console.error('Error in queryId search:', error);
+        // Fallback to regular search without queryId filter
+        const fallbackOptions = { ...options };
+        delete fallbackOptions.queryId;
+        return this.findWithFilters(fallbackOptions);
+      }
+    }
+
+    // For non-queryId searches, use the regular approach
     const where: any = {};
 
     if (options.userId) {
@@ -106,16 +151,6 @@ export class AuditRepository {
     }
     if (options.action) {
       where.action = options.action;
-    }
-    if (options.queryId) {
-      // Search by query request ID (partial match)
-      // Use raw SQL to cast UUID to text for partial matching
-      where.$and = where.$and || [];
-      where.$and.push({
-        $raw: `"query_request_id"::text ILIKE '%${options.queryId}%'`
-      });
-      // Remove the queryRequest filter to avoid conflicts
-      delete where.queryRequest?.id;
     }
     if (options.startDate || options.endDate) {
       const dateFilter: any = {};
