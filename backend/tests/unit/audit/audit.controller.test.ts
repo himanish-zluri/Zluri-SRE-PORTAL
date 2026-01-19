@@ -94,6 +94,9 @@ describe('AuditController', () => {
         userId: 'user-1',
         databaseName: undefined,
         action: undefined,
+        queryId: undefined,
+        startDate: undefined,
+        endDate: undefined,
         limit: 50,
         offset: 10,
       });
@@ -117,8 +120,115 @@ describe('AuditController', () => {
         userId: undefined,
         databaseName: 'production_db',
         action: undefined,
+        queryId: undefined,
+        startDate: undefined,
+        endDate: undefined,
         limit: 50,
         offset: 10,
+      });
+    });
+
+    it('should filter by action when provided', async () => {
+      const mockLogs = [createMockLog('log-1', 'EXECUTED')];
+      (AuditRepository.findWithFilters as jest.Mock).mockResolvedValue(mockLogs);
+
+      mockRequest = {
+        user: { id: 'admin-1', email: 'admin@test.com', role: 'ADMIN' },
+        query: { action: 'EXECUTED' }
+      };
+
+      await AuditController.getAuditLogs(mockRequest as AuthenticatedRequest, mockResponse as Response);
+
+      expect(AuditRepository.findWithFilters).toHaveBeenCalledWith({
+        userId: undefined,
+        databaseName: undefined,
+        action: 'EXECUTED',
+        queryId: undefined,
+        startDate: undefined,
+        endDate: undefined,
+        limit: 100,
+        offset: 0,
+      });
+    });
+
+    it('should filter by querySearch when provided', async () => {
+      const mockLogs = [createMockLog('log-1', 'SUBMITTED')];
+      (AuditRepository.findWithFilters as jest.Mock).mockResolvedValue(mockLogs);
+
+      mockRequest = {
+        user: { id: 'admin-1', email: 'admin@test.com', role: 'ADMIN' },
+        query: { querySearch: 'abc123' }
+      };
+
+      await AuditController.getAuditLogs(mockRequest as AuthenticatedRequest, mockResponse as Response);
+
+      expect(AuditRepository.findWithFilters).toHaveBeenCalledWith({
+        userId: undefined,
+        databaseName: undefined,
+        action: undefined,
+        queryId: 'abc123',
+        startDate: undefined,
+        endDate: undefined,
+        limit: 100,
+        offset: 0,
+      });
+    });
+
+    it('should filter by date range when provided', async () => {
+      const mockLogs = [createMockLog('log-1', 'SUBMITTED')];
+      (AuditRepository.findWithFilters as jest.Mock).mockResolvedValue(mockLogs);
+
+      mockRequest = {
+        user: { id: 'admin-1', email: 'admin@test.com', role: 'ADMIN' },
+        query: { 
+          startDate: '2024-01-01T00:00:00Z',
+          endDate: '2024-12-31T23:59:59Z'
+        }
+      };
+
+      await AuditController.getAuditLogs(mockRequest as AuthenticatedRequest, mockResponse as Response);
+
+      expect(AuditRepository.findWithFilters).toHaveBeenCalledWith({
+        userId: undefined,
+        databaseName: undefined,
+        action: undefined,
+        queryId: undefined,
+        startDate: new Date('2024-01-01T00:00:00Z'),
+        endDate: new Date('2024-12-31T23:59:59Z'),
+        limit: 100,
+        offset: 0,
+      });
+    });
+
+    it('should handle multiple filters combined', async () => {
+      const mockLogs = [createMockLog('log-1', 'SUBMITTED')];
+      (AuditRepository.findWithFilters as jest.Mock).mockResolvedValue(mockLogs);
+
+      mockRequest = {
+        user: { id: 'admin-1', email: 'admin@test.com', role: 'ADMIN' },
+        query: { 
+          userId: 'user-1',
+          databaseName: 'prod_db',
+          action: 'EXECUTED',
+          querySearch: 'abc123',
+          startDate: '2024-01-01',
+          endDate: '2024-12-31',
+          limit: '25',
+          offset: '5'
+        }
+      };
+
+      await AuditController.getAuditLogs(mockRequest as AuthenticatedRequest, mockResponse as Response);
+
+      expect(AuditRepository.findWithFilters).toHaveBeenCalledWith({
+        userId: 'user-1',
+        databaseName: 'prod_db',
+        action: 'EXECUTED',
+        queryId: 'abc123',
+        startDate: new Date('2024-01-01'),
+        endDate: new Date('2024-12-31'),
+        limit: 25,
+        offset: 5,
       });
     });
 

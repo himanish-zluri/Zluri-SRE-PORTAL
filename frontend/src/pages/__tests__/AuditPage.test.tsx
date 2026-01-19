@@ -333,9 +333,9 @@ describe('AuditPage', () => {
       expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
     });
     
-    // Check for common details that appear in all logs
-    expect(screen.getAllByText('Type:').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('QUERY').length).toBeGreaterThan(0);
+    // Should show the submitted log entry (details are now in modal)
+    expect(screen.getByText('SUBMITTED')).toBeInTheDocument();
+    expect(screen.getByText('View Details')).toBeInTheDocument();
   });
 
   it('displays details for REJECTED action', async () => {
@@ -345,7 +345,9 @@ describe('AuditPage', () => {
       expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
     });
     
-    expect(screen.getByText('Query too broad')).toBeInTheDocument();
+    // Should show the rejected log entry (details are now in modal)
+    expect(screen.getByText('REJECTED')).toBeInTheDocument();
+    expect(screen.getByText('View Details')).toBeInTheDocument();
   });
 
   it('displays details for FAILED action', async () => {
@@ -355,7 +357,9 @@ describe('AuditPage', () => {
       expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
     });
     
-    expect(screen.getByText('Connection timeout')).toBeInTheDocument();
+    // Should show the failed log entry (details are now in modal)
+    expect(screen.getByText('FAILED')).toBeInTheDocument();
+    expect(screen.getByText('View Details')).toBeInTheDocument();
   });
 
   it('displays details for EXECUTED action', async () => {
@@ -365,8 +369,9 @@ describe('AuditPage', () => {
       expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
     });
     
-    // Check for instance type in the details
-    expect(screen.getByText('POSTGRES')).toBeInTheDocument();
+    // Should show the executed log entry (details are now in modal)
+    expect(screen.getByText('EXECUTED')).toBeInTheDocument();
+    expect(screen.getByText('View Details')).toBeInTheDocument();
   });
 
   it('handles user loading failure gracefully', async () => {
@@ -491,8 +496,10 @@ describe('AuditPage', () => {
       expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
     });
     
-    expect(screen.getByText('customKey:')).toBeInTheDocument();
-    expect(screen.getByText('customValue')).toBeInTheDocument();
+    // Should show the unknown action log entry (details are now in modal)
+    expect(screen.getByText('UNKNOWN_ACTION')).toBeInTheDocument();
+    expect(screen.getByText('John Doe')).toBeInTheDocument();
+    expect(screen.getByText('View Details')).toBeInTheDocument();
   });
 
   it('displays dash for empty details', async () => {
@@ -514,8 +521,11 @@ describe('AuditPage', () => {
       expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
     });
     
-    // Should show dash for empty details
-    expect(screen.getByText('-')).toBeInTheDocument();
+    // Should show the log entry with View Details button (Details column was removed)
+    expect(screen.getByText('SUBMITTED')).toBeInTheDocument();
+    expect(screen.getByText('John Doe')).toBeInTheDocument();
+    expect(screen.getByText('query-12')).toBeInTheDocument();
+    expect(screen.getByText('View Details')).toBeInTheDocument();
   });
 
   it('displays default rejection reason when not provided', async () => {
@@ -537,8 +547,11 @@ describe('AuditPage', () => {
       expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
     });
     
-    // Empty details should show dash
-    expect(screen.getByText('-')).toBeInTheDocument();
+    // Should show the rejected log entry (Details column was removed)
+    expect(screen.getByText('REJECTED')).toBeInTheDocument();
+    expect(screen.getByText('John Doe')).toBeInTheDocument();
+    expect(screen.getByText('query-12')).toBeInTheDocument();
+    expect(screen.getByText('View Details')).toBeInTheDocument();
   });
 
   it('displays default error message when not provided', async () => {
@@ -560,8 +573,11 @@ describe('AuditPage', () => {
       expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
     });
     
-    // Empty details should show dash
-    expect(screen.getByText('-')).toBeInTheDocument();
+    // Should show the failed log entry (Details column was removed)
+    expect(screen.getByText('FAILED')).toBeInTheDocument();
+    expect(screen.getByText('John Doe')).toBeInTheDocument();
+    expect(screen.getByText('query-12')).toBeInTheDocument();
+    expect(screen.getByText('View Details')).toBeInTheDocument();
   });
 
   it('filters by user automatically', async () => {

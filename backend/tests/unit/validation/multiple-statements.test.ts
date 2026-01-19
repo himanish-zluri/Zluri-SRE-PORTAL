@@ -276,5 +276,29 @@ describe('Multiple Statement Validation', () => {
       expect(result.success).toBe(false);
       expect(result.error?.issues[0].message).toBe('Query mode supports single statements only. For multiple queries, use Script mode.');
     });
+
+    it('should reject queries with multiple trailing semicolons', () => {
+      const result = submitQuerySchema.safeParse({
+        body: {
+          ...baseValidData,
+          queryText: 'SELECT * FROM users;;'
+        }
+      });
+      
+      expect(result.success).toBe(false);
+      expect(result.error?.issues[0].message).toBe('Query mode supports single statements only. For multiple queries, use Script mode.');
+    });
+
+    it('should reject queries with multiple semicolons at end', () => {
+      const result = submitQuerySchema.safeParse({
+        body: {
+          ...baseValidData,
+          queryText: 'db.users.find({});;;'
+        }
+      });
+      
+      expect(result.success).toBe(false);
+      expect(result.error?.issues[0].message).toBe('Query mode supports single statements only. For multiple queries, use Script mode.');
+    });
   });
 });

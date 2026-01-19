@@ -242,6 +242,88 @@ describe('AuditRepository', () => {
       expect(result).toEqual(mockLogs);
     });
 
+    it('should filter by queryId with partial matching', async () => {
+      const mockLogs = [{ id: 'log-1' }];
+      mockEntityManager.find.mockResolvedValue(mockLogs);
+
+      const result = await AuditRepository.findWithFilters({ queryId: 'abc123' });
+
+      expect(mockEntityManager.find).toHaveBeenCalledWith(
+        expect.any(Function),
+        { queryRequest: { id: { $ilike: '%abc123%' } } },
+        expect.any(Object)
+      );
+      expect(result).toEqual(mockLogs);
+    });
+
+    it('should filter by startDate only', async () => {
+      const mockLogs = [{ id: 'log-1' }];
+      mockEntityManager.find.mockResolvedValue(mockLogs);
+      const startDate = new Date('2024-01-01');
+
+      const result = await AuditRepository.findWithFilters({ startDate });
+
+      expect(mockEntityManager.find).toHaveBeenCalledWith(
+        expect.any(Function),
+        { createdAt: { $gte: startDate } },
+        expect.any(Object)
+      );
+      expect(result).toEqual(mockLogs);
+    });
+
+    it('should filter by endDate only', async () => {
+      const mockLogs = [{ id: 'log-1' }];
+      mockEntityManager.find.mockResolvedValue(mockLogs);
+      const endDate = new Date('2024-12-31');
+
+      const result = await AuditRepository.findWithFilters({ endDate });
+
+      expect(mockEntityManager.find).toHaveBeenCalledWith(
+        expect.any(Function),
+        { createdAt: { $lte: endDate } },
+        expect.any(Object)
+      );
+      expect(result).toEqual(mockLogs);
+    });
+
+    it('should filter by date range', async () => {
+      const mockLogs = [{ id: 'log-1' }];
+      mockEntityManager.find.mockResolvedValue(mockLogs);
+      const startDate = new Date('2024-01-01');
+      const endDate = new Date('2024-12-31');
+
+      const result = await AuditRepository.findWithFilters({ startDate, endDate });
+
+      expect(mockEntityManager.find).toHaveBeenCalledWith(
+        expect.any(Function),
+        { createdAt: { $gte: startDate, $lte: endDate } },
+        expect.any(Object)
+      );
+      expect(result).toEqual(mockLogs);
+    });
+
+    it('should combine queryId with databaseName filters', async () => {
+      const mockLogs = [{ id: 'log-1' }];
+      mockEntityManager.find.mockResolvedValue(mockLogs);
+
+      const result = await AuditRepository.findWithFilters({ 
+        queryId: 'abc123',
+        databaseName: 'prod_db'
+      });
+
+      expect(mockEntityManager.find).toHaveBeenCalledWith(
+        expect.any(Function),
+        { 
+          queryRequest: { 
+            id: { $ilike: '%abc123%' },
+            databaseName: 'prod_db'
+          }
+        },
+        expect.any(Object)
+      );
+      expect(result).toEqual(mockLogs);
+    });
+
     it('should combine multiple filters', async () => {
       const mockLogs = [{ id: 'log-1' }];
       mockEntityManager.find.mockResolvedValue(mockLogs);

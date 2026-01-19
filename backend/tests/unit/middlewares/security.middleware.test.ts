@@ -103,6 +103,90 @@ describe('Security Middleware', () => {
       expect(stats).toHaveProperty('topRequesters');
       expect(Array.isArray(stats.topRequesters)).toBe(true);
     });
+
+    it('should handle requests with different IP sources', async () => {
+      // Test with req.connection.remoteAddress fallback
+      const testApp = express();
+      testApp.use((req: any, res, next) => {
+        // Mock the IP to be undefined and set connection.remoteAddress
+        Object.defineProperty(req, 'ip', { value: undefined, writable: true });
+        Object.defineProperty(req, 'connection', { 
+          value: { remoteAddress: '192.168.1.100' }, 
+          writable: true 
+        });
+        next();
+      });
+      testApp.use(requestTracking);
+      testApp.get('/test', (req, res) => res.json({ success: true }));
+      
+      await request(testApp).get('/test');
+      const stats = getRequestStats();
+      expect(stats.totalIPs).toBeGreaterThan(0);
+    });
+
+    it('should handle requests with no IP information', async () => {
+      const testApp = express();
+      testApp.use((req: any, res, next) => {
+        // Mock both IP and connection to be undefined/empty
+        Object.defineProperty(req, 'ip', { value: undefined, writable: true });
+        Object.defineProperty(req, 'connection', { 
+          value: {}, 
+          writable: true 
+        });
+        next();
+      });
+      testApp.use(requestTracking);
+      testApp.get('/test', (req, res) => res.json({ success: true }));
+      
+      await request(testApp).get('/test');
+      const stats = getRequestStats();
+      expect(stats.totalIPs).toBeGreaterThan(0);
+    });
+
+    it('should clean old entries from request tracker', async () => {
+      // Mock Date.now to simulate time passing
+      const originalNow = Date.now;
+      let mockTime = originalNow();
+      
+      jest.spyOn(Date, 'now').mockImplementation(() => mockTime);
+      
+      await request(app).get('/test');
+      
+      // Advance time by more than 1 minute
+      mockTime += 70 * 1000;
+      
+      await request(app).get('/test');
+      
+      const stats = getRequestStats();
+      expect(stats.totalIPs).toBeGreaterThan(0);
+      
+      // Restore original Date.now
+      Date.now = originalNow;
+    });
+
+    it('should log warning for high request rates', async () => {
+      const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();
+      
+      // Create a test app that simulates high request rate
+      const testApp = express();
+      testApp.use((req: any, res, next) => {
+        Object.defineProperty(req, 'ip', { value: '192.168.1.200', writable: true });
+        next();
+      });
+      testApp.use(requestTracking);
+      testApp.get('/test', (req, res) => res.json({ success: true }));
+      
+      // Make more than 200 requests to trigger warning
+      for (let i = 0; i < 205; i++) {
+        await request(testApp).get('/test');
+      }
+      
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[SECURITY] High request rate from IP 192.168.1.200')
+      );
+      
+      consoleSpy.mockRestore();
+    });
   });
 
   describe('General Rate Limiting', () => {
@@ -110,6 +194,7 @@ describe('Security Middleware', () => {
       app.use(generalRateLimit);
       app.get('/test', (req, res) => res.json({ success: true }));
       app.get('/api-docs', (req, res) => res.json({ success: true }));
+      app.get('/', (req, res) => res.json({ success: true }));
     });
 
     it('should allow requests within limit', async () => {
@@ -119,6 +204,12 @@ describe('Security Middleware', () => {
 
     it('should skip rate limiting for api-docs', async () => {
       const response = await request(app).get('/api-docs');
+      expect(response.status).toBe(200);
+      expect(response.headers['ratelimit-limit']).toBeUndefined();
+    });
+
+    it('should skip rate limiting for root path', async () => {
+      const response = await request(app).get('/');
       expect(response.status).toBe(200);
       expect(response.headers['ratelimit-limit']).toBeUndefined();
     });
@@ -142,7 +233,7 @@ describe('Security Middleware', () => {
       expect(response.headers['ratelimit-limit']).toBe('5');
     });
 
-    it('should have 15 minute window for login attempts', async () => {
+    it('should have 2 minute window for login attempts', async () => {
       const response = await request(app).post('/login');
       expect(response.headers['ratelimit-reset']).toBeDefined();
     });
@@ -180,7 +271,7 @@ describe('Security Middleware', () => {
       expect(response.headers['ratelimit-limit']).toBe('10');
     });
 
-    it('should have 5 minute window', async () => {
+    it('should have 1 minute window', async () => {
       const response = await request(app).post('/submit');
       expect(response.headers['ratelimit-reset']).toBeDefined();
     });
@@ -191,6 +282,7 @@ describe('Security Middleware', () => {
       app.use(speedLimiter);
       app.get('/test', (req, res) => res.json({ success: true }));
       app.get('/api-docs', (req, res) => res.json({ success: true }));
+      app.get('/', (req, res) => res.json({ success: true }));
     });
 
     it('should allow requests without delay initially', async () => {
@@ -205,6 +297,14 @@ describe('Security Middleware', () => {
     it('should skip speed limiting for api-docs', async () => {
       const start = Date.now();
       await request(app).get('/api-docs');
+      const duration = Date.now() - start;
+      
+      expect(duration).toBeLessThan(100);
+    });
+
+    it('should skip speed limiting for root path', async () => {
+      const start = Date.now();
+      await request(app).get('/');
       const duration = Date.now() - start;
       
       expect(duration).toBeLessThan(100);

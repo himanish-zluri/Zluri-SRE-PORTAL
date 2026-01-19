@@ -571,4 +571,116 @@ describe('QueryService', () => {
       expect(result.pagination).toEqual({ total: 100, limit: 10, offset: 0, hasMore: true });
     });
   });
+
+  describe('getQueryById', () => {
+    const mockQuery = {
+      id: 'query-123',
+      requester: { id: 'user-1', name: 'User One', email: 'user@example.com' },
+      pod: { id: 'pod-1', name: 'Pod A', manager: { name: 'Manager One' } },
+      instance: { id: 'instance-1', name: 'DB Instance' },
+      databaseName: 'test_db',
+      submissionType: 'QUERY',
+      queryText: 'SELECT * FROM users',
+      comments: 'Test query',
+      status: 'PENDING',
+      createdAt: '2024-01-01T00:00:00Z',
+      updatedAt: '2024-01-01T00:00:00Z'
+    };
+
+    it('should return query for admin user', async () => {
+      (QueryRepository.findById as jest.Mock).mockResolvedValue(mockQuery);
+
+      const result = await QueryService.getQueryById('query-123', 'admin-1', 'ADMIN');
+
+      expect(QueryRepository.findById).toHaveBeenCalledWith('query-123');
+      expect(result).toEqual(expect.objectContaining({
+        id: 'query-123',
+        requester_id: 'user-1',
+        requester_name: 'User One',
+        requester_email: 'user@example.com'
+      }));
+    });
+
+    it('should return query for manager of the POD', async () => {
+      (QueryRepository.findById as jest.Mock).mockResolvedValue(mockQuery);
+      (UserRepository.getUserPods as jest.Mock).mockResolvedValue([
+        { id: 'pod-1', name: 'Pod A' },
+        { id: 'pod-2', name: 'Pod B' }
+      ]);
+
+      const result = await QueryService.getQueryById('query-123', 'manager-1', 'MANAGER');
+
+      expect(QueryRepository.findById).toHaveBeenCalledWith('query-123');
+      expect(UserRepository.getUserPods).toHaveBeenCalledWith('manager-1');
+      expect(result).toEqual(expect.objectContaining({
+        id: 'query-123',
+        pod_id: 'pod-1'
+      }));
+    });
+
+    it('should throw ForbiddenError for manager not owning the POD', async () => {
+      (QueryRepository.findById as jest.Mock).mockResolvedValue(mockQuery);
+      (UserRepository.getUserPods as jest.Mock).mockResolvedValue([
+        { id: 'pod-2', name: 'Pod B' },
+        { id: 'pod-3', name: 'Pod C' }
+      ]);
+
+      await expect(
+        QueryService.getQueryById('query-123', 'manager-1', 'MANAGER')
+      ).rejects.toThrow('You can only view queries for your PODs');
+
+      expect(UserRepository.getUserPods).toHaveBeenCalledWith('manager-1');
+    });
+
+    it('should return query for the requester user', async () => {
+      (QueryRepository.findById as jest.Mock).mockResolvedValue(mockQuery);
+
+      const result = await QueryService.getQueryById('query-123', 'user-1', 'USER');
+
+      expect(QueryRepository.findById).toHaveBeenCalledWith('query-123');
+      expect(result).toEqual(expect.objectContaining({
+        id: 'query-123',
+        requester_id: 'user-1'
+      }));
+    });
+
+    it('should throw ForbiddenError for non-requester user', async () => {
+      (QueryRepository.findById as jest.Mock).mockResolvedValue(mockQuery);
+
+      await expect(
+        QueryService.getQueryById('query-123', 'other-user', 'USER')
+      ).rejects.toThrow('You can only view your own queries');
+    });
+
+    it('should throw NotFoundError when query does not exist', async () => {
+      (QueryRepository.findById as jest.Mock).mockResolvedValue(null);
+
+      await expect(
+        QueryService.getQueryById('nonexistent', 'user-1', 'ADMIN')
+      ).rejects.toThrow('Query not found');
+
+      expect(QueryRepository.findById).toHaveBeenCalledWith('nonexistent');
+    });
+
+    it('should handle query with missing pod information', async () => {
+      const queryWithoutPod = { ...mockQuery, pod: null };
+      (QueryRepository.findById as jest.Mock).mockResolvedValue(queryWithoutPod);
+      (UserRepository.getUserPods as jest.Mock).mockResolvedValue([
+        { id: 'pod-1', name: 'Pod A' }
+      ]);
+
+      await expect(
+        QueryService.getQueryById('query-123', 'manager-1', 'MANAGER')
+      ).rejects.toThrow('You can only view queries for your PODs');
+    });
+
+    it('should handle query with missing requester information', async () => {
+      const queryWithoutRequester = { ...mockQuery, requester: null };
+      (QueryRepository.findById as jest.Mock).mockResolvedValue(queryWithoutRequester);
+
+      await expect(
+        QueryService.getQueryById('query-123', 'user-1', 'USER')
+      ).rejects.toThrow('You can only view your own queries');
+    });
+  });
 });
