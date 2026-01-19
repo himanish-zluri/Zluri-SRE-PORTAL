@@ -2,14 +2,42 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryDetailsModal } from '../QueryDetailsModal';
 
-// Mock the entire API module
-jest.mock('../../../services/api');
+// Mock the API module at the module level
+const mockGetById = jest.fn();
 
-// Import the mocked module
-import { queriesApi } from '../../../services/api';
-
-// Cast to jest.Mock for TypeScript
-const mockQueriesApi = queriesApi as jest.Mocked<typeof queriesApi>;
+jest.mock('../../../services/api', () => ({
+  queriesApi: {
+    getById: mockGetById,
+    getForApproval: jest.fn(),
+    getMySubmissions: jest.fn(),
+    submit: jest.fn(),
+    approve: jest.fn(),
+    reject: jest.fn(),
+  },
+  authApi: {
+    login: jest.fn(),
+    refresh: jest.fn(),
+    logout: jest.fn(),
+    logoutAll: jest.fn(),
+  },
+  instancesApi: {
+    getAll: jest.fn(),
+  },
+  databasesApi: {
+    getByInstance: jest.fn(),
+  },
+  podsApi: {
+    getAll: jest.fn(),
+    getById: jest.fn(),
+  },
+  usersApi: {
+    getAll: jest.fn(),
+  },
+  auditApi: {
+    getAll: jest.fn(),
+    getByQuery: jest.fn(),
+  },
+}));
 
 const mockQuery = {
   id: 'query-123456789',
@@ -69,7 +97,7 @@ describe('QueryDetailsModal', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     // Reset to default successful response
-    mockQueriesApi.getById.mockResolvedValue({ data: mockQuery } as any);
+    mockGetById.mockResolvedValue({ data: mockQuery });
   });
 
   it('does not render when closed', () => {
@@ -83,9 +111,6 @@ describe('QueryDetailsModal', () => {
   });
 
   it('loads and displays query details', async () => {
-    // Ensure mock is set up correctly
-    mockQueriesApi.getById.mockResolvedValue({ data: mockQuery } as any);
-    
     render(<QueryDetailsModal {...defaultProps} />);
     
     await waitFor(() => {
@@ -113,7 +138,7 @@ describe('QueryDetailsModal', () => {
   });
 
   it('displays script content for SCRIPT submission type', async () => {
-    mockQueriesApi.getById.mockResolvedValue({ data: mockScriptQuery } as any);
+    mockGetById.mockResolvedValue({ data: mockScriptQuery });
     
     render(<QueryDetailsModal {...defaultProps} queryId="query-987654321" />);
     
@@ -148,7 +173,7 @@ describe('QueryDetailsModal', () => {
   });
 
   it('displays error details for failed queries', async () => {
-    mockQueriesApi.getById.mockResolvedValue({ data: mockScriptQuery } as any);
+    mockGetById.mockResolvedValue({ data: mockScriptQuery });
     
     render(<QueryDetailsModal {...defaultProps} queryId="query-987654321" />);
     
@@ -162,7 +187,7 @@ describe('QueryDetailsModal', () => {
   });
 
   it('displays rejection reason for rejected queries', async () => {
-    mockQueriesApi.getById.mockResolvedValue({ data: mockRejectedQuery } as any);
+    mockGetById.mockResolvedValue({ data: mockRejectedQuery });
     
     render(<QueryDetailsModal {...defaultProps} queryId="query-111111111" />);
     
@@ -197,7 +222,7 @@ describe('QueryDetailsModal', () => {
   });
 
   it('handles API error gracefully', async () => {
-    mockQueriesApi.getById.mockRejectedValue(new Error('Not found'));
+    mockGetById.mockRejectedValue(new Error('Not found'));
     
     render(<QueryDetailsModal {...defaultProps} />);
     
@@ -216,7 +241,7 @@ describe('QueryDetailsModal', () => {
         }
       }
     };
-    mockQueriesApi.getById.mockRejectedValue(error);
+    mockGetById.mockRejectedValue(error);
     
     render(<QueryDetailsModal {...defaultProps} />);
     
@@ -263,22 +288,22 @@ describe('QueryDetailsModal', () => {
       expect(document.querySelector('.animate-spin')).not.toBeInTheDocument();
     });
     
-    expect(mockQueriesApi.getById).toHaveBeenCalledWith('query-123456789');
+    expect(mockGetById).toHaveBeenCalledWith('query-123456789');
     
     // Change queryId
     rerender(<QueryDetailsModal {...defaultProps} queryId="query-987654321" />);
     
     await waitFor(() => {
-      expect(mockQueriesApi.getById).toHaveBeenCalledWith('query-987654321');
+      expect(mockGetById).toHaveBeenCalledWith('query-987654321');
     });
     
-    expect(mockQueriesApi.getById).toHaveBeenCalledTimes(2);
+    expect(mockGetById).toHaveBeenCalledTimes(2);
   });
 
   it('does not load data when modal is closed', () => {
     render(<QueryDetailsModal {...defaultProps} isOpen={false} />);
     
-    expect(mockQueriesApi.getById).not.toHaveBeenCalled();
+    expect(mockGetById).not.toHaveBeenCalled();
   });
 
   it('handles string execution result', async () => {
@@ -286,7 +311,7 @@ describe('QueryDetailsModal', () => {
       ...mockQuery,
       execution_result: 'Query executed successfully'
     };
-    mockQueriesApi.getById.mockResolvedValue({ data: queryWithStringResult } as any);
+    mockGetById.mockResolvedValue({ data: queryWithStringResult });
     
     render(<QueryDetailsModal {...defaultProps} />);
     
@@ -302,7 +327,7 @@ describe('QueryDetailsModal', () => {
       ...mockQuery,
       execution_result: { status: 'success', count: 42, data: { users: 10 } }
     };
-    mockQueriesApi.getById.mockResolvedValue({ data: queryWithJsonResult } as any);
+    mockGetById.mockResolvedValue({ data: queryWithJsonResult });
     
     render(<QueryDetailsModal {...defaultProps} />);
     

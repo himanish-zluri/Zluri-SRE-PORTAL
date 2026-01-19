@@ -109,11 +109,13 @@ export class AuditRepository {
     }
     if (options.queryId) {
       // Search by query request ID (partial match)
-      // Since UUIDs are strings, we can use $like for partial matching
-      where.queryRequest = { 
-        ...where.queryRequest, 
-        id: { $like: `%${options.queryId}%` }
-      };
+      // Use raw SQL to cast UUID to text for partial matching
+      where.$and = where.$and || [];
+      where.$and.push({
+        $raw: `"query_request_id"::text ILIKE '%${options.queryId}%'`
+      });
+      // Remove the queryRequest filter to avoid conflicts
+      delete where.queryRequest?.id;
     }
     if (options.startDate || options.endDate) {
       const dateFilter: any = {};
