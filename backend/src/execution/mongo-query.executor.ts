@@ -98,9 +98,13 @@ export async function executeMongoQuery(
     
     // Execute the query with timeout protection using Promise.race
     const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
+    
+    // Remove trailing semicolon for MongoDB queries to prevent syntax errors
+    const cleanQueryText = queryText.trim().replace(/;+$/, '');
+    
     const fn = new AsyncFunction('db', 'collection', `
       try {
-        return await (${queryText});
+        return await (${cleanQueryText});
       } catch (error) {
         throw new Error('MongoDB query failed: ' + error.message);
       }
