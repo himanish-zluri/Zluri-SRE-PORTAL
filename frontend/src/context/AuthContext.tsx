@@ -17,23 +17,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const initAuth = async () => {
-      // Try to refresh token from HttpOnly cookie only if we have an access token
-      const accessToken = localStorage.getItem('accessToken');
-      if (accessToken) {
-        try {
-          // Verify token is still valid by making a test request
-          const response = await authApi.refresh();
-          setUser(response.data.user);
-          localStorage.setItem('accessToken', response.data.accessToken);
-        } catch (error) {
-          // Token refresh failed, clear access token and user state
-          localStorage.removeItem('accessToken');
-          setUser(null);
-          console.log('Token refresh failed during initialization:', error);
-        }
-      } else {
-        // No access token, ensure user is null
+      // Always try to refresh token from HttpOnly cookie on app initialization
+      // This handles cases where access token expired but refresh token is still valid
+      try {
+        console.log('Attempting token refresh on app initialization...');
+        const response = await authApi.refresh();
+        console.log('Token refresh successful');
+        setUser(response.data.user);
+        localStorage.setItem('accessToken', response.data.accessToken);
+      } catch (error: any) {
+        // Refresh failed - could be no refresh token, expired refresh token, or network error
+        const status = error?.response?.status;
+        const errorMessage = error?.response?.data?.error || error?.message;
+        
+        console.log(`Token refresh failed: ${status} - ${errorMessage}`);
+        
+        // Clear any stale access token
+        localStorage.removeItem('accessToken');
         setUser(null);
+        
+        // Only log detailed error in development
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Full refresh error:', error);
+        }
       }
       setIsLoading(false);
     };

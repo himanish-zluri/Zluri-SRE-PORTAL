@@ -11,7 +11,7 @@ export class AuthController {
     res.cookie('refreshToken', result.refreshToken, {
       httpOnly: true,           // Cannot be accessed by JavaScript
       secure: process.env.NODE_ENV === 'production', // HTTPS only in production
-      sameSite: 'strict',       // CSRF protection
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // Allow cross-site in production
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       path: '/'                 // Available for all routes
     });
@@ -47,7 +47,7 @@ export class AuthController {
     res.clearCookie('refreshToken', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       path: '/'
     });
 
@@ -61,7 +61,7 @@ export class AuthController {
     res.clearCookie('refreshToken', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       path: '/'
     });
 
