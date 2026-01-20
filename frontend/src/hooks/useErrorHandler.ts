@@ -20,7 +20,7 @@ export interface ErrorHandlerOptions {
  */
 export function useErrorHandler() {
   const extractErrorMessage = useCallback((error: any): string => {
-    // Handle network errors
+    // Handle network errors (no response from server)
     if (!error.response) {
       return 'Network error. Please check your connection.';
     }
@@ -30,7 +30,7 @@ export function useErrorHandler() {
       return error.response.data.message;
     }
 
-    // Handle HTTP status codes
+    // Handle HTTP status codes with more specific messages
     switch (error.response?.status) {
       case 400:
         return 'Invalid request. Please check your input.';
@@ -47,10 +47,26 @@ export function useErrorHandler() {
       case 429:
         return 'Too many requests. Please try again later.';
       case 500:
+        // For 500 errors, try to get more specific message from response
+        if (error.response?.data?.error || error.response?.data?.details) {
+          return error.response.data.error || error.response.data.details || 'Query execution failed. Please check your query and try again.';
+        }
         return 'Server error. Please try again later.';
       case 503:
         return 'Service unavailable. Please try again later.';
       default:
+        // For any other HTTP error, try to extract message from response body
+        if (error.response?.data) {
+          if (typeof error.response.data === 'string') {
+            return error.response.data;
+          }
+          if (error.response.data.error) {
+            return error.response.data.error;
+          }
+          if (error.response.data.details) {
+            return error.response.data.details;
+          }
+        }
         return 'An unexpected error occurred. Please try again.';
     }
   }, []);

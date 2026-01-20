@@ -68,7 +68,7 @@ export function ApprovalDashboardPage() {
       setShowDetailModal(false);
       showSuccess('Query approved successfully!');
     } catch (error: any) {
-      showError(error.response?.data?.message || 'Failed to approve query');
+      showError(error, { fallbackMessage: 'Failed to approve query' });
       // Reload to show updated status (FAILED)
       await loadQueries();
       setSelectedQuery(null);
@@ -89,7 +89,7 @@ export function ApprovalDashboardPage() {
       setRejectReason('');
       showSuccess('Query rejected successfully!');
     } catch (error: any) {
-      showError(error.response?.data?.message || 'Failed to reject query');
+      showError(error, { fallbackMessage: 'Failed to reject query' });
     } finally {
       setActionLoading(false);
     }

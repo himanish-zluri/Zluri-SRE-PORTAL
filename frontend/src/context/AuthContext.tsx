@@ -26,11 +26,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(response.data.user);
           localStorage.setItem('accessToken', response.data.accessToken);
         } catch (error) {
-          // Token refresh failed, clear access token and don't redirect
-          // (user might be on login page already)
+          // Token refresh failed, clear access token and user state
           localStorage.removeItem('accessToken');
+          setUser(null);
           console.log('Token refresh failed during initialization:', error);
         }
+      } else {
+        // No access token, ensure user is null
+        setUser(null);
       }
       setIsLoading(false);
     };
