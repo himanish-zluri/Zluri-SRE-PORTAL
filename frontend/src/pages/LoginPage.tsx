@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { useError } from '../context/ErrorContext';
 import { Input } from '../components/ui/Input';
 import { PasswordInput } from '../components/ui/PasswordInput';
 import { Button } from '../components/ui/Button';
@@ -9,6 +10,7 @@ import { Button } from '../components/ui/Button';
 export function LoginPage() {
   const { user, login } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { showError } = useError();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -26,6 +28,7 @@ export function LoginPage() {
     try {
       await login(email, password);
     } catch (err: any) {
+      // Show error in form for login page (more appropriate than toast)
       setError(err.response?.data?.message || 'Invalid email or password');
     } finally {
       setIsLoading(false);

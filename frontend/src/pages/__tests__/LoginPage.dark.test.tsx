@@ -1,5 +1,5 @@
-import { render, screen } from '@testing-library/react';
-import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { render, screen } from '../../__tests__/test-utils';
+import { Routes, Route } from 'react-router-dom';
 import { LoginPage } from '../LoginPage';
 
 // Mock useAuth hook
@@ -27,11 +27,10 @@ describe('LoginPage - Dark Theme', () => {
 
   it('shows sun icon when theme is dark', () => {
     render(
-      <MemoryRouter initialEntries={['/login']}>
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
-        </Routes>
-      </MemoryRouter>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+      </Routes>,
+      { initialEntries: ['/login'] }
     );
     
     // Should show sun icon for dark theme

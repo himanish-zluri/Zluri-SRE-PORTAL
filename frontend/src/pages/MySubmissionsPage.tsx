@@ -6,11 +6,13 @@ import { StatusBadge } from '../components/ui/StatusBadge';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { ResultDisplay } from '../components/ui/ResultDisplay';
+import { useError } from '../context/ErrorContext';
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 
 export function MySubmissionsPage() {
   const navigate = useNavigate();
+  const { showError, showSuccess } = useError();
   const [queries, setQueries] = useState<Query[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedQuery, setSelectedQuery] = useState<Query | null>(null);
@@ -84,7 +86,7 @@ export function MySubmissionsPage() {
       setQueries(Array.isArray(filteredQueries) ? filteredQueries : []);
       setTotalItems(response.data.pagination?.total || filteredQueries.length);
     } catch (error) {
-      console.error('Failed to load queries:', error);
+      showError(error, { fallbackMessage: 'Failed to load your submissions' });
       setQueries([]);
       setTotalItems(0);
     } finally {
@@ -118,7 +120,7 @@ export function MySubmissionsPage() {
     try {
       // Validate that we have non-empty content before retrying
       if (!query.comments || query.comments.trim().length === 0) {
-        alert('Cannot retry: Please fill the comments field. Comments cannot be empty or only spaces.');
+        showError(new Error('Cannot retry: Comments cannot be empty or only spaces.'));
         setRetryLoading(null);
         return;
       }
@@ -126,7 +128,7 @@ export function MySubmissionsPage() {
       if (query.submission_type === 'SCRIPT' && query.script_content) {
         // Validate script content is not empty or whitespace-only
         if (query.script_content.trim().length === 0) {
-          alert('Cannot retry: Script content cannot be empty or only spaces.');
+          showError(new Error('Cannot retry: Script content cannot be empty or only spaces.'));
           setRetryLoading(null);
           return;
         }
@@ -146,7 +148,7 @@ export function MySubmissionsPage() {
       } else {
         // Validate query text is not empty or whitespace-only
         if (!query.query_text || query.query_text.trim().length === 0) {
-          alert('Cannot retry: Please fill the query field. Query text cannot be empty or only spaces.');
+          showError(new Error('Cannot retry: Query text cannot be empty or only spaces.'));
           setRetryLoading(null);
           return;
         }
@@ -162,8 +164,9 @@ export function MySubmissionsPage() {
       }
       // Reload to show the new submission
       await loadQueries();
+      showSuccess('Query resubmitted successfully!');
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Failed to retry query');
+      showError(error, { fallbackMessage: 'Failed to retry query' });
     } finally {
       setRetryLoading(null);
     }
