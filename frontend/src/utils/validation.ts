@@ -1,13 +1,15 @@
 /**
  * Validates that a string contains actual content (not just whitespace)
- * Handles both regular spaces and unicode whitespace characters
+ * Handles regular spaces, unicode whitespace, and zero-width characters
  */
 export function hasActualContent(value: string): boolean {
   if (!value) return false;
   
-  // Remove all types of whitespace including unicode spaces
-  // \s matches regular whitespace, \p{Z} matches unicode space separators
-  const cleaned = value.replace(/[\s\p{Z}]+/gu, '');
+  // Remove all types of whitespace and invisible characters:
+  // \s - regular whitespace
+  // \p{Z} - unicode space separators  
+  // \p{C} - unicode control characters (includes zero-width chars)
+  const cleaned = value.replace(/[\s\p{Z}\p{C}]+/gu, '');
   
   return cleaned.length > 0;
 }
