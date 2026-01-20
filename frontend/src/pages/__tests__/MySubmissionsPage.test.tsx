@@ -1,6 +1,6 @@
-import { render, screen, waitFor } from '../../__tests__/test-utils';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { Routes, Route } from 'react-router-dom';
+import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { MySubmissionsPage } from '../MySubmissionsPage';
 
 // Mock the API
@@ -87,11 +87,12 @@ const mockPaginatedResponse = {
 
 const renderMySubmissions = () => {
   return render(
-    <Routes>
-      <Route path="/submissions" element={<MySubmissionsPage />} />
-      <Route path="/dashboard" element={<div>Dashboard Page</div>} />
-    </Routes>,
-    { initialEntries: ['/submissions'] }
+    <MemoryRouter initialEntries={['/submissions']}>
+      <Routes>
+        <Route path="/submissions" element={<MySubmissionsPage />} />
+        <Route path="/dashboard" element={<div>Dashboard Page</div>} />
+      </Routes>
+    </MemoryRouter>
   );
 };
 

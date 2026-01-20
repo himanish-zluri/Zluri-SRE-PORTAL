@@ -6,12 +6,11 @@ import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { TextArea } from '../components/ui/TextArea';
 import { ResultDisplay } from '../components/ui/ResultDisplay';
-import { useError } from '../context/ErrorContext';
+import { Toast, useToast } from '../components/ui/Toast';
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 
 export function ApprovalDashboardPage() {
-  const { showError, showSuccess } = useError();
   const [queries, setQueries] = useState<Query[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('PENDING');
@@ -31,7 +30,7 @@ export function ApprovalDashboardPage() {
   const [showDetailModal, setShowDetailModal] = useState(false);
 
   // Toast notifications
-  // Removed local toast - using global error context now
+  const { toast, showSuccess, showError, hideToast } = useToast();
 
   useEffect(() => {
     loadQueries();
@@ -50,7 +49,7 @@ export function ApprovalDashboardPage() {
       setQueries(response.data.data);
       setTotalItems(response.data.pagination.total);
     } catch (error) {
-      showError(error, { fallbackMessage: 'Failed to load queries for approval' });
+      console.error('Failed to load queries:', error);
     } finally {
       setIsLoading(false);
     }
@@ -503,7 +502,15 @@ export function ApprovalDashboardPage() {
         )}
       </Modal>
 
-      {/* Toast Notifications - Removed, using global error context */}
+      {/* Toast Notifications */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          isVisible={toast.isVisible}
+          onClose={hideToast}
+        />
+      )}
     </div>
   );
 }

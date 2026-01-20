@@ -7,7 +7,6 @@ import { TextArea } from '../components/ui/TextArea';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { FileUpload } from '../components/ui/FileUpload';
-import { useError } from '../context/ErrorContext';
 
 // Size limits (must match backend limits)
 const MAX_QUERY_SIZE = 50000;      // 50KB
@@ -26,7 +25,6 @@ interface PrefillData {
 
 export function DashboardPage() {
   const location = useLocation();
-  const { showError, showSuccess } = useError();
   const prefillData = (location.state as { prefill?: PrefillData })?.prefill;
   const prefillProcessed = useRef(false);
   const skipNextDbTypeEffect = useRef(false);
@@ -63,8 +61,8 @@ export function DashboardPage() {
   useEffect(() => {
     podsApi.getAll()
       .then((res) => setPods(res.data))
-      .catch((err) => showError(err, { fallbackMessage: 'Failed to load pods' }));
-  }, [showError]);
+      .catch((err) => console.error('Failed to load pods:', err));
+  }, []);
 
   // Load all instances for prefill lookup
   useEffect(() => {
@@ -73,8 +71,8 @@ export function DashboardPage() {
       instancesApi.getAll('MONGODB'),
     ]).then(([pg, mongo]) => {
       setAllInstances([...pg.data, ...mongo.data]);
-    }).catch((err) => showError(err, { fallbackMessage: 'Failed to load instances' }));
-  }, [showError]);
+    }).catch((err) => console.error('Failed to load instances:', err));
+  }, []);
 
   // Handle prefill from navigation state (Modify button from My Submissions)
   useEffect(() => {
@@ -145,14 +143,14 @@ export function DashboardPage() {
     if (dbType) {
       instancesApi.getAll(dbType)
         .then((res) => setInstances(res.data))
-        .catch((err) => showError(err, { fallbackMessage: 'Failed to load instances' }));
+        .catch((err) => console.error('Failed to load instances:', err));
     } else {
       setInstances([]);
     }
     setInstanceId('');
     setDatabaseName('');
     setDatabases([]);
-  }, [dbType, isInitializing, showError]);
+  }, [dbType, isInitializing]);
 
   // Load databases when instanceId changes
   useEffect(() => {
@@ -167,12 +165,12 @@ export function DashboardPage() {
     if (instanceId) {
       databasesApi.getByInstance(instanceId)
         .then((res) => setDatabases(res.data.map(d => d.database_name)))
-        .catch((err) => showError(err, { fallbackMessage: 'Failed to load databases' }));
+        .catch((err) => console.error('Failed to load databases:', err));
     } else {
       setDatabases([]);
     }
     setDatabaseName('');
-  }, [instanceId, isInitializing, showError]);
+  }, [instanceId, isInitializing]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -296,7 +294,7 @@ export function DashboardPage() {
         });
       }
 
-      showSuccess('Query submitted successfully! Awaiting approval.');
+      setSuccess('Query submitted successfully! Awaiting approval.');
       // Reset form
       setDbType('');
       setInstanceId('');
@@ -311,7 +309,7 @@ export function DashboardPage() {
       setCommentsError('');
       setScriptFileError('');
     } catch (err: any) {
-      showError(err, { fallbackMessage: 'Failed to submit query' });
+      setError(err.response?.data?.message || 'Failed to submit query');
     } finally {
       setIsLoading(false);
     }

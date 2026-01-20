@@ -75,30 +75,14 @@ api.interceptors.response.use(
         localStorage.setItem('accessToken', accessToken);
         originalRequest.headers.Authorization = `Bearer ${accessToken}`;
         return api(originalRequest);
-      } catch (refreshError) {
+      } catch {
         // Refresh failed, clear token and redirect only if not already on login page
         localStorage.removeItem('accessToken');
         if (!window.location.pathname.includes('/login')) {
-          // Create a custom error for better handling
-          const authError = new Error('Session expired. Please log in again.');
-          authError.name = 'AuthenticationError';
           window.location.href = '/login';
-          return Promise.reject(authError);
         }
       }
     }
-    
-    // Enhance error object with more context for better error handling
-    if (error.response) {
-      error.isNetworkError = false;
-      error.statusCode = error.response.status;
-      error.errorData = error.response.data;
-    } else {
-      error.isNetworkError = true;
-      error.statusCode = null;
-      error.errorData = null;
-    }
-    
     return Promise.reject(error);
   }
 );
