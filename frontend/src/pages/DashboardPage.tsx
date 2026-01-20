@@ -8,6 +8,7 @@ import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { FileUpload } from '../components/ui/FileUpload';
 import { useError } from '../context/ErrorContext';
+import { hasActualContent, normalizeWhitespace } from '../utils/validation';
 
 // Size limits (must match backend limits)
 const MAX_QUERY_SIZE = 50000;      // 50KB
@@ -208,7 +209,7 @@ export function DashboardPage() {
       hasValidationErrors = true;
     }
 
-    if (comments.trim().length === 0) {
+    if (!hasActualContent(comments)) {
       setCommentsError('Please fill this field. Comments cannot be empty or only spaces.');
       hasValidationErrors = true;
     } else if (comments.length > MAX_COMMENTS_SIZE) {
@@ -250,7 +251,7 @@ export function DashboardPage() {
       }
     } else {
       // Validate query text is not empty or whitespace-only
-      if (queryText.trim().length === 0) {
+      if (!hasActualContent(queryText)) {
         setQueryTextError('Please fill this field. Query text cannot be empty or only spaces.');
         hasValidationErrors = true;
       } else if (queryText.length > MAX_QUERY_SIZE) {
@@ -258,11 +259,11 @@ export function DashboardPage() {
         hasValidationErrors = true;
       } else {
         // Check for multiple SQL statements (semicolons)
-        const trimmedQuery = queryText.trim();
-        const semicolonIndex = trimmedQuery.indexOf(';');
-        const semicolonCount = (trimmedQuery.match(/;/g) || []).length;
+        const normalizedQuery = normalizeWhitespace(queryText);
+        const semicolonIndex = normalizedQuery.indexOf(';');
+        const semicolonCount = (normalizedQuery.match(/;/g) || []).length;
         
-        if ((semicolonIndex !== -1 && semicolonIndex < trimmedQuery.length - 1) || semicolonCount > 1) {
+        if ((semicolonIndex !== -1 && semicolonIndex < normalizedQuery.length - 1) || semicolonCount > 1) {
           setQueryTextError('Query mode supports single statements only. For multiple queries, use Script mode.');
           hasValidationErrors = true;
         }
@@ -281,7 +282,7 @@ export function DashboardPage() {
         formData.append('instanceId', instanceId);
         formData.append('databaseName', databaseName);
         formData.append('podId', podId);
-        formData.append('comments', comments.trim());
+        formData.append('comments', normalizeWhitespace(comments));
         formData.append('submissionType', 'SCRIPT');
         formData.append('script', scriptFile!);
         await queriesApi.submit(formData);
@@ -289,9 +290,9 @@ export function DashboardPage() {
         await queriesApi.submit({
           instanceId,
           databaseName,
-          queryText: queryText.trim(),
+          queryText: normalizeWhitespace(queryText),
           podId,
-          comments: comments.trim(),
+          comments: normalizeWhitespace(comments),
           submissionType: 'QUERY',
         });
       }

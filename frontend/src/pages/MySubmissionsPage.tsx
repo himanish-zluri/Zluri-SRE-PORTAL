@@ -7,6 +7,7 @@ import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { ResultDisplay } from '../components/ui/ResultDisplay';
 import { useError } from '../context/ErrorContext';
+import { hasActualContent, normalizeWhitespace } from '../utils/validation';
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 
@@ -119,7 +120,7 @@ export function MySubmissionsPage() {
     setRetryLoading(query.id);
     try {
       // Validate that we have non-empty content before retrying
-      if (!query.comments || query.comments.trim().length === 0) {
+      if (!hasActualContent(query.comments)) {
         showError(new Error('Cannot retry: Comments cannot be empty or only spaces.'));
         setRetryLoading(null);
         return;
@@ -141,7 +142,7 @@ export function MySubmissionsPage() {
         formData.append('instanceId', query.instance_id);
         formData.append('databaseName', query.database_name);
         formData.append('podId', query.pod_id);
-        formData.append('comments', query.comments.trim());
+        formData.append('comments', normalizeWhitespace(query.comments));
         formData.append('submissionType', 'SCRIPT');
         formData.append('script', file);
         await queriesApi.submit(formData);
@@ -156,9 +157,9 @@ export function MySubmissionsPage() {
         await queriesApi.submit({
           instanceId: query.instance_id,
           databaseName: query.database_name,
-          queryText: query.query_text.trim(),
+          queryText: normalizeWhitespace(query.query_text),
           podId: query.pod_id,
-          comments: query.comments.trim(),
+          comments: normalizeWhitespace(query.comments),
           submissionType: query.submission_type,
         });
       }
