@@ -13,16 +13,10 @@ export function hasActualContent(value: string): boolean {
 }
 
 /**
- * Normalizes whitespace in a string by:
- * 1. Trimming leading/trailing whitespace (including unicode)
- * 2. Collapsing multiple consecutive spaces into single spaces
+ * Preserves the string exactly as-is (no normalization)
+ * Only used to maintain consistent API, but doesn't modify the input
  */
 export function normalizeWhitespace(value: string): string {
-  if (!value) return '';
-  
-  return value
-    // Trim all types of whitespace including unicode
-    .replace(/^[\s\p{Z}]+|[\s\p{Z}]+$/gu, '')
-    // Collapse multiple consecutive whitespace into single spaces
-    .replace(/[\s\p{Z}]+/gu, ' ');
+  // Return the value exactly as-is to preserve user formatting
+  return value;
 }
