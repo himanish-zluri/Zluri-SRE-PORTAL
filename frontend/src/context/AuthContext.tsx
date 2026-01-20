@@ -20,25 +20,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Always try to refresh token from HttpOnly cookie on app initialization
       // This handles cases where access token expired but refresh token is still valid
       try {
-        console.log('Attempting token refresh on app initialization...');
         const response = await authApi.refresh();
-        console.log('Token refresh successful');
         setUser(response.data.user);
         localStorage.setItem('accessToken', response.data.accessToken);
       } catch (error: any) {
         // Refresh failed - could be no refresh token, expired refresh token, or network error
-        const status = error?.response?.status;
-        const errorMessage = error?.response?.data?.error || error?.message;
-        
-        console.log(`Token refresh failed: ${status} - ${errorMessage}`);
-        
         // Clear any stale access token
         localStorage.removeItem('accessToken');
         setUser(null);
         
         // Only log detailed error in development
         if (process.env.NODE_ENV === 'development') {
-          console.log('Full refresh error:', error);
+          console.log('Token refresh failed:', error?.response?.status, error?.response?.data?.error);
         }
       }
       setIsLoading(false);
