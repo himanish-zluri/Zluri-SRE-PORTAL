@@ -7,11 +7,13 @@ import { Modal } from '../components/ui/Modal';
 import { TextArea } from '../components/ui/TextArea';
 import { ResultDisplay } from '../components/ui/ResultDisplay';
 import { useError } from '../context/ErrorContext';
+import { useProcessing } from '../context/ProcessingContext';
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 
 export function ApprovalDashboardPage() {
   const { showError, showSuccess } = useError();
+  const { addProcessingQuery, removeProcessingQuery, isQueryProcessing } = useProcessing();
   const [queries, setQueries] = useState<Query[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('PENDING');
@@ -29,9 +31,6 @@ export function ApprovalDashboardPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
-  
-  // Per-query loading states
-  const [processingQueryId, setProcessingQueryId] = useState<string | null>(null);
 
   // Toast notifications
   // Removed local toast - using global error context now
@@ -39,6 +38,17 @@ export function ApprovalDashboardPage() {
   useEffect(() => {
     loadQueries();
   }, [currentPage, statusFilter, typeFilter, itemsPerPage]);
+
+  // Clean up processing queries that are no longer pending
+  useEffect(() => {
+    if (queries.length > 0) {
+      queries.forEach(query => {
+        if (query.status !== 'PENDING' && isQueryProcessing(query.id)) {
+          removeProcessingQuery(query.id);
+        }
+      });
+    }
+  }, [queries, isQueryProcessing, removeProcessingQuery]);
 
   const loadQueries = async () => {
     setIsLoading(true);
@@ -63,7 +73,7 @@ export function ApprovalDashboardPage() {
   const filteredQueries = Array.isArray(queries) ? queries : [];
 
   const handleApprove = async (query: Query) => {
-    setProcessingQueryId(query.id);
+    addProcessingQuery(query.id);
     setActionLoading(true);
     try {
       await queriesApi.approve(query.id);
@@ -79,13 +89,13 @@ export function ApprovalDashboardPage() {
       setShowDetailModal(false);
     } finally {
       setActionLoading(false);
-      setProcessingQueryId(null);
+      removeProcessingQuery(query.id);
     }
   };
 
   const handleReject = async () => {
     if (!selectedQuery) return;
-    setProcessingQueryId(selectedQuery.id);
+    addProcessingQuery(selectedQuery.id);
     setActionLoading(true);
     try {
       await queriesApi.reject(selectedQuery.id, rejectReason);
@@ -98,7 +108,7 @@ export function ApprovalDashboardPage() {
       showError(error, { fallbackMessage: 'Failed to reject query' });
     } finally {
       setActionLoading(false);
-      setProcessingQueryId(null);
+      removeProcessingQuery(selectedQuery.id);
     }
   };
 
@@ -280,7 +290,7 @@ export function ApprovalDashboardPage() {
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => openDetailModal(query)}
-                          disabled={processingQueryId === query.id}
+                          disabled={isQueryProcessing(query.id)}
                           className="px-3 py-1.5 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 text-xs font-medium rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           View Details
@@ -289,10 +299,10 @@ export function ApprovalDashboardPage() {
                           <>
                             <button
                               onClick={() => handleApprove(query)}
-                              disabled={processingQueryId === query.id}
+                              disabled={isQueryProcessing(query.id)}
                               className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
                             >
-                              {processingQueryId === query.id ? (
+                              {isQueryProcessing(query.id) ? (
                                 <>
                                   <div className="animate-spin rounded-full h-3 w-3 border border-white border-t-transparent"></div>
                                   Processing...
@@ -303,7 +313,7 @@ export function ApprovalDashboardPage() {
                             </button>
                             <button
                               onClick={() => openRejectModal(query)}
-                              disabled={processingQueryId === query.id}
+                              disabled={isQueryProcessing(query.id)}
                               className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-medium rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                               ✗ Reject
@@ -392,10 +402,10 @@ export function ApprovalDashboardPage() {
             <Button
               variant="danger"
               onClick={handleReject}
-              isLoading={!!(actionLoading && selectedQuery && processingQueryId === selectedQuery.id)}
-              disabled={!!(actionLoading && selectedQuery && processingQueryId === selectedQuery.id)}
+              isLoading={!!(actionLoading && selectedQuery && isQueryProcessing(selectedQuery.id))}
+              disabled={!!(actionLoading && selectedQuery && isQueryProcessing(selectedQuery.id))}
             >
-              {actionLoading && selectedQuery && processingQueryId === selectedQuery.id ? 'Processing...' : 'Reject'}
+              {actionLoading && selectedQuery && isQueryProcessing(selectedQuery.id) ? 'Processing...' : 'Reject'}
             </Button>
           </div>
         </div>
@@ -494,10 +504,10 @@ export function ApprovalDashboardPage() {
                 <>
                   <button
                     onClick={() => handleApprove(selectedQuery)}
-                    disabled={processingQueryId === selectedQuery.id}
+                    disabled={isQueryProcessing(selectedQuery.id)}
                     className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                   >
-                    {processingQueryId === selectedQuery.id ? (
+                    {isQueryProcessing(selectedQuery.id) ? (
                       <>
                         <div className="animate-spin rounded-full h-4 w-4 border border-white border-t-transparent"></div>
                         Processing...
@@ -511,7 +521,7 @@ export function ApprovalDashboardPage() {
                       setShowDetailModal(false);
                       setShowRejectModal(true);
                     }}
-                    disabled={processingQueryId === selectedQuery.id}
+                    disabled={isQueryProcessing(selectedQuery.id)}
                     className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     ✗ Reject
