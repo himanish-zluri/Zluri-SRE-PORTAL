@@ -16,3 +16,6 @@ yarn-debug.log*
 
 # Test coverage
 coverage/
+
+# Root JS files (test scripts, etc.)
+/*.js
