@@ -54,7 +54,8 @@ describe('MongoQueryExecutor', () => {
 
       expect(MongoClient).toHaveBeenCalledWith('mongodb://localhost:27017', {
         connectTimeoutMS: 10000,
-        serverSelectionTimeoutMS: 10000
+        serverSelectionTimeoutMS: 10000,
+        socketTimeoutMS: 30000
       });
       expect(mockClient.connect).toHaveBeenCalled();
       expect(mockClient.db).toHaveBeenCalledWith('test_db');
@@ -281,6 +282,33 @@ describe('MongoQueryExecutor', () => {
       );
 
       expect(result).toBe('prototype test');
+    });
+
+    it('should handle query timeout', async () => {
+      // Mock a long-running query that would exceed timeout
+      const originalAsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
+      const mockAsyncFunction = jest.fn().mockImplementation(() => {
+        return () => Promise.reject(new Error('Query execution timed out after 30 seconds'));
+      });
+      
+      Object.defineProperty(Object.getPrototypeOf(async function(){}), 'constructor', {
+        value: mockAsyncFunction,
+        writable: true
+      });
+
+      await expect(executeMongoQuery(
+        'mongodb://localhost:27017',
+        'test_db',
+        'db.users.find({})'
+      )).rejects.toThrow('Query execution timed out after 30 seconds');
+
+      expect(mockClient.close).toHaveBeenCalled();
+      
+      // Restore original
+      Object.defineProperty(Object.getPrototypeOf(async function(){}), 'constructor', {
+        value: originalAsyncFunction,
+        writable: true
+      });
     });
   });
 });

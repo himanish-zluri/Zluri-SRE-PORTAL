@@ -40,7 +40,8 @@ describe('PostgresQueryExecutor', () => {
         user: 'user',
         password: 'pass',
         database: 'test_db',
-        ssl: { rejectUnauthorized: false }
+        ssl: { rejectUnauthorized: false },
+        query_timeout: 30000
       });
       expect(mockPool.query).toHaveBeenCalledWith('SELECT * FROM users');
       expect(mockPool.end).toHaveBeenCalled();
@@ -53,6 +54,19 @@ describe('PostgresQueryExecutor', () => {
 
       await expect(executePostgresQuery(config, 'INVALID SQL'))
         .rejects.toThrow('Query failed');
+
+      expect(mockPool.end).toHaveBeenCalled();
+    });
+
+    it('should handle query timeout', async () => {
+      // Mock a query that takes longer than the timeout
+      mockPool.query.mockImplementation(() => 
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Query execution timed out after 30 seconds')), 100))
+      );
+      mockPool.end.mockResolvedValue(undefined);
+
+      await expect(executePostgresQuery(config, 'SELECT pg_sleep(35)'))
+        .rejects.toThrow('Query execution timed out after 30 seconds');
 
       expect(mockPool.end).toHaveBeenCalled();
     });

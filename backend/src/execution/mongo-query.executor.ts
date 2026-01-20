@@ -1,5 +1,7 @@
 import { MongoClient } from 'mongodb';
 
+const QUERY_TIMEOUT_MS = 30000; // 30 seconds
+
 export async function executeMongoQuery(
   mongoUri: string,
   databaseName: string,
@@ -8,6 +10,7 @@ export async function executeMongoQuery(
   const client = new MongoClient(mongoUri, {
     connectTimeoutMS: 10000,
     serverSelectionTimeoutMS: 10000,
+    socketTimeoutMS: QUERY_TIMEOUT_MS, // Add socket timeout for query execution
   });
 
   try {
@@ -93,7 +96,7 @@ export async function executeMongoQuery(
       };
     };
     
-    // Execute the query with proper async handling
+    // Execute the query with timeout protection using Promise.race
     const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
     const fn = new AsyncFunction('db', 'collection', `
       try {
@@ -103,7 +106,13 @@ export async function executeMongoQuery(
       }
     `);
     
-    const result = await fn(dbProxy, collection);
+    const result = await Promise.race([
+      fn(dbProxy, collection),
+      new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error(`Query execution timed out after ${QUERY_TIMEOUT_MS / 1000} seconds`)), QUERY_TIMEOUT_MS)
+      )
+    ]);
+    
     return result;
 
   } finally {
