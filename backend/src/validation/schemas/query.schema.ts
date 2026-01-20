@@ -46,17 +46,23 @@ export const submitQuerySchema = z.object({
   .refine((data) => {
     // For QUERY submissions, check for multiple statements (semicolons)
     if (data.submissionType === 'QUERY' && data.queryText) {
-      const trimmedQuery = data.queryText.trim();
-      // Check for semicolons that are not at the very end
-      const semicolonIndex = trimmedQuery.indexOf(';');
-      if (semicolonIndex !== -1 && semicolonIndex < trimmedQuery.length - 1) {
-        return false;
-      }
-      // Also reject if there are multiple semicolons
-      const semicolonCount = (trimmedQuery.match(/;/g) || []).length;
+      const semicolonCount = (data.queryText.match(/;/g) || []).length;
+      
+      // Allow: no semicolons OR exactly one semicolon at the very end (with optional whitespace)
       if (semicolonCount > 1) {
+        // Multiple semicolons - definitely multiple statements
         return false;
+      } else if (semicolonCount === 1) {
+        // One semicolon - check if it's at the end (allowing trailing whitespace)
+        const trimmedQuery = data.queryText.trim();
+        const lastSemicolonIndex = trimmedQuery.lastIndexOf(';');
+        
+        // If semicolon is not at the end, it means there's content after it
+        if (lastSemicolonIndex !== trimmedQuery.length - 1) {
+          return false;
+        }
       }
+      // semicolonCount === 0 is always allowed
     }
     return true;
   }, {

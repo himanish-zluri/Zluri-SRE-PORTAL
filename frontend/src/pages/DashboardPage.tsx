@@ -258,15 +258,27 @@ export function DashboardPage() {
         setQueryTextError(`Query text cannot exceed ${MAX_QUERY_SIZE} characters. Current: ${queryText.length}`);
         hasValidationErrors = true;
       } else {
-        // Check for multiple SQL statements (semicolons)
+        // Check for multiple SQL/MongoDB statements (semicolons)
         const normalizedQuery = normalizeWhitespace(queryText);
-        const semicolonIndex = normalizedQuery.indexOf(';');
         const semicolonCount = (normalizedQuery.match(/;/g) || []).length;
         
-        if ((semicolonIndex !== -1 && semicolonIndex < normalizedQuery.length - 1) || semicolonCount > 1) {
+        // Allow: no semicolons OR exactly one semicolon at the very end (with optional whitespace)
+        if (semicolonCount > 1) {
+          // Multiple semicolons - definitely multiple statements
           setQueryTextError('Query mode supports single statements only. For multiple queries, use Script mode.');
           hasValidationErrors = true;
+        } else if (semicolonCount === 1) {
+          // One semicolon - check if it's at the end (allowing trailing whitespace)
+          const trimmedQuery = normalizedQuery.trim();
+          const lastSemicolonIndex = trimmedQuery.lastIndexOf(';');
+          
+          // If semicolon is not at the end, it means there's content after it
+          if (lastSemicolonIndex !== trimmedQuery.length - 1) {
+            setQueryTextError('Query mode supports single statements only. For multiple queries, use Script mode.');
+            hasValidationErrors = true;
+          }
         }
+        // semicolonCount === 0 is always allowed
       }
     }
 
