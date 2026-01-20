@@ -29,6 +29,9 @@ export function ApprovalDashboardPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  
+  // Per-query loading states
+  const [processingQueryId, setProcessingQueryId] = useState<string | null>(null);
 
   // Toast notifications
   // Removed local toast - using global error context now
@@ -60,6 +63,7 @@ export function ApprovalDashboardPage() {
   const filteredQueries = Array.isArray(queries) ? queries : [];
 
   const handleApprove = async (query: Query) => {
+    setProcessingQueryId(query.id);
     setActionLoading(true);
     try {
       await queriesApi.approve(query.id);
@@ -75,11 +79,13 @@ export function ApprovalDashboardPage() {
       setShowDetailModal(false);
     } finally {
       setActionLoading(false);
+      setProcessingQueryId(null);
     }
   };
 
   const handleReject = async () => {
     if (!selectedQuery) return;
+    setProcessingQueryId(selectedQuery.id);
     setActionLoading(true);
     try {
       await queriesApi.reject(selectedQuery.id, rejectReason);
@@ -92,6 +98,7 @@ export function ApprovalDashboardPage() {
       showError(error, { fallbackMessage: 'Failed to reject query' });
     } finally {
       setActionLoading(false);
+      setProcessingQueryId(null);
     }
   };
 
@@ -273,7 +280,8 @@ export function ApprovalDashboardPage() {
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => openDetailModal(query)}
-                          className="px-3 py-1.5 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 text-xs font-medium rounded-lg transition-colors cursor-pointer"
+                          disabled={processingQueryId === query.id}
+                          className="px-3 py-1.5 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 text-xs font-medium rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           View Details
                         </button>
@@ -281,13 +289,22 @@ export function ApprovalDashboardPage() {
                           <>
                             <button
                               onClick={() => handleApprove(query)}
-                              className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-lg transition-colors cursor-pointer"
+                              disabled={processingQueryId === query.id}
+                              className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
                             >
-                              ✓ Approve
+                              {processingQueryId === query.id ? (
+                                <>
+                                  <div className="animate-spin rounded-full h-3 w-3 border border-white border-t-transparent"></div>
+                                  Processing...
+                                </>
+                              ) : (
+                                '✓ Approve'
+                              )}
                             </button>
                             <button
                               onClick={() => openRejectModal(query)}
-                              className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-medium rounded-lg transition-colors cursor-pointer"
+                              disabled={processingQueryId === query.id}
+                              className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-medium rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                               ✗ Reject
                             </button>
@@ -375,9 +392,10 @@ export function ApprovalDashboardPage() {
             <Button
               variant="danger"
               onClick={handleReject}
-              isLoading={actionLoading}
+              isLoading={!!(actionLoading && selectedQuery && processingQueryId === selectedQuery.id)}
+              disabled={!!(actionLoading && selectedQuery && processingQueryId === selectedQuery.id)}
             >
-              Reject
+              {actionLoading && selectedQuery && processingQueryId === selectedQuery.id ? 'Processing...' : 'Reject'}
             </Button>
           </div>
         </div>
@@ -476,17 +494,25 @@ export function ApprovalDashboardPage() {
                 <>
                   <button
                     onClick={() => handleApprove(selectedQuery)}
-                    disabled={actionLoading}
-                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                    disabled={processingQueryId === selectedQuery.id}
+                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                   >
-                    ✓ Approve
+                    {processingQueryId === selectedQuery.id ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border border-white border-t-transparent"></div>
+                        Processing...
+                      </>
+                    ) : (
+                      '✓ Approve'
+                    )}
                   </button>
                   <button
                     onClick={() => {
                       setShowDetailModal(false);
                       setShowRejectModal(true);
                     }}
-                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors cursor-pointer"
+                    disabled={processingQueryId === selectedQuery.id}
+                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     ✗ Reject
                   </button>
