@@ -26,6 +26,8 @@ export const usersApi = {
 export const queriesApi = {
   getForApproval: jest.fn(),
   getMySubmissions: jest.fn(),
+  getApprovalStats: jest.fn(),
+  getMySubmissionsStats: jest.fn(),
   getById: jest.fn(),
   submit: jest.fn(),
   approve: jest.fn(),
@@ -34,6 +36,7 @@ export const queriesApi = {
 
 export const auditApi = {
   getAll: jest.fn(),
+  getStats: jest.fn(),
   getByQuery: jest.fn(),
 };
 

@@ -25,6 +25,14 @@ export function ApprovalDashboardPage() {
   const [totalItems, setTotalItems] = useState(0);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
+  // Stats state
+  const [statusCounts, setStatusCounts] = useState({
+    PENDING: 0,
+    EXECUTED: 0,
+    FAILED: 0,
+    REJECTED: 0,
+  });
+
   // Modal state
   const [selectedQuery, setSelectedQuery] = useState<Query | null>(null);
   const [rejectReason, setRejectReason] = useState('');
@@ -39,6 +47,10 @@ export function ApprovalDashboardPage() {
     loadQueries();
   }, [currentPage, statusFilter, typeFilter, itemsPerPage]);
 
+  useEffect(() => {
+    loadStats();
+  }, []);
+
   // Clean up processing queries that are no longer pending
   useEffect(() => {
     if (queries.length > 0) {
@@ -49,6 +61,16 @@ export function ApprovalDashboardPage() {
       });
     }
   }, [queries, isQueryProcessing, removeProcessingQuery]);
+
+  const loadStats = async () => {
+    try {
+      const response = await queriesApi.getApprovalStats();
+      setStatusCounts(response.data);
+    } catch (error) {
+      console.error('Failed to load stats:', error);
+      // Don't show error to user for stats, just log it
+    }
+  };
 
   const loadQueries = async () => {
     setIsLoading(true);
@@ -78,6 +100,7 @@ export function ApprovalDashboardPage() {
     try {
       await queriesApi.approve(query.id);
       await loadQueries();
+      await loadStats(); // Reload stats after action
       setSelectedQuery(null);
       setShowDetailModal(false);
       showSuccess('Query approved successfully!');
@@ -85,6 +108,7 @@ export function ApprovalDashboardPage() {
       showError(error, { fallbackMessage: 'Failed to approve query' });
       // Reload to show updated status (FAILED)
       await loadQueries();
+      await loadStats(); // Reload stats after action
       setSelectedQuery(null);
       setShowDetailModal(false);
     } finally {
@@ -100,6 +124,7 @@ export function ApprovalDashboardPage() {
     try {
       await queriesApi.reject(selectedQuery.id, rejectReason);
       await loadQueries();
+      await loadStats(); // Reload stats after action
       setSelectedQuery(null);
       setShowRejectModal(false);
       setRejectReason('');
@@ -159,19 +184,6 @@ export function ApprovalDashboardPage() {
       </div>
     );
   }
-
-  // Count queries by status for overview
-  const getStatusCounts = () => {
-    const safeQueries = Array.isArray(queries) ? queries : [];
-    return {
-      PENDING: safeQueries.filter(q => q?.status === 'PENDING').length,
-      EXECUTED: safeQueries.filter(q => q?.status === 'EXECUTED').length,
-      FAILED: safeQueries.filter(q => q?.status === 'FAILED').length,
-      REJECTED: safeQueries.filter(q => q?.status === 'REJECTED').length,
-    };
-  };
-
-  const statusCounts = getStatusCounts();
 
   return (
     <div>

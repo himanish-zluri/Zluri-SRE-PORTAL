@@ -5,6 +5,7 @@ import { authApi } from '../services/api';
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
+  isLoggingOut: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -14,6 +15,7 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
     const initAuth = async () => {
@@ -47,6 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
+    setIsLoggingOut(true);
     try {
       // Call logout endpoint to clear HttpOnly cookie
       await authApi.logout();
@@ -56,11 +59,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Always clear local state and access token
       localStorage.removeItem('accessToken');
       setUser(null);
+      setIsLoggingOut(false);
     }
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, isLoggingOut, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

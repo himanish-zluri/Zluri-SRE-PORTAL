@@ -151,6 +151,43 @@ export const queriesApi = {
   getMySubmissions: (params?: { status?: string; type?: string; limit?: number; offset?: number }) =>
     api.get<{ data: Query[]; pagination: { total: number; limit: number; offset: number; hasMore: boolean } }>('/queries/my-submissions', { params }),
   
+  // Get stats for approval dashboard (total counts by status)
+  getApprovalStats: () =>
+    api.get<{ PENDING: number; EXECUTED: number; FAILED: number; REJECTED: number }>('/queries', { 
+      params: { limit: 1, offset: 0, statsOnly: true } 
+    }).then(response => {
+      // Since we don't have a dedicated stats endpoint, we'll make multiple calls
+      return Promise.all([
+        api.get('/queries', { params: { status: 'PENDING', limit: 1 } }),
+        api.get('/queries', { params: { status: 'EXECUTED', limit: 1 } }),
+        api.get('/queries', { params: { status: 'FAILED', limit: 1 } }),
+        api.get('/queries', { params: { status: 'REJECTED', limit: 1 } })
+      ]).then(([pending, executed, failed, rejected]) => ({
+        data: {
+          PENDING: pending.data.pagination?.total || 0,
+          EXECUTED: executed.data.pagination?.total || 0,
+          FAILED: failed.data.pagination?.total || 0,
+          REJECTED: rejected.data.pagination?.total || 0,
+        }
+      }));
+    }),
+  
+  // Get stats for my submissions (total counts by status)
+  getMySubmissionsStats: () =>
+    Promise.all([
+      api.get('/queries/my-submissions', { params: { status: 'PENDING', limit: 1 } }),
+      api.get('/queries/my-submissions', { params: { status: 'EXECUTED', limit: 1 } }),
+      api.get('/queries/my-submissions', { params: { status: 'FAILED', limit: 1 } }),
+      api.get('/queries/my-submissions', { params: { status: 'REJECTED', limit: 1 } })
+    ]).then(([pending, executed, failed, rejected]) => ({
+      data: {
+        PENDING: pending.data.pagination?.total || 0,
+        EXECUTED: executed.data.pagination?.total || 0,
+        FAILED: failed.data.pagination?.total || 0,
+        REJECTED: rejected.data.pagination?.total || 0,
+      }
+    })),
+  
   // Get query details by ID
   getById: (id: string) =>
     api.get<Query>(`/queries/${id}`),
@@ -192,6 +229,22 @@ export const auditApi = {
     endDate?: string;
   }) =>
     api.get<AuditLog[]>('/audit', { params }),
+  
+  // Get stats for audit page (total counts by action)
+  getStats: () =>
+    Promise.all([
+      api.get('/audit', { params: { action: 'SUBMITTED', limit: 1 } }),
+      api.get('/audit', { params: { action: 'EXECUTED', limit: 1 } }),
+      api.get('/audit', { params: { action: 'FAILED', limit: 1 } }),
+      api.get('/audit', { params: { action: 'REJECTED', limit: 1 } })
+    ]).then(([submitted, executed, failed, rejected]) => ({
+      data: {
+        SUBMITTED: submitted.data?.pagination?.total || submitted.data?.length || 0,
+        EXECUTED: executed.data?.pagination?.total || executed.data?.length || 0,
+        FAILED: failed.data?.pagination?.total || failed.data?.length || 0,
+        REJECTED: rejected.data?.pagination?.total || rejected.data?.length || 0,
+      }
+    })),
   
   getByQuery: (queryId: string) =>
     api.get<AuditLog[]>(`/audit/query/${queryId}`),

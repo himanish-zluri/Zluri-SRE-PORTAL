@@ -2,13 +2,16 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { Header } from '../Header';
 import { useAuth } from '../../../context/AuthContext';
 import { useTheme } from '../../../context/ThemeContext';
+import { useError } from '../../../context/ErrorContext';
 
 // Mock the contexts
 jest.mock('../../../context/AuthContext');
 jest.mock('../../../context/ThemeContext');
+jest.mock('../../../context/ErrorContext');
 
 const mockLogout = jest.fn();
 const mockToggleTheme = jest.fn();
+const mockShowSuccess = jest.fn();
 
 describe('Header', () => {
   beforeEach(() => {
@@ -16,10 +19,14 @@ describe('Header', () => {
     (useAuth as jest.Mock).mockReturnValue({
       user: { name: 'Test User', role: 'DEVELOPER' },
       logout: mockLogout,
+      isLoggingOut: false,
     });
     (useTheme as jest.Mock).mockReturnValue({
       theme: 'dark',
       toggleTheme: mockToggleTheme,
+    });
+    (useError as jest.Mock).mockReturnValue({
+      showSuccess: mockShowSuccess,
     });
   });
 
@@ -39,10 +46,11 @@ describe('Header', () => {
     expect(screen.getByText('T')).toBeInTheDocument();
   });
 
-  it('calls logout when logout button is clicked', () => {
+  it('calls logout when logout button is clicked', async () => {
     render(<Header />);
     fireEvent.click(screen.getByText('Logout'));
     expect(mockLogout).toHaveBeenCalledTimes(1);
+    // Note: showSuccess will be called after logout completes
   });
 
   it('calls toggleTheme when theme button is clicked', () => {
@@ -70,9 +78,27 @@ describe('Header', () => {
     (useAuth as jest.Mock).mockReturnValue({
       user: { role: 'ADMIN' },
       logout: mockLogout,
+      isLoggingOut: false,
     });
     render(<Header />);
     // Should not crash
     expect(screen.getByText('ADMIN')).toBeInTheDocument();
+  });
+
+  it('shows loading state when logging out', () => {
+    (useAuth as jest.Mock).mockReturnValue({
+      user: { name: 'Test User', role: 'DEVELOPER' },
+      logout: mockLogout,
+      isLoggingOut: true,
+    });
+    render(<Header />);
+    expect(screen.getByText('Logging out...')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /logging out/i })).toBeDisabled();
+  });
+
+  it('shows normal logout button when not logging out', () => {
+    render(<Header />);
+    expect(screen.getByText('Logout')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /logout/i })).not.toBeDisabled();
   });
 });

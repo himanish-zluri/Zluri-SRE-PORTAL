@@ -5,7 +5,7 @@ import { DbInstanceRepository } from '../db-instances/dbInstance.repository';
 import { executeMongoQuery } from '../../execution/mongo-query.executor';
 import { executeMongoScriptSandboxed } from '../../execution/sandbox/executor';
 import { AuditRepository } from '../audit/audit.repository';
-import { NotFoundError, ConflictError, BadRequestError, ForbiddenError } from '../../errors';
+import { NotFoundError, ConflictError, BadRequestError, ForbiddenError, QueryExecutionError } from '../../errors';
 import { QueryRequest } from '../../entities';
 import { SlackService } from '../../services/slack.service';
 import { UserRepository } from '../users/user.repository';

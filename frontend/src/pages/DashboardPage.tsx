@@ -311,23 +311,37 @@ export function DashboardPage() {
 
       showSuccess('Query submitted successfully! Awaiting approval.');
       // Reset form
-      setDbType('');
-      setInstanceId('');
-      setDatabaseName('');
-      setQueryText('');
-      setScriptFile(null);
-      setComments('');
-      setPodId('');
-      setSubmissionType('QUERY');
-      // Clear validation errors
-      setQueryTextError('');
-      setCommentsError('');
-      setScriptFileError('');
+      handleCancel();
     } catch (err: any) {
       showError(err, { fallbackMessage: 'Failed to submit query' });
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleCancel = () => {
+    // Reset all form fields
+    setDbType('');
+    setInstanceId('');
+    setDatabaseName('');
+    setQueryText('');
+    setScriptFile(null);
+    setComments('');
+    setPodId('');
+    setSubmissionType('QUERY');
+    
+    // Clear validation errors
+    setQueryTextError('');
+    setCommentsError('');
+    setScriptFileError('');
+    
+    // Clear success/error messages
+    setError('');
+    setSuccess('');
+    
+    // Reset dependent data
+    setInstances([]);
+    setDatabases([]);
   };
 
   if (isInitializing) {
@@ -643,9 +657,20 @@ return \`Total products in database: \${count}\`;
           error={commentsError}
         />
 
-        <Button type="submit" isLoading={isLoading} className="w-full">
-          Submit for Approval
-        </Button>
+        <div className="flex gap-3">
+          <Button type="submit" isLoading={isLoading} className="flex-1">
+            Submit for Approval
+          </Button>
+          <Button 
+            type="button" 
+            variant="secondary" 
+            onClick={handleCancel}
+            disabled={isLoading}
+            className="flex-1"
+          >
+            Cancel
+          </Button>
+        </div>
       </form>
     </div>
   );

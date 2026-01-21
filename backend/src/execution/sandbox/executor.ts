@@ -13,6 +13,7 @@ import path from 'path';
 import fs from 'fs';
 import os from 'os';
 import { v4 as uuid } from 'uuid';
+import { QueryExecutionError, InternalError } from '../../errors';
 
 const DEFAULT_TIMEOUT_MS = 30000; // 30 seconds
 
@@ -116,7 +117,7 @@ function executeInSandbox(
 
       child.on('error', (error) => {
         clearTimeout(timeoutId);
-        reject(new Error(`Failed to start sandbox: ${error.message}`));
+        reject(new InternalError(`Failed to start sandbox: ${error.message}`));
       });
 
       child.on('close', (code) => {
@@ -159,7 +160,7 @@ function executeInSandbox(
 
     } catch (error: any) {
       clearTimeout(timeoutId);
-      reject(new Error(`Sandbox error: ${error.message}`));
+      reject(new InternalError(`Sandbox error: ${error.message}`));
     }
   });
 }
@@ -189,7 +190,35 @@ export async function executePostgresScriptSandboxed(
     const result = await executeInSandbox(runnerPath, config, options);
 
     if (!result.success) {
-      throw new Error(result.error || 'Script execution failed');
+      const errorMessage = result.error || 'Script execution failed';
+      
+      // Categorize different types of script execution errors
+      if (errorMessage.includes('timed out')) {
+        throw new QueryExecutionError(errorMessage);
+      }
+      
+      // Database connection errors
+      if (errorMessage.includes('connection') || errorMessage.includes('ECONNREFUSED') || errorMessage.includes('ENOTFOUND')) {
+        throw new InternalError(`Database connection failed: ${errorMessage}`);
+      }
+      
+      // SQL syntax errors and other query-related errors
+      if (errorMessage.includes('syntax error') || 
+          errorMessage.includes('column') || 
+          errorMessage.includes('table') || 
+          errorMessage.includes('function') ||
+          errorMessage.includes('constraint') ||
+          errorMessage.includes('violation')) {
+        throw new QueryExecutionError(`SQL Error: ${errorMessage}`);
+      }
+      
+      // JavaScript syntax errors in script
+      if (errorMessage.includes('SyntaxError') || errorMessage.includes('ReferenceError')) {
+        throw new QueryExecutionError(`Script syntax error: ${errorMessage}`);
+      }
+      
+      // Default to query execution error for script failures
+      throw new QueryExecutionError(errorMessage);
     }
 
     // Return the parsed result directly (from `return` statement in script)
@@ -264,7 +293,38 @@ export async function executeMongoScriptSandboxed(
     const result = await executeInSandbox(runnerPath, config, options);
 
     if (!result.success) {
-      throw new Error(result.error || 'Script execution failed');
+      const errorMessage = result.error || 'Script execution failed';
+      
+      // Categorize different types of script execution errors
+      if (errorMessage.includes('timed out')) {
+        throw new QueryExecutionError(errorMessage);
+      }
+      
+      // MongoDB connection errors
+      if (errorMessage.includes('connection') || 
+          errorMessage.includes('MongoNetworkError') || 
+          errorMessage.includes('MongoServerSelectionError') ||
+          errorMessage.includes('ECONNREFUSED') || 
+          errorMessage.includes('ENOTFOUND')) {
+        throw new InternalError(`Database connection failed: ${errorMessage}`);
+      }
+      
+      // MongoDB query errors
+      if (errorMessage.includes('MongoDB query failed') ||
+          errorMessage.includes('duplicate key') ||
+          errorMessage.includes('validation failed') ||
+          errorMessage.includes('unauthorized') ||
+          errorMessage.includes('namespace not found')) {
+        throw new QueryExecutionError(`MongoDB Error: ${errorMessage}`);
+      }
+      
+      // JavaScript syntax errors in script
+      if (errorMessage.includes('SyntaxError') || errorMessage.includes('ReferenceError')) {
+        throw new QueryExecutionError(`Script syntax error: ${errorMessage}`);
+      }
+      
+      // Default to query execution error for script failures
+      throw new QueryExecutionError(errorMessage);
     }
 
     return result.result ?? result.logs?.[result.logs.length - 1] ?? { success: true };

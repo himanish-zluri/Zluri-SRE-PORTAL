@@ -43,9 +43,22 @@ export function AuditPage() {
   const [selectedQueryId, setSelectedQueryId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  // Stats state
+  const [actionCounts, setActionCounts] = useState({
+    SUBMITTED: 0,
+    EXECUTED: 0,
+    FAILED: 0,
+    REJECTED: 0,
+  });
+
   // Load filter options on mount
   useEffect(() => {
     loadFilterOptions();
+  }, []);
+
+  // Load stats on mount
+  useEffect(() => {
+    loadStats();
   }, []);
 
   // Load logs when page, itemsPerPage, or any filter changes
@@ -69,6 +82,16 @@ export function AuditPage() {
     }
     setSelectedDatabase('');
   }, [selectedInstance]);
+
+  const loadStats = async () => {
+    try {
+      const response = await auditApi.getStats();
+      setActionCounts(response.data);
+    } catch (error) {
+      console.error('Failed to load stats:', error);
+      // Don't show error to user for stats, just log it
+    }
+  };
 
   const loadFilterOptions = async () => {
     try {
@@ -130,13 +153,7 @@ export function AuditPage() {
 
   // Count logs by action for overview
   const getActionCounts = () => {
-    const safeLogs = Array.isArray(logs) ? logs : [];
-    return {
-      SUBMITTED: safeLogs.filter(log => log?.action === 'SUBMITTED').length,
-      EXECUTED: safeLogs.filter(log => log?.action === 'EXECUTED').length,
-      FAILED: safeLogs.filter(log => log?.action === 'FAILED').length,
-      REJECTED: safeLogs.filter(log => log?.action === 'REJECTED').length,
-    };
+    return actionCounts;
   };
 
   const handleItemsPerPageChange = (newLimit: number) => {

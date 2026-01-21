@@ -7,6 +7,7 @@ export { UnauthorizedError } from './UnauthorizedError';
 export { ForbiddenError } from './ForbiddenError';
 export { NotFoundError } from './NotFoundError';
 export { ConflictError } from './ConflictError';
+export { QueryExecutionError } from './QueryExecutionError';
 export { ValidationError, type FieldError } from './ValidationError';
 
 // HTTP 5xx Server Errors

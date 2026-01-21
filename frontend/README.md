@@ -2,7 +2,7 @@
 
 A modern React-based web interface for the Database Query Portal, providing developers and managers with an intuitive way to submit, review, and manage database queries and scripts.
 
-## Features
+## Features 
 
 ### 🚀 Core Functionality
 - **Query Submission**: Submit SQL queries or JavaScript scripts with rich documentation

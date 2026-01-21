@@ -7,6 +7,7 @@ import { MySubmissionsPage } from '../MySubmissionsPage';
 jest.mock('../../services/api', () => ({
   queriesApi: {
     getMySubmissions: jest.fn(),
+    getMySubmissionsStats: jest.fn(),
     submit: jest.fn(),
   },
 }));
@@ -100,6 +101,9 @@ describe('MySubmissionsPage', () => {
     jest.clearAllMocks();
     (queriesApi.getMySubmissions as jest.Mock).mockResolvedValue({ 
       data: mockPaginatedResponse 
+    });
+    (queriesApi.getMySubmissionsStats as jest.Mock).mockResolvedValue({
+      data: { PENDING: 1, EXECUTED: 1, FAILED: 1, REJECTED: 1 }
     });
     (queriesApi.submit as jest.Mock).mockResolvedValue({ data: { id: 'new-query' } });
     

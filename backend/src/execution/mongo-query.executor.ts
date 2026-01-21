@@ -1,4 +1,5 @@
 import { MongoClient } from 'mongodb';
+import { QueryExecutionError, InternalError } from '../errors';
 
 const QUERY_TIMEOUT_MS = 30000; // 30 seconds
 
@@ -119,6 +120,57 @@ export async function executeMongoQuery(
     
     return result;
 
+  } catch (error: any) {
+    // Handle different types of MongoDB errors
+    if (error.message?.includes('timed out')) {
+      throw new QueryExecutionError(`Query execution timed out after ${QUERY_TIMEOUT_MS / 1000} seconds`);
+    }
+    
+    // MongoDB specific errors
+    if (error.code) {
+      switch (error.code) {
+        case 11000: // duplicate key error
+          throw new QueryExecutionError(`Duplicate key error: ${error.message}`);
+        
+        case 121: // document validation failure
+          throw new QueryExecutionError(`Document validation failed: ${error.message}`);
+        
+        case 2: // bad value
+        case 9: // failed to parse
+        case 14: // type mismatch
+        case 16: // invalid options
+          throw new QueryExecutionError(`Invalid query: ${error.message}`);
+        
+        case 13: // unauthorized
+        case 18: // authentication failed
+          throw new QueryExecutionError(`Authentication failed: ${error.message}`);
+        
+        case 26: // namespace not found (database/collection doesn't exist)
+          throw new QueryExecutionError(`Database or collection not found: ${error.message}`);
+        
+        default:
+          // For other MongoDB errors, treat as query execution errors
+          throw new QueryExecutionError(`Database error: ${error.message}`);
+      }
+    }
+    
+    // Connection errors
+    if (error.name === 'MongoNetworkError' || error.name === 'MongoServerSelectionError') {
+      throw new InternalError(`Database connection failed: ${error.message}`);
+    }
+    
+    // JavaScript syntax errors in query
+    if (error instanceof SyntaxError) {
+      throw new QueryExecutionError(`Query syntax error: ${error.message}`);
+    }
+    
+    // MongoDB query execution errors
+    if (error.message?.includes('MongoDB query failed')) {
+      throw new QueryExecutionError(error.message);
+    }
+    
+    // Generic query execution error
+    throw new QueryExecutionError(`Query execution failed: ${error.message}`);
   } finally {
     await client.close();
   }

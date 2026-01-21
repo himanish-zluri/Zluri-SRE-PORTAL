@@ -13,13 +13,14 @@ jest.mock('../../services/api', () => ({
 
 // Test component that uses the auth context
 function TestComponent() {
-  const { user, isLoading, login, logout } = useAuth();
+  const { user, isLoading, isLoggingOut, login, logout } = useAuth();
   
   if (isLoading) return <div>Loading...</div>;
   
   return (
     <div>
       <span data-testid="user">{user ? user.email : 'No user'}</span>
+      <span data-testid="logging-out">{isLoggingOut ? 'Logging out' : 'Not logging out'}</span>
       <button onClick={() => login('test@test.com', 'password')}>Login</button>
       <button onClick={logout}>Logout</button>
     </div>

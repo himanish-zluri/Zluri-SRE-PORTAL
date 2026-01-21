@@ -30,9 +30,31 @@ export function MySubmissionsPage() {
   const [instanceFilter, setInstanceFilter] = useState<string>('');
   const [dateFilter, setDateFilter] = useState<string>('');
 
+  // Stats state
+  const [statusCounts, setStatusCounts] = useState({
+    PENDING: 0,
+    EXECUTED: 0,
+    FAILED: 0,
+    REJECTED: 0,
+  });
+
   useEffect(() => {
     loadQueries();
   }, [currentPage, itemsPerPage, statusFilter, typeFilter, instanceFilter, dateFilter]);
+
+  useEffect(() => {
+    loadStats();
+  }, []);
+
+  const loadStats = async () => {
+    try {
+      const response = await queriesApi.getMySubmissionsStats();
+      setStatusCounts(response.data);
+    } catch (error) {
+      console.error('Failed to load stats:', error);
+      // Don't show error to user for stats, just log it
+    }
+  };
 
   const loadQueries = async () => {
     setIsLoading(true);
@@ -103,17 +125,6 @@ export function MySubmissionsPage() {
     setCurrentPage(1);
   };
 
-  // Count queries by status for overview
-  const getStatusCounts = () => {
-    const safeQueries = Array.isArray(queries) ? queries : [];
-    return {
-      PENDING: safeQueries.filter(q => q?.status === 'PENDING').length,
-      EXECUTED: safeQueries.filter(q => q?.status === 'EXECUTED').length,
-      FAILED: safeQueries.filter(q => q?.status === 'FAILED').length,
-      REJECTED: safeQueries.filter(q => q?.status === 'REJECTED').length,
-    };
-  };
-
   // Retry: Resubmit the exact same query automatically
   /* istanbul ignore next */
   const handleRetry = async (query: Query) => {
@@ -165,6 +176,7 @@ export function MySubmissionsPage() {
       }
       // Reload to show the new submission
       await loadQueries();
+      await loadStats(); // Reload stats after retry
       showSuccess('Query resubmitted successfully!');
     } catch (error: any) {
       showError(error, { fallbackMessage: 'Failed to retry query' });
@@ -216,7 +228,6 @@ export function MySubmissionsPage() {
   };
 
   const totalPages = Math.ceil(totalItems / itemsPerPage);
-  const statusCounts = getStatusCounts();
 
   const handleItemsPerPageChange = (newLimit: number) => {
     setItemsPerPage(newLimit);
