@@ -30,31 +30,9 @@ export function MySubmissionsPage() {
   const [instanceFilter, setInstanceFilter] = useState<string>('');
   const [dateFilter, setDateFilter] = useState<string>('');
 
-  // Stats state
-  const [statusCounts, setStatusCounts] = useState({
-    PENDING: 0,
-    EXECUTED: 0,
-    FAILED: 0,
-    REJECTED: 0,
-  });
-
   useEffect(() => {
     loadQueries();
   }, [currentPage, itemsPerPage, statusFilter, typeFilter, instanceFilter, dateFilter]);
-
-  useEffect(() => {
-    loadStats();
-  }, []);
-
-  const loadStats = async () => {
-    try {
-      const response = await queriesApi.getMySubmissionsStats();
-      setStatusCounts(response.data);
-    } catch (error) {
-      console.error('Failed to load stats:', error);
-      // Don't show error to user for stats, just log it
-    }
-  };
 
   const loadQueries = async () => {
     setIsLoading(true);
@@ -176,7 +154,6 @@ export function MySubmissionsPage() {
       }
       // Reload to show the new submission
       await loadQueries();
-      await loadStats(); // Reload stats after retry
       showSuccess('Query resubmitted successfully!');
     } catch (error: any) {
       showError(error, { fallbackMessage: 'Failed to retry query' });
@@ -244,31 +221,11 @@ export function MySubmissionsPage() {
 
   return (
     <div>
-      {/* Header with Status Overview */}
+      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
           My Submissions
         </h2>
-        
-        {/* Status Overview Counters */}
-        <div className="flex items-center gap-4 text-sm">
-          <div className="flex items-center gap-1">
-            <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-            <span className="text-gray-600 dark:text-gray-400">Pending: {statusCounts.PENDING}</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-            <span className="text-gray-600 dark:text-gray-400">Failed: {statusCounts.FAILED}</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-2 h-2 bg-red-600 rounded-full"></div>
-            <span className="text-gray-600 dark:text-gray-400">Rejected: {statusCounts.REJECTED}</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-            <span className="text-gray-600 dark:text-gray-400">Executed: {statusCounts.EXECUTED}</span>
-          </div>
-        </div>
       </div>
 
       {/* Professional Filter Bar - The 4 Essential Filters */}

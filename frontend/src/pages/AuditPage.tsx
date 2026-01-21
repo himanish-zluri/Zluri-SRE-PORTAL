@@ -43,22 +43,9 @@ export function AuditPage() {
   const [selectedQueryId, setSelectedQueryId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Stats state
-  const [actionCounts, setActionCounts] = useState({
-    SUBMITTED: 0,
-    EXECUTED: 0,
-    FAILED: 0,
-    REJECTED: 0,
-  });
-
   // Load filter options on mount
   useEffect(() => {
     loadFilterOptions();
-  }, []);
-
-  // Load stats on mount
-  useEffect(() => {
-    loadStats();
   }, []);
 
   // Load logs when page, itemsPerPage, or any filter changes
@@ -82,16 +69,6 @@ export function AuditPage() {
     }
     setSelectedDatabase('');
   }, [selectedInstance]);
-
-  const loadStats = async () => {
-    try {
-      const response = await auditApi.getStats();
-      setActionCounts(response.data);
-    } catch (error) {
-      console.error('Failed to load stats:', error);
-      // Don't show error to user for stats, just log it
-    }
-  };
 
   const loadFilterOptions = async () => {
     try {
@@ -151,11 +128,6 @@ export function AuditPage() {
     setCurrentPage(1);
   };
 
-  // Count logs by action for overview
-  const getActionCounts = () => {
-    return actionCounts;
-  };
-
   const handleItemsPerPageChange = (newLimit: number) => {
     setItemsPerPage(newLimit);
     setCurrentPage(1);
@@ -170,8 +142,6 @@ export function AuditPage() {
     setIsModalOpen(false);
     setSelectedQueryId(null);
   };
-
-  const displayedActionCounts = getActionCounts();
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString('en-US', {
@@ -199,31 +169,11 @@ export function AuditPage() {
 
   return (
     <div>
-      {/* Header with Action Overview */}
+      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
           Audit Logs
         </h2>
-        
-        {/* Action Overview Counters */}
-        <div className="flex items-center gap-4 text-sm">
-          <div className="flex items-center gap-1">
-            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-            <span className="text-gray-600 dark:text-gray-400">Submitted: {displayedActionCounts.SUBMITTED}</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-            <span className="text-gray-600 dark:text-gray-400">Executed: {displayedActionCounts.EXECUTED}</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-            <span className="text-gray-600 dark:text-gray-400">Failed: {displayedActionCounts.FAILED}</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-2 h-2 bg-red-600 rounded-full"></div>
-            <span className="text-gray-600 dark:text-gray-400">Rejected: {displayedActionCounts.REJECTED}</span>
-          </div>
-        </div>
       </div>
 
       {/* Filters - Automatic, No Apply Button */}
