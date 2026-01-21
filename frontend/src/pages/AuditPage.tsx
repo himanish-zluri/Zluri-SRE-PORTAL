@@ -171,7 +171,7 @@ export function AuditPage() {
     setSelectedQueryId(null);
   };
 
-  const actionCounts = getActionCounts();
+  const displayedActionCounts = getActionCounts();
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString('en-US', {
@@ -209,19 +209,19 @@ export function AuditPage() {
         <div className="flex items-center gap-4 text-sm">
           <div className="flex items-center gap-1">
             <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-            <span className="text-gray-600 dark:text-gray-400">Submitted: {actionCounts.SUBMITTED}</span>
+            <span className="text-gray-600 dark:text-gray-400">Submitted: {displayedActionCounts.SUBMITTED}</span>
           </div>
           <div className="flex items-center gap-1">
             <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-            <span className="text-gray-600 dark:text-gray-400">Executed: {actionCounts.EXECUTED}</span>
+            <span className="text-gray-600 dark:text-gray-400">Executed: {displayedActionCounts.EXECUTED}</span>
           </div>
           <div className="flex items-center gap-1">
             <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-            <span className="text-gray-600 dark:text-gray-400">Failed: {actionCounts.FAILED}</span>
+            <span className="text-gray-600 dark:text-gray-400">Failed: {displayedActionCounts.FAILED}</span>
           </div>
           <div className="flex items-center gap-1">
             <div className="w-2 h-2 bg-red-600 rounded-full"></div>
-            <span className="text-gray-600 dark:text-gray-400">Rejected: {actionCounts.REJECTED}</span>
+            <span className="text-gray-600 dark:text-gray-400">Rejected: {displayedActionCounts.REJECTED}</span>
           </div>
         </div>
       </div>
