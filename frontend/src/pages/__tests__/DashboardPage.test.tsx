@@ -2,6 +2,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { DashboardPage } from '../DashboardPage';
+import { ErrorProvider } from '../../context/ErrorContext';
 
 // Mock the API
 jest.mock('../../services/api', () => ({
@@ -42,9 +43,11 @@ const mockPods = [
 
 const renderDashboard = (locationState?: any) => {
   return render(
-    <MemoryRouter initialEntries={[{ pathname: '/dashboard', state: locationState }]}>
-      <DashboardPage />
-    </MemoryRouter>
+    <ErrorProvider>
+      <MemoryRouter initialEntries={[{ pathname: '/dashboard', state: locationState }]}>
+        <DashboardPage />
+      </MemoryRouter>
+    </ErrorProvider>
   );
 };
 
@@ -469,35 +472,30 @@ describe('DashboardPage - Error handling', () => {
   });
 
   it('handles pods loading failure gracefully', async () => {
-    const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
     (podsApi.getAll as jest.Mock).mockRejectedValue(new Error('Failed to load pods'));
     
     renderDashboard();
     
+    // Wait for the error to be handled - it shows in the error toast
     await waitFor(() => {
-      expect(consoleSpy).toHaveBeenCalledWith('Failed to load pods:', expect.any(Error));
+      expect(screen.getByText('Network error. Please check your connection.')).toBeInTheDocument();
     });
-    
-    consoleSpy.mockRestore();
   });
 
   it('handles instances loading failure gracefully', async () => {
-    const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
     (instancesApi.getAll as jest.Mock).mockRejectedValue(new Error('Failed to load instances'));
     
     renderDashboard();
     
     await userEvent.selectOptions(screen.getByLabelText(/database type/i), 'POSTGRES');
     
+    // Wait for the error to be handled - it shows in the error toast
     await waitFor(() => {
-      expect(consoleSpy).toHaveBeenCalledWith('Failed to load instances:', expect.any(Error));
+      expect(screen.getByText('Network error. Please check your connection.')).toBeInTheDocument();
     });
-    
-    consoleSpy.mockRestore();
   });
 
   it('handles databases loading failure gracefully', async () => {
-    const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
     (databasesApi.getByInstance as jest.Mock).mockRejectedValue(new Error('Failed to load databases'));
     
     renderDashboard();
@@ -506,11 +504,10 @@ describe('DashboardPage - Error handling', () => {
     await waitFor(() => expect(screen.getByLabelText(/instance/i)).not.toBeDisabled());
     await userEvent.selectOptions(screen.getByLabelText(/instance/i), 'inst-1');
     
+    // Wait for the error to be handled - it shows in the error toast
     await waitFor(() => {
-      expect(consoleSpy).toHaveBeenCalledWith('Failed to load databases:', expect.any(Error));
+      expect(screen.getByText('Network error. Please check your connection.')).toBeInTheDocument();
     });
-    
-    consoleSpy.mockRestore();
   });
 
   it('shows default error message when submission fails without message', async () => {
@@ -535,7 +532,7 @@ describe('DashboardPage - Error handling', () => {
     await userEvent.click(screen.getByRole('button', { name: /submit for approval/i }));
     
     await waitFor(() => {
-      expect(screen.getByText('Failed to submit query')).toBeInTheDocument();
+      expect(screen.getByText('Network error. Please check your connection.')).toBeInTheDocument();
     });
   });
 
@@ -808,6 +805,382 @@ describe('DashboardPage - Script submission', () => {
       await waitFor(() => {
         expect(screen.queryByText('Please fill this field. Comments cannot be empty or only spaces.')).not.toBeInTheDocument();
       });
+    });
+
+    it('shows inline error for multiple SQL statements', async () => {
+      renderDashboard();
+      
+      await userEvent.selectOptions(screen.getByLabelText(/database type/i), 'POSTGRES');
+      await waitFor(() => expect(screen.getByLabelText(/instance/i)).not.toBeDisabled());
+      await userEvent.selectOptions(screen.getByLabelText(/instance/i), 'inst-1');
+      
+      await waitFor(() => {
+        const dbSelect = getDatabaseSelect();
+        expect(dbSelect.options.length).toBeGreaterThan(1);
+      });
+      
+      await userEvent.selectOptions(getDatabaseSelect(), 'users_db');
+      await userEvent.selectOptions(screen.getByLabelText(/pod/i), 'pod-1');
+      await userEvent.type(screen.getByLabelText(/comments/i), 'Test comment');
+      
+      // Type query with multiple statements
+      await userEvent.type(screen.getByLabelText(/query/i), 'SELECT * FROM users; SELECT * FROM orders;');
+      
+      await userEvent.click(screen.getByRole('button', { name: /submit for approval/i }));
+      
+      await waitFor(() => {
+        expect(screen.getByText('Query mode supports single statements only. For multiple queries, use Script mode.')).toBeInTheDocument();
+      });
+      
+      // Verify the API was not called
+      expect(queriesApi.submit).not.toHaveBeenCalled();
+    });
+
+    it('shows inline error for semicolon in middle of query', async () => {
+      renderDashboard();
+      
+      await userEvent.selectOptions(screen.getByLabelText(/database type/i), 'POSTGRES');
+      await waitFor(() => expect(screen.getByLabelText(/instance/i)).not.toBeDisabled());
+      await userEvent.selectOptions(screen.getByLabelText(/instance/i), 'inst-1');
+      
+      await waitFor(() => {
+        const dbSelect = getDatabaseSelect();
+        expect(dbSelect.options.length).toBeGreaterThan(1);
+      });
+      
+      await userEvent.selectOptions(getDatabaseSelect(), 'users_db');
+      await userEvent.selectOptions(screen.getByLabelText(/pod/i), 'pod-1');
+      await userEvent.type(screen.getByLabelText(/comments/i), 'Test comment');
+      
+      // Type query with semicolon in middle
+      await userEvent.type(screen.getByLabelText(/query/i), 'SELECT *; FROM users');
+      
+      await userEvent.click(screen.getByRole('button', { name: /submit for approval/i }));
+      
+      await waitFor(() => {
+        expect(screen.getByText('Query mode supports single statements only. For multiple queries, use Script mode.')).toBeInTheDocument();
+      });
+      
+      // Verify the API was not called
+      expect(queriesApi.submit).not.toHaveBeenCalled();
+    });
+
+    it('allows single query with trailing semicolon', async () => {
+      renderDashboard();
+      
+      await userEvent.selectOptions(screen.getByLabelText(/database type/i), 'POSTGRES');
+      await waitFor(() => expect(screen.getByLabelText(/instance/i)).not.toBeDisabled());
+      await userEvent.selectOptions(screen.getByLabelText(/instance/i), 'inst-1');
+      
+      await waitFor(() => {
+        const dbSelect = getDatabaseSelect();
+        expect(dbSelect.options.length).toBeGreaterThan(1);
+      });
+      
+      await userEvent.selectOptions(getDatabaseSelect(), 'users_db');
+      await userEvent.selectOptions(screen.getByLabelText(/pod/i), 'pod-1');
+      await userEvent.type(screen.getByLabelText(/comments/i), 'Test comment');
+      
+      // Type query with trailing semicolon (should be allowed)
+      await userEvent.type(screen.getByLabelText(/query/i), 'SELECT * FROM users;');
+      
+      await userEvent.click(screen.getByRole('button', { name: /submit for approval/i }));
+      
+      await waitFor(() => {
+        expect(queriesApi.submit).toHaveBeenCalled();
+      });
+    });
+
+    it('shows inline error for query exceeding size limit', async () => {
+      renderDashboard();
+      
+      await userEvent.selectOptions(screen.getByLabelText(/database type/i), 'POSTGRES');
+      await waitFor(() => expect(screen.getByLabelText(/instance/i)).not.toBeDisabled());
+      await userEvent.selectOptions(screen.getByLabelText(/instance/i), 'inst-1');
+      
+      await waitFor(() => {
+        const dbSelect = getDatabaseSelect();
+        expect(dbSelect.options.length).toBeGreaterThan(1);
+      });
+      
+      await userEvent.selectOptions(getDatabaseSelect(), 'users_db');
+      await userEvent.selectOptions(screen.getByLabelText(/pod/i), 'pod-1');
+      await userEvent.type(screen.getByLabelText(/comments/i), 'Test comment');
+      
+      // Type very long query (exceeding 50KB limit) - use fireEvent for performance
+      const longQuery = 'SELECT * FROM users WHERE id = ' + 'x'.repeat(50001);
+      const queryTextarea = screen.getByLabelText(/query/i);
+      fireEvent.change(queryTextarea, { target: { value: longQuery } });
+      
+      await userEvent.click(screen.getByRole('button', { name: /submit for approval/i }));
+      
+      await waitFor(() => {
+        expect(screen.getByText(/Query text cannot exceed 50000 characters/)).toBeInTheDocument();
+      });
+      
+      // Verify the API was not called
+      expect(queriesApi.submit).not.toHaveBeenCalled();
+    }, 10000);
+
+    it('shows inline error for comments exceeding size limit', async () => {
+      renderDashboard();
+      
+      await userEvent.selectOptions(screen.getByLabelText(/database type/i), 'POSTGRES');
+      await waitFor(() => expect(screen.getByLabelText(/instance/i)).not.toBeDisabled());
+      await userEvent.selectOptions(screen.getByLabelText(/instance/i), 'inst-1');
+      
+      await waitFor(() => {
+        const dbSelect = getDatabaseSelect();
+        expect(dbSelect.options.length).toBeGreaterThan(1);
+      });
+      
+      await userEvent.selectOptions(getDatabaseSelect(), 'users_db');
+      await userEvent.selectOptions(screen.getByLabelText(/pod/i), 'pod-1');
+      await userEvent.type(screen.getByLabelText(/query/i), 'SELECT * FROM users');
+      
+      // Type very long comments (exceeding 2KB limit) - use fireEvent for performance
+      const longComments = 'x'.repeat(2001);
+      const commentsInput = screen.getByLabelText(/comments/i);
+      fireEvent.change(commentsInput, { target: { value: longComments } });
+      
+      await userEvent.click(screen.getByRole('button', { name: /submit for approval/i }));
+      
+      await waitFor(() => {
+        expect(screen.getByText(/Comments cannot exceed 2000 characters/)).toBeInTheDocument();
+      });
+      
+      // Verify the API was not called
+      expect(queriesApi.submit).not.toHaveBeenCalled();
+    }, 10000);
+
+    it('shows inline error for empty script file', async () => {
+      renderDashboard();
+      
+      await userEvent.selectOptions(screen.getByLabelText(/database type/i), 'POSTGRES');
+      await waitFor(() => expect(screen.getByLabelText(/instance/i)).not.toBeDisabled());
+      await userEvent.selectOptions(screen.getByLabelText(/instance/i), 'inst-1');
+      
+      await waitFor(() => {
+        const dbSelect = getDatabaseSelect();
+        expect(dbSelect.options.length).toBeGreaterThan(1);
+      });
+      
+      await userEvent.selectOptions(getDatabaseSelect(), 'users_db');
+      await userEvent.selectOptions(screen.getByLabelText(/pod/i), 'pod-1');
+      await userEvent.selectOptions(screen.getByLabelText(/submission type/i), 'SCRIPT');
+      await userEvent.type(screen.getByLabelText(/comments/i), 'Test comment');
+      
+      // Create and upload an empty file
+      const file = new File([''], 'empty.js', { type: 'application/javascript' });
+      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+      
+      await userEvent.upload(fileInput, file);
+      
+      await userEvent.click(screen.getByRole('button', { name: /submit for approval/i }));
+      
+      await waitFor(() => {
+        expect(screen.getByText('Script file cannot be empty.')).toBeInTheDocument();
+      });
+      
+      // Verify the API was not called
+      expect(queriesApi.submit).not.toHaveBeenCalled();
+    });
+
+    it('shows inline error for script file exceeding size limit', async () => {
+      renderDashboard();
+      
+      await userEvent.selectOptions(screen.getByLabelText(/database type/i), 'POSTGRES');
+      await waitFor(() => expect(screen.getByLabelText(/instance/i)).not.toBeDisabled());
+      await userEvent.selectOptions(screen.getByLabelText(/instance/i), 'inst-1');
+      
+      await waitFor(() => {
+        const dbSelect = getDatabaseSelect();
+        expect(dbSelect.options.length).toBeGreaterThan(1);
+      });
+      
+      await userEvent.selectOptions(getDatabaseSelect(), 'users_db');
+      await userEvent.selectOptions(screen.getByLabelText(/pod/i), 'pod-1');
+      await userEvent.selectOptions(screen.getByLabelText(/submission type/i), 'SCRIPT');
+      await userEvent.type(screen.getByLabelText(/comments/i), 'Test comment');
+      
+      // Create a file larger than 5MB
+      const largeContent = 'x'.repeat(6 * 1024 * 1024); // 6MB
+      const file = new File([largeContent], 'large.js', { type: 'application/javascript' });
+      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+      
+      await userEvent.upload(fileInput, file);
+      
+      await userEvent.click(screen.getByRole('button', { name: /submit for approval/i }));
+      
+      await waitFor(() => {
+        expect(screen.getByText('Script file cannot exceed 5MB.')).toBeInTheDocument();
+      });
+      
+      // Verify the API was not called
+      expect(queriesApi.submit).not.toHaveBeenCalled();
+    });
+
+    it('shows inline error for script content exceeding character limit', async () => {
+      renderDashboard();
+      
+      await userEvent.selectOptions(screen.getByLabelText(/database type/i), 'POSTGRES');
+      await waitFor(() => expect(screen.getByLabelText(/instance/i)).not.toBeDisabled());
+      await userEvent.selectOptions(screen.getByLabelText(/instance/i), 'inst-1');
+      
+      await waitFor(() => {
+        const dbSelect = getDatabaseSelect();
+        expect(dbSelect.options.length).toBeGreaterThan(1);
+      });
+      
+      await userEvent.selectOptions(getDatabaseSelect(), 'users_db');
+      await userEvent.selectOptions(screen.getByLabelText(/pod/i), 'pod-1');
+      await userEvent.selectOptions(screen.getByLabelText(/submission type/i), 'SCRIPT');
+      await userEvent.type(screen.getByLabelText(/comments/i), 'Test comment');
+      
+      // Create a file with content exceeding 5MB character limit
+      const largeContent = 'x'.repeat(5000001); // 5MB + 1 character
+      const file = new File([largeContent], 'large.js', { type: 'application/javascript' });
+      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+      
+      await userEvent.upload(fileInput, file);
+      
+      await userEvent.click(screen.getByRole('button', { name: /submit for approval/i }));
+      
+      await waitFor(() => {
+        expect(screen.getByText(/Script content cannot exceed 5000000 characters/)).toBeInTheDocument();
+      }, { timeout: 5000 });
+      
+      // Verify the API was not called
+      expect(queriesApi.submit).not.toHaveBeenCalled();
+    });
+
+    it('shows inline error for file read error', async () => {
+      renderDashboard();
+      
+      await userEvent.selectOptions(screen.getByLabelText(/database type/i), 'POSTGRES');
+      await waitFor(() => expect(screen.getByLabelText(/instance/i)).not.toBeDisabled());
+      await userEvent.selectOptions(screen.getByLabelText(/instance/i), 'inst-1');
+      
+      await waitFor(() => {
+        const dbSelect = getDatabaseSelect();
+        expect(dbSelect.options.length).toBeGreaterThan(1);
+      });
+      
+      await userEvent.selectOptions(getDatabaseSelect(), 'users_db');
+      await userEvent.selectOptions(screen.getByLabelText(/pod/i), 'pod-1');
+      await userEvent.selectOptions(screen.getByLabelText(/submission type/i), 'SCRIPT');
+      await userEvent.type(screen.getByLabelText(/comments/i), 'Test comment');
+      
+      // Mock FileReader to simulate error
+      const originalFileReader = window.FileReader;
+      const mockFileReader = jest.fn(() => ({
+        readAsText: jest.fn(function() {
+          // Simulate error during file reading
+          setTimeout(() => {
+            if (this.onerror) {
+              this.onerror(new Error('File read error'));
+            }
+          }, 0);
+        }),
+        onload: null,
+        onerror: null,
+        result: null
+      }));
+      window.FileReader = mockFileReader as any;
+      
+      const file = new File(['const x = 1;'], 'test.js', { type: 'application/javascript' });
+      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+      
+      await userEvent.upload(fileInput, file);
+      
+      await userEvent.click(screen.getByRole('button', { name: /submit for approval/i }));
+      
+      await waitFor(() => {
+        expect(screen.getByText('Error reading script file.')).toBeInTheDocument();
+      }, { timeout: 5000 });
+      
+      // Restore original FileReader
+      window.FileReader = originalFileReader;
+      
+      // Verify the API was not called
+      expect(queriesApi.submit).not.toHaveBeenCalled();
+    });
+
+    it('shows validation errors for missing required fields', async () => {
+      renderDashboard();
+      
+      // Try to submit without filling any fields
+      await userEvent.click(screen.getByRole('button', { name: /submit for approval/i }));
+      
+      await waitFor(() => {
+        // The form shows the last validation error that occurs
+        expect(screen.getByText('Please select a pod.')).toBeInTheDocument();
+      });
+      
+      // Verify the API was not called
+      expect(queriesApi.submit).not.toHaveBeenCalled();
+    });
+
+    it('shows validation error for missing instance', async () => {
+      renderDashboard();
+      
+      await userEvent.selectOptions(screen.getByLabelText(/database type/i), 'POSTGRES');
+      await userEvent.selectOptions(screen.getByLabelText(/pod/i), 'pod-1');
+      
+      // Try to submit without selecting instance
+      await userEvent.click(screen.getByRole('button', { name: /submit for approval/i }));
+      
+      await waitFor(() => {
+        // The form shows the last validation error that occurs - database comes after instance
+        expect(screen.getByText('Please select a database.')).toBeInTheDocument();
+      });
+      
+      // Verify the API was not called
+      expect(queriesApi.submit).not.toHaveBeenCalled();
+    });
+
+    it('shows validation error for missing database', async () => {
+      renderDashboard();
+      
+      await userEvent.selectOptions(screen.getByLabelText(/database type/i), 'POSTGRES');
+      await waitFor(() => expect(screen.getByLabelText(/instance/i)).not.toBeDisabled());
+      await userEvent.selectOptions(screen.getByLabelText(/instance/i), 'inst-1');
+      await userEvent.selectOptions(screen.getByLabelText(/pod/i), 'pod-1');
+      
+      // Try to submit without selecting database
+      await userEvent.click(screen.getByRole('button', { name: /submit for approval/i }));
+      
+      await waitFor(() => {
+        expect(screen.getByText('Please select a database.')).toBeInTheDocument();
+      });
+      
+      // Verify the API was not called
+      expect(queriesApi.submit).not.toHaveBeenCalled();
+    });
+
+    it('shows validation error for missing pod', async () => {
+      renderDashboard();
+      
+      await userEvent.selectOptions(screen.getByLabelText(/database type/i), 'POSTGRES');
+      await waitFor(() => expect(screen.getByLabelText(/instance/i)).not.toBeDisabled());
+      await userEvent.selectOptions(screen.getByLabelText(/instance/i), 'inst-1');
+      
+      await waitFor(() => {
+        const dbSelect = getDatabaseSelect();
+        expect(dbSelect.options.length).toBeGreaterThan(1);
+      });
+      
+      await userEvent.selectOptions(getDatabaseSelect(), 'users_db');
+      
+      // Try to submit without selecting pod
+      await userEvent.click(screen.getByRole('button', { name: /submit for approval/i }));
+      
+      await waitFor(() => {
+        expect(screen.getByText('Please select a pod.')).toBeInTheDocument();
+      });
+      
+      // Verify the API was not called
+      expect(queriesApi.submit).not.toHaveBeenCalled();
     });
   });
 });

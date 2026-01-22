@@ -23,6 +23,7 @@ module.exports = {
     '!src/**/*.d.ts',
     '!src/__mocks__/**',
     '!src/setupTests.ts',
+    '!src/__tests__/test-utils.tsx',
   ],
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov', 'html'],

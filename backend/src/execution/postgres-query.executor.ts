@@ -38,12 +38,7 @@ export async function executePostgresQuery(
       rowCount: result.rowCount,
     };
   } catch (error: any) {
-    // Handle different types of PostgreSQL errors
-    if (error.message?.includes('timed out')) {
-      throw new QueryExecutionError(`Query execution timed out after ${QUERY_TIMEOUT_MS / 1000} seconds`);
-    }
-    
-    // Network/connection errors (check message for DNS errors)
+    // Network/connection errors (check code and message for DNS/connection errors first)
     if (error.code === 'ECONNREFUSED' || 
         error.code === 'ENOTFOUND' || 
         error.code === 'ETIMEDOUT' ||
@@ -51,6 +46,11 @@ export async function executePostgresQuery(
         error.message?.includes('ECONNREFUSED') ||
         error.message?.includes('does not support SSL')) {
       throw new InternalError(`Database connection failed: ${error.message}`);
+    }
+    
+    // Handle timeout errors (after checking for network errors)
+    if (error.message?.includes('timed out')) {
+      throw new QueryExecutionError(`Query execution timed out after ${QUERY_TIMEOUT_MS / 1000} seconds`);
     }
     
     // PostgreSQL syntax and query errors

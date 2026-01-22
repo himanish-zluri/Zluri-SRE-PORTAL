@@ -6,7 +6,8 @@ import {
   NotFoundError,
   ConflictError,
   ValidationError,
-  InternalError
+  InternalError,
+  QueryExecutionError
 } from '../../errors';
 
 describe('Custom Error Classes', () => {
@@ -168,6 +169,25 @@ describe('Custom Error Classes', () => {
     });
   });
 
+  describe('QueryExecutionError', () => {
+    it('should create 422 error with default message', () => {
+      const error = new QueryExecutionError();
+
+      expect(error.message).toBe('Query execution failed');
+      expect(error.statusCode).toBe(422);
+      expect(error.code).toBe('QUERY_EXECUTION_ERROR');
+      expect(error.name).toBe('QueryExecutionError');
+    });
+
+    it('should create 422 error with custom message', () => {
+      const error = new QueryExecutionError('SQL syntax error');
+
+      expect(error.message).toBe('SQL syntax error');
+      expect(error.statusCode).toBe(422);
+      expect(error.code).toBe('QUERY_EXECUTION_ERROR');
+    });
+  });
+
   describe('Error inheritance', () => {
     it('all errors should be instances of AppError', () => {
       expect(new BadRequestError()).toBeInstanceOf(AppError);
@@ -177,6 +197,7 @@ describe('Custom Error Classes', () => {
       expect(new ConflictError()).toBeInstanceOf(AppError);
       expect(new ValidationError()).toBeInstanceOf(AppError);
       expect(new InternalError()).toBeInstanceOf(AppError);
+      expect(new QueryExecutionError()).toBeInstanceOf(AppError);
     });
 
     it('all errors should be instances of Error', () => {
@@ -187,6 +208,7 @@ describe('Custom Error Classes', () => {
       expect(new ConflictError()).toBeInstanceOf(Error);
       expect(new ValidationError()).toBeInstanceOf(Error);
       expect(new InternalError()).toBeInstanceOf(Error);
+      expect(new QueryExecutionError()).toBeInstanceOf(Error);
     });
   });
 });

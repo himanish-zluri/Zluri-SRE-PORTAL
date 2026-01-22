@@ -101,7 +101,7 @@ export async function executeMongoQuery(
     const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
     
     // Remove trailing semicolon for MongoDB queries to prevent syntax errors
-    const cleanQueryText = queryText.trim().replace(/;+$/, '');
+    const cleanQueryText = queryText.trim().replace(/[;\s]+$/, '');
     
     const fn = new AsyncFunction('db', 'collection', `
       try {

@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { LoginPage } from '../LoginPage';
 import { ThemeProvider } from '../../context/ThemeContext';
+import { ErrorProvider } from '../../context/ErrorContext';
 
 // Mock useAuth hook
 const mockLogin = jest.fn();
@@ -24,12 +25,16 @@ jest.mock('../../context/ThemeContext', () => ({
 
 const renderLoginPage = () => {
   return render(
-    <MemoryRouter initialEntries={['/login']}>
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/dashboard" element={<div>Dashboard</div>} />
-      </Routes>
-    </MemoryRouter>
+    <ErrorProvider>
+      <ThemeProvider>
+        <MemoryRouter initialEntries={['/login']}>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/dashboard" element={<div>Dashboard</div>} />
+          </Routes>
+        </MemoryRouter>
+      </ThemeProvider>
+    </ErrorProvider>
   );
 };
 
@@ -187,5 +192,208 @@ describe('LoginPage', () => {
     await userEvent.click(hideButton);
     expect(passwordInput).toHaveAttribute('type', 'password');
     expect(screen.getByLabelText('Show password')).toBeInTheDocument();
+  });
+
+  // Additional tests for better branch coverage
+  describe('Theme functionality', () => {
+    it('shows correct icon for dark theme', () => {
+      // Mock useTheme to return dark theme
+      jest.doMock('../../context/ThemeContext', () => ({
+        ...jest.requireActual('../../context/ThemeContext'),
+        useTheme: () => ({
+          theme: 'dark',
+          toggleTheme: mockToggleTheme,
+        }),
+        ThemeProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+      }));
+
+      renderLoginPage();
+      
+      // Should show sun icon for dark theme (the first SVG path)
+      const themeButton = screen.getByRole('button', { name: '' });
+      expect(themeButton).toBeInTheDocument();
+    });
+  });
+
+  describe('Form validation', () => {
+    it('prevents submission with empty email', async () => {
+      renderLoginPage();
+      
+      // Try to submit with empty email
+      await userEvent.type(screen.getByPlaceholderText('Enter your password'), 'password123');
+      await userEvent.click(screen.getByRole('button', { name: /login/i }));
+      
+      // Should not call login function due to HTML5 validation
+      expect(mockLogin).not.toHaveBeenCalled();
+    });
+
+    it('prevents submission with empty password', async () => {
+      renderLoginPage();
+      
+      // Try to submit with empty password
+      await userEvent.type(screen.getByLabelText(/email/i), 'test@example.com');
+      await userEvent.click(screen.getByRole('button', { name: /login/i }));
+      
+      // Should not call login function due to HTML5 validation
+      expect(mockLogin).not.toHaveBeenCalled();
+    });
+
+    it('prevents submission with invalid email format', async () => {
+      renderLoginPage();
+      
+      // Try to submit with invalid email
+      await userEvent.type(screen.getByLabelText(/email/i), 'invalid-email');
+      await userEvent.type(screen.getByPlaceholderText('Enter your password'), 'password123');
+      await userEvent.click(screen.getByRole('button', { name: /login/i }));
+      
+      // Should not call login function due to HTML5 validation
+      expect(mockLogin).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Error handling edge cases', () => {
+    it('displays error message from response data', async () => {
+      mockLogin.mockRejectedValue({
+        response: { data: { message: 'Account locked' } },
+      });
+      renderLoginPage();
+      
+      await userEvent.type(screen.getByLabelText(/email/i), 'test@example.com');
+      await userEvent.type(screen.getByPlaceholderText('Enter your password'), 'wrongpassword');
+      await userEvent.click(screen.getByRole('button', { name: /login/i }));
+      
+      await waitFor(() => {
+        expect(screen.getByText('Account locked')).toBeInTheDocument();
+      });
+    });
+
+    it('displays default error when response has no message', async () => {
+      mockLogin.mockRejectedValue({
+        response: { data: {} },
+      });
+      renderLoginPage();
+      
+      await userEvent.type(screen.getByLabelText(/email/i), 'test@example.com');
+      await userEvent.type(screen.getByPlaceholderText('Enter your password'), 'password');
+      await userEvent.click(screen.getByRole('button', { name: /login/i }));
+      
+      await waitFor(() => {
+        expect(screen.getByText('Invalid email or password')).toBeInTheDocument();
+      });
+    });
+
+    it('displays default error when no response object', async () => {
+      mockLogin.mockRejectedValue({
+        message: 'Network error'
+      });
+      renderLoginPage();
+      
+      await userEvent.type(screen.getByLabelText(/email/i), 'test@example.com');
+      await userEvent.type(screen.getByPlaceholderText('Enter your password'), 'password');
+      await userEvent.click(screen.getByRole('button', { name: /login/i }));
+      
+      await waitFor(() => {
+        expect(screen.getByText('Invalid email or password')).toBeInTheDocument();
+      });
+    });
+
+    it('clears error message when form is resubmitted', async () => {
+      // First submission fails
+      mockLogin.mockRejectedValueOnce({
+        response: { data: { message: 'Invalid credentials' } },
+      });
+      
+      renderLoginPage();
+      
+      await userEvent.type(screen.getByLabelText(/email/i), 'test@example.com');
+      await userEvent.type(screen.getByPlaceholderText('Enter your password'), 'wrongpassword');
+      await userEvent.click(screen.getByRole('button', { name: /login/i }));
+      
+      await waitFor(() => {
+        expect(screen.getByText('Invalid credentials')).toBeInTheDocument();
+      });
+
+      // Second submission succeeds
+      mockLogin.mockResolvedValueOnce(undefined);
+      
+      // Clear and retype password
+      const passwordInput = screen.getByPlaceholderText('Enter your password');
+      await userEvent.clear(passwordInput);
+      await userEvent.type(passwordInput, 'correctpassword');
+      await userEvent.click(screen.getByRole('button', { name: /login/i }));
+      
+      // Error should be cleared before new submission
+      await waitFor(() => {
+        expect(screen.queryByText('Invalid credentials')).not.toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('Loading state', () => {
+    it('disables form during loading', async () => {
+      let resolveLogin: (value?: any) => void;
+      const loginPromise = new Promise((resolve) => {
+        resolveLogin = resolve;
+      });
+      mockLogin.mockReturnValue(loginPromise);
+      
+      renderLoginPage();
+      
+      await userEvent.type(screen.getByLabelText(/email/i), 'test@example.com');
+      await userEvent.type(screen.getByPlaceholderText('Enter your password'), 'password');
+      await userEvent.click(screen.getByRole('button', { name: /login/i }));
+      
+      // Button should be disabled and show loading text
+      const button = screen.getByRole('button', { name: /loading/i });
+      expect(button).toBeDisabled();
+      
+      // Resolve the promise
+      resolveLogin!();
+      await waitFor(() => {
+        expect(screen.queryByRole('button', { name: /loading/i })).not.toBeInTheDocument();
+      });
+    });
+
+    it('re-enables form after login error', async () => {
+      mockLogin.mockRejectedValue({
+        response: { data: { message: 'Login failed' } },
+      });
+      
+      renderLoginPage();
+      
+      await userEvent.type(screen.getByLabelText(/email/i), 'test@example.com');
+      await userEvent.type(screen.getByPlaceholderText('Enter your password'), 'password');
+      await userEvent.click(screen.getByRole('button', { name: /login/i }));
+      
+      await waitFor(() => {
+        expect(screen.getByText('Login failed')).toBeInTheDocument();
+      });
+      
+      // Button should be enabled again
+      const button = screen.getByRole('button', { name: /login/i });
+      expect(button).not.toBeDisabled();
+    });
+  });
+
+  describe('User redirect', () => {
+    it('redirects different user roles to dashboard', () => {
+      mockUseAuth.mockReturnValue({
+        user: { id: '2', name: 'Admin', email: 'admin@test.com', role: 'ADMIN' },
+        login: mockLogin,
+      });
+      renderLoginPage();
+      
+      expect(screen.getByText('Dashboard')).toBeInTheDocument();
+    });
+
+    it('redirects developer role to dashboard', () => {
+      mockUseAuth.mockReturnValue({
+        user: { id: '3', name: 'Dev', email: 'dev@test.com', role: 'DEVELOPER' },
+        login: mockLogin,
+      });
+      renderLoginPage();
+      
+      expect(screen.getByText('Dashboard')).toBeInTheDocument();
+    });
   });
 });

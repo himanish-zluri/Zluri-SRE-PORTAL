@@ -338,7 +338,7 @@ describe('MySubmissionsPage', () => {
   });
 
   it('shows error alert on retry failure', async () => {
-    const alertMock = jest.spyOn(window, 'alert').mockImplementation(() => {});
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
     (queriesApi.submit as jest.Mock).mockRejectedValue({
       response: { data: { message: 'Retry failed' } },
     });
@@ -353,10 +353,10 @@ describe('MySubmissionsPage', () => {
     await userEvent.click(retryButtons[0]);
     
     await waitFor(() => {
-      expect(alertMock).toHaveBeenCalledWith('Retry failed');
+      expect(consoleSpy).toHaveBeenCalledWith('Error handled:', expect.any(Object));
     });
     
-    alertMock.mockRestore();
+    consoleSpy.mockRestore();
   });
 
   it('displays pod manager name', async () => {
@@ -388,7 +388,7 @@ describe('MySubmissionsPage', () => {
     renderMySubmissions();
     
     await waitFor(() => {
-      expect(consoleSpy).toHaveBeenCalledWith('Failed to load queries:', expect.any(Error));
+      expect(consoleSpy).toHaveBeenCalledWith('Error handled:', expect.any(Error));
     });
     
     consoleSpy.mockRestore();
@@ -770,7 +770,7 @@ describe('MySubmissionsPage - Modal Actions', () => {
     renderMySubmissions();
     
     await waitFor(() => {
-      expect(consoleSpy).toHaveBeenCalledWith('Failed to load queries:', expect.any(Error));
+      expect(consoleSpy).toHaveBeenCalledWith('Error handled:', expect.any(Error));
     });
     
     consoleSpy.mockRestore();

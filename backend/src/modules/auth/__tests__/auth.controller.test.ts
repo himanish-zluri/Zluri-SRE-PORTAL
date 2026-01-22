@@ -47,7 +47,7 @@ describe('AuthController', () => {
       expect(cookieMock).toHaveBeenCalledWith('refreshToken', 'mock-refresh-token', {
         httpOnly: true,
         secure: false, // false in test environment
-        sameSite: 'strict',
+        sameSite: 'lax',
         maxAge: 7 * 24 * 60 * 60 * 1000,
         path: '/'
       });
@@ -133,7 +133,7 @@ describe('AuthController', () => {
       expect(clearCookieMock).toHaveBeenCalledWith('refreshToken', {
         httpOnly: true,
         secure: false, // false in test environment
-        sameSite: 'strict',
+        sameSite: 'lax',
         path: '/'
       });
 
@@ -152,7 +152,7 @@ describe('AuthController', () => {
       expect(clearCookieMock).toHaveBeenCalledWith('refreshToken', {
         httpOnly: true,
         secure: false,
-        sameSite: 'strict',
+        sameSite: 'lax',
         path: '/'
       });
       expect(statusMock).toHaveBeenCalledWith(200);
@@ -188,7 +188,7 @@ describe('AuthController', () => {
       expect(clearCookieMock).toHaveBeenCalledWith('refreshToken', {
         httpOnly: true,
         secure: false, // false in test environment
-        sameSite: 'strict',
+        sameSite: 'lax',
         path: '/'
       });
 
@@ -206,6 +206,76 @@ describe('AuthController', () => {
 
       await expect(AuthController.logoutAll(mockRequest as any, mockResponse as Response))
         .rejects.toThrow('DB error');
+    });
+  });
+
+  describe('Production Environment Tests', () => {
+    const originalEnv = process.env.NODE_ENV;
+
+    beforeEach(() => {
+      process.env.NODE_ENV = 'production';
+      jest.clearAllMocks();
+    });
+
+    afterEach(() => {
+      process.env.NODE_ENV = originalEnv;
+    });
+
+    it('should use secure cookies in production for login', async () => {
+      const mockResult = {
+        accessToken: 'mock-access-token',
+        refreshToken: 'mock-refresh-token',
+        user: { id: '1', email: 'test@example.com', name: 'Test', role: 'DEVELOPER' }
+      };
+      (AuthService.login as jest.Mock).mockResolvedValue(mockResult);
+
+      mockRequest = {
+        body: { email: 'test@example.com', password: 'password123' }
+      };
+
+      await AuthController.login(mockRequest as Request, mockResponse as Response);
+
+      expect(cookieMock).toHaveBeenCalledWith('refreshToken', 'mock-refresh-token', {
+        httpOnly: true,
+        secure: true, // true in production
+        sameSite: 'none',
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+        path: '/'
+      });
+    });
+
+    it('should use secure cookies in production for logout', async () => {
+      (AuthService.logout as jest.Mock).mockResolvedValue(undefined);
+      
+      mockRequest = {
+        cookies: { refreshToken: 'valid-refresh-token' }
+      };
+
+      await AuthController.logout(mockRequest as Request, mockResponse as Response);
+
+      expect(clearCookieMock).toHaveBeenCalledWith('refreshToken', {
+        httpOnly: true,
+        secure: true, // true in production
+        sameSite: 'none',
+        path: '/'
+      });
+    });
+
+    it('should use secure cookies in production for logoutAll', async () => {
+      (AuthService.logoutAll as jest.Mock).mockResolvedValue(undefined);
+
+      mockRequest = {
+        user: { id: 'user-1', email: 'test@test.com', role: 'DEVELOPER' }
+      } as any;
+
+      await AuthController.logoutAll(mockRequest as any, mockResponse as Response);
+
+      expect(clearCookieMock).toHaveBeenCalledWith('refreshToken', {
+        httpOnly: true,
+        secure: true, // true in production
+        sameSite: 'none',
+        path: '/'
+      });
     });
   });
 });

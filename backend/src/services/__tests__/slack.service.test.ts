@@ -600,6 +600,72 @@ describe('SlackService', () => {
       const { SlackService } = await import('../../../src/services/slack.service');
       expect(SlackService.isEnabled()).toBe(false);
     });
+
+    it('notifyExecutionSuccess should only send DM when no approval channel', async () => {
+      // Override the environment to have token but no channel
+      process.env.SLACK_ENABLED = 'true';
+      process.env.SLACK_BOT_TOKEN = 'xoxb-test-token';
+      delete process.env.SLACK_APPROVAL_CHANNEL;
+      
+      mockPostMessage.mockResolvedValue({ ok: true });
+      const { SlackService } = await import('../../../src/services/slack.service');
+      
+      await SlackService.notifyExecutionSuccess(
+        {
+          id: 'query-12345678-abcd',
+          requesterName: 'Test User',
+          requesterEmail: 'test@example.com',
+          requesterSlackId: 'U12345',
+          databaseName: 'test_db',
+          instanceName: 'prod-pg',
+          podId: 'pod-a',
+          submissionType: 'QUERY',
+        },
+        { rows: [] },
+        'Admin'
+      );
+
+      // Should only send DM, not channel message
+      expect(mockPostMessage).toHaveBeenCalledTimes(1);
+      expect(mockPostMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          channel: 'U12345', // DM to user
+        })
+      );
+    });
+
+    it('notifyExecutionFailure should only send DM when no approval channel', async () => {
+      // Override the environment to have token but no channel
+      process.env.SLACK_ENABLED = 'true';
+      process.env.SLACK_BOT_TOKEN = 'xoxb-test-token';
+      delete process.env.SLACK_APPROVAL_CHANNEL;
+      
+      mockPostMessage.mockResolvedValue({ ok: true });
+      const { SlackService } = await import('../../../src/services/slack.service');
+      
+      await SlackService.notifyExecutionFailure(
+        {
+          id: 'query-12345678-abcd',
+          requesterName: 'Test User',
+          requesterEmail: 'test@example.com',
+          requesterSlackId: 'U12345',
+          databaseName: 'test_db',
+          instanceName: 'prod-pg',
+          podId: 'pod-a',
+          submissionType: 'QUERY',
+        },
+        'Error message',
+        'Admin'
+      );
+
+      // Should only send DM, not channel message
+      expect(mockPostMessage).toHaveBeenCalledTimes(1);
+      expect(mockPostMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          channel: 'U12345', // DM to user
+        })
+      );
+    });
   });
 
   describe('when no bot token configured', () => {

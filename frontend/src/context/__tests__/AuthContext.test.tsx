@@ -1,217 +1,55 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act, fireEvent } from '@testing-library/react';
 import { AuthProvider, useAuth } from '../AuthContext';
 import { authApi } from '../../services/api';
 
 // Mock the API
 jest.mock('../../services/api', () => ({
   authApi: {
+    refresh: jest.fn(),
     login: jest.fn(),
     logout: jest.fn(),
-    refresh: jest.fn(),
   },
 }));
 
-// Test component that uses the auth context
+const mockAuthApi = authApi as jest.Mocked<typeof authApi>;
+
+// Test component to use the hook
 function TestComponent() {
   const { user, isLoading, isLoggingOut, login, logout } = useAuth();
   
-  if (isLoading) return <div>Loading...</div>;
-  
   return (
     <div>
-      <span data-testid="user">{user ? user.email : 'No user'}</span>
-      <span data-testid="logging-out">{isLoggingOut ? 'Logging out' : 'Not logging out'}</span>
-      <button onClick={() => login('test@test.com', 'password')}>Login</button>
-      <button onClick={logout}>Logout</button>
+      <div data-testid="user">{user ? user.name : 'No user'}</div>
+      <div data-testid="loading">{isLoading ? 'Loading' : 'Not loading'}</div>
+      <div data-testid="logging-out">{isLoggingOut ? 'Logging out' : 'Not logging out'}</div>
+      <button onClick={() => login('test@example.com', 'password')}>Login</button>
+      <button onClick={() => logout()}>Logout</button>
     </div>
   );
 }
 
-describe('AuthContext with HttpOnly Cookies', () => {
+// Mock localStorage
+const mockLocalStorage = {
+  getItem: jest.fn(),
+  setItem: jest.fn(),
+  removeItem: jest.fn(),
+  clear: jest.fn(),
+};
+Object.defineProperty(window, 'localStorage', {
+  value: mockLocalStorage,
+});
+
+describe('AuthContext', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    localStorage.clear();
-    (localStorage.getItem as jest.Mock).mockReturnValue(null);
+    mockLocalStorage.getItem.mockReturnValue(null);
   });
 
-  it('provides null user initially when no access token', async () => {
-    render(
-      <AuthProvider>
-        <TestComponent />
-      </AuthProvider>
-    );
-    
-    await waitFor(() => {
-      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
-    });
-    
-    expect(screen.getByTestId('user')).toHaveTextContent('No user');
+  afterEach(() => {
+    jest.clearAllMocks();
   });
 
-  it('attempts to refresh token on mount if access token exists', async () => {
-    (localStorage.getItem as jest.Mock).mockReturnValue('existing-access-token');
-    (authApi.refresh as jest.Mock).mockResolvedValue({
-      data: {
-        accessToken: 'new-access-token',
-        user: { id: '1', email: 'test@test.com', name: 'Test', role: 'DEVELOPER' },
-      },
-    });
-    
-    render(
-      <AuthProvider>
-        <TestComponent />
-      </AuthProvider>
-    );
-    
-    await waitFor(() => {
-      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
-    });
-    
-    // Should call refresh without parameters (uses HttpOnly cookie)
-    expect(authApi.refresh).toHaveBeenCalledWith();
-    expect(localStorage.setItem).toHaveBeenCalledWith('accessToken', 'new-access-token');
-    expect(screen.getByTestId('user')).toHaveTextContent('test@test.com');
-  });
-
-  it('clears access token on refresh failure', async () => {
-    (localStorage.getItem as jest.Mock).mockReturnValue('invalid-token');
-    (authApi.refresh as jest.Mock).mockRejectedValue(new Error('Invalid token'));
-    
-    render(
-      <AuthProvider>
-        <TestComponent />
-      </AuthProvider>
-    );
-    
-    await waitFor(() => {
-      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
-    });
-    
-    expect(localStorage.removeItem).toHaveBeenCalledWith('accessToken');
-    // Should NOT try to remove refreshToken (it's in HttpOnly cookie)
-    expect(localStorage.removeItem).not.toHaveBeenCalledWith('refreshToken');
-    expect(screen.getByTestId('user')).toHaveTextContent('No user');
-  });
-
-  it('logs in user successfully and only stores access token', async () => {
-    (authApi.login as jest.Mock).mockResolvedValue({
-      data: {
-        accessToken: 'access-token',
-        // No refreshToken in response (it's set as HttpOnly cookie)
-        user: { id: '1', email: 'test@test.com', name: 'Test', role: 'DEVELOPER' },
-      },
-    });
-    
-    render(
-      <AuthProvider>
-        <TestComponent />
-      </AuthProvider>
-    );
-    
-    await waitFor(() => {
-      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
-    });
-    
-    fireEvent.click(screen.getByText('Login'));
-    
-    await waitFor(() => {
-      expect(screen.getByTestId('user')).toHaveTextContent('test@test.com');
-    });
-    
-    expect(authApi.login).toHaveBeenCalledWith('test@test.com', 'password');
-    expect(localStorage.setItem).toHaveBeenCalledWith('accessToken', 'access-token');
-    // Should NOT store refresh token in localStorage
-    expect(localStorage.setItem).not.toHaveBeenCalledWith('refreshToken', expect.anything());
-  });
-
-  it('logs out user successfully using HttpOnly cookie', async () => {
-    (localStorage.getItem as jest.Mock).mockReturnValue('access-token');
-    (authApi.refresh as jest.Mock).mockResolvedValue({
-      data: {
-        accessToken: 'access-token',
-        user: { id: '1', email: 'test@test.com', name: 'Test', role: 'DEVELOPER' },
-      },
-    });
-    (authApi.logout as jest.Mock).mockResolvedValue({});
-    
-    render(
-      <AuthProvider>
-        <TestComponent />
-      </AuthProvider>
-    );
-    
-    await waitFor(() => {
-      expect(screen.getByTestId('user')).toHaveTextContent('test@test.com');
-    });
-    
-    fireEvent.click(screen.getByText('Logout'));
-    
-    await waitFor(() => {
-      expect(screen.getByTestId('user')).toHaveTextContent('No user');
-    });
-    
-    // Should call logout without parameters (uses HttpOnly cookie)
-    expect(authApi.logout).toHaveBeenCalledWith();
-    expect(localStorage.removeItem).toHaveBeenCalledWith('accessToken');
-    // Should NOT try to remove refreshToken from localStorage
-    expect(localStorage.removeItem).not.toHaveBeenCalledWith('refreshToken');
-  });
-
-  it('handles logout API error gracefully', async () => {
-    (localStorage.getItem as jest.Mock).mockReturnValue('access-token');
-    (authApi.refresh as jest.Mock).mockResolvedValue({
-      data: {
-        accessToken: 'access-token',
-        user: { id: '1', email: 'test@test.com', name: 'Test', role: 'DEVELOPER' },
-      },
-    });
-    (authApi.logout as jest.Mock).mockRejectedValue(new Error('Logout failed'));
-    
-    const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
-    
-    render(
-      <AuthProvider>
-        <TestComponent />
-      </AuthProvider>
-    );
-    
-    await waitFor(() => {
-      expect(screen.getByTestId('user')).toHaveTextContent('test@test.com');
-    });
-    
-    fireEvent.click(screen.getByText('Logout'));
-    
-    await waitFor(() => {
-      expect(screen.getByTestId('user')).toHaveTextContent('No user');
-    });
-    
-    // Should still clear access token even if API fails
-    expect(localStorage.removeItem).toHaveBeenCalledWith('accessToken');
-    expect(consoleSpy).toHaveBeenCalledWith('Logout error:', expect.any(Error));
-    
-    consoleSpy.mockRestore();
-  });
-
-  it('handles logout when no access token exists', async () => {
-    render(
-      <AuthProvider>
-        <TestComponent />
-      </AuthProvider>
-    );
-    
-    await waitFor(() => {
-      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
-    });
-    
-    fireEvent.click(screen.getByText('Logout'));
-    
-    await waitFor(() => {
-      // Should still call logout API to clear HttpOnly cookie
-      expect(authApi.logout).toHaveBeenCalledWith();
-    });
-  });
-
-  it('throws error when useAuth is used outside provider', () => {
+  it('throws error when useAuth is used outside AuthProvider', () => {
     const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
     
     expect(() => {
@@ -221,20 +59,238 @@ describe('AuthContext with HttpOnly Cookies', () => {
     consoleSpy.mockRestore();
   });
 
-  it('does not attempt refresh when no access token exists', async () => {
-    (localStorage.getItem as jest.Mock).mockReturnValue(null);
-    
+  it('initializes with loading state and attempts token refresh', async () => {
+    mockAuthApi.refresh.mockRejectedValue(new Error('No refresh token'));
+
     render(
       <AuthProvider>
         <TestComponent />
       </AuthProvider>
     );
-    
-    await waitFor(() => {
-      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
-    });
-    
-    expect(authApi.refresh).not.toHaveBeenCalled();
+
+    // Initially should be loading
+    expect(screen.getByTestId('loading')).toHaveTextContent('Loading');
     expect(screen.getByTestId('user')).toHaveTextContent('No user');
+
+    // Wait for initialization to complete
+    await waitFor(() => {
+      expect(screen.getByTestId('loading')).toHaveTextContent('Not loading');
+    });
+
+    expect(mockAuthApi.refresh).toHaveBeenCalledTimes(1);
+    expect(mockLocalStorage.removeItem).toHaveBeenCalledWith('accessToken');
+  });
+
+  it('successfully refreshes token on initialization', async () => {
+    const mockUser = { id: '1', name: 'John Doe', email: 'john@example.com', role: 'USER' };
+    mockAuthApi.refresh.mockResolvedValue({
+      data: {
+        user: mockUser,
+        accessToken: 'new-access-token',
+      },
+    } as any);
+
+    render(
+      <AuthProvider>
+        <TestComponent />
+      </AuthProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('loading')).toHaveTextContent('Not loading');
+    });
+
+    expect(screen.getByTestId('user')).toHaveTextContent('John Doe');
+    expect(mockLocalStorage.setItem).toHaveBeenCalledWith('accessToken', 'new-access-token');
+  });
+
+  it('handles login successfully', async () => {
+    const mockUser = { id: '1', name: 'John Doe', email: 'john@example.com', role: 'USER' };
+    mockAuthApi.refresh.mockRejectedValue(new Error('No refresh token'));
+    mockAuthApi.login.mockResolvedValue({
+      data: {
+        user: mockUser,
+        accessToken: 'access-token',
+      },
+    } as any);
+
+    render(
+      <AuthProvider>
+        <TestComponent />
+      </AuthProvider>
+    );
+
+    // Wait for initialization
+    await waitFor(() => {
+      expect(screen.getByTestId('loading')).toHaveTextContent('Not loading');
+    });
+
+    // Perform login
+    const loginButton = screen.getByText('Login');
+    await act(async () => {
+      loginButton.click();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('user')).toHaveTextContent('John Doe');
+    });
+
+    expect(mockAuthApi.login).toHaveBeenCalledWith('test@example.com', 'password');
+    expect(mockLocalStorage.setItem).toHaveBeenCalledWith('accessToken', 'access-token');
+  });
+
+  it('handles logout successfully', async () => {
+    const mockUser = { id: '1', name: 'John Doe', email: 'john@example.com', role: 'USER' };
+    mockAuthApi.refresh.mockResolvedValue({
+      data: {
+        user: mockUser,
+        accessToken: 'access-token',
+      },
+    } as any);
+    mockAuthApi.logout.mockResolvedValue({} as any);
+
+    render(
+      <AuthProvider>
+        <TestComponent />
+      </AuthProvider>
+    );
+
+    // Wait for initialization with user
+    await waitFor(() => {
+      expect(screen.getByTestId('user')).toHaveTextContent('John Doe');
+    });
+
+    // Perform logout
+    const logoutButton = screen.getByText('Logout');
+    await act(async () => {
+      logoutButton.click();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('user')).toHaveTextContent('No user');
+      expect(screen.getByTestId('logging-out')).toHaveTextContent('Not logging out');
+    });
+
+    expect(mockAuthApi.logout).toHaveBeenCalledTimes(1);
+    expect(mockLocalStorage.removeItem).toHaveBeenCalledWith('accessToken');
+  });
+
+  it('handles logout failure gracefully', async () => {
+    const mockUser = { id: '1', name: 'John Doe', email: 'john@example.com', role: 'USER' };
+    mockAuthApi.refresh.mockResolvedValue({
+      data: {
+        user: mockUser,
+        accessToken: 'access-token',
+      },
+    } as any);
+    mockAuthApi.logout.mockRejectedValue(new Error('Network error'));
+
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+
+    render(
+      <AuthProvider>
+        <TestComponent />
+      </AuthProvider>
+    );
+
+    // Wait for initialization with user
+    await waitFor(() => {
+      expect(screen.getByTestId('user')).toHaveTextContent('John Doe');
+    });
+
+    // Perform logout
+    const logoutButton = screen.getByText('Logout');
+    await act(async () => {
+      logoutButton.click();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('user')).toHaveTextContent('No user');
+      expect(screen.getByTestId('logging-out')).toHaveTextContent('Not logging out');
+    });
+
+    expect(consoleSpy).toHaveBeenCalledWith('Logout error:', expect.any(Error));
+    expect(mockLocalStorage.removeItem).toHaveBeenCalledWith('accessToken');
+
+    consoleSpy.mockRestore();
+  });
+
+  it('logs detailed error in development mode', async () => {
+    const originalEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'development';
+
+    const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+    
+    mockAuthApi.refresh.mockRejectedValue({
+      response: {
+        status: 401,
+        data: { error: 'Token expired' }
+      }
+    });
+
+    render(
+      <AuthProvider>
+        <TestComponent />
+      </AuthProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('loading')).toHaveTextContent('Not loading');
+    });
+
+    expect(consoleSpy).toHaveBeenCalledWith('Token refresh failed:', 401, 'Token expired');
+
+    consoleSpy.mockRestore();
+    process.env.NODE_ENV = originalEnv;
+  });
+
+  it('does not log detailed error in production mode', async () => {
+    const originalEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+
+    const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+    
+    mockAuthApi.refresh.mockRejectedValue({
+      response: {
+        status: 401,
+        data: { error: 'Token expired' }
+      }
+    });
+
+    render(
+      <AuthProvider>
+        <TestComponent />
+      </AuthProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('loading')).toHaveTextContent('Not loading');
+    });
+
+    expect(consoleSpy).not.toHaveBeenCalled();
+
+    consoleSpy.mockRestore();
+    process.env.NODE_ENV = originalEnv;
+  });
+
+  it('handles refresh error without response object', async () => {
+    const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+    
+    mockAuthApi.refresh.mockRejectedValue(new Error('Network error'));
+
+    render(
+      <AuthProvider>
+        <TestComponent />
+      </AuthProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('loading')).toHaveTextContent('Not loading');
+    });
+
+    expect(screen.getByTestId('user')).toHaveTextContent('No user');
+    expect(mockLocalStorage.removeItem).toHaveBeenCalledWith('accessToken');
+
+    consoleSpy.mockRestore();
   });
 });

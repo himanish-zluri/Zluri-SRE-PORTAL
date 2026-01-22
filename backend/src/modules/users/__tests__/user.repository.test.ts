@@ -139,4 +139,30 @@ describe('UserRepository', () => {
       expect(mockEntityManager.flush).toHaveBeenCalled();
     });
   });
+
+  describe('getUserPods', () => {
+    it('should return pods managed by user', async () => {
+      const mockPods = [
+        { id: 'pod-1', name: 'Pod A', manager: { id: 'user-1' } },
+        { id: 'pod-2', name: 'Pod B', manager: { id: 'user-1' } },
+      ];
+      mockEntityManager.find.mockResolvedValue(mockPods);
+
+      const result = await UserRepository.getUserPods('user-1');
+
+      expect(mockEntityManager.find).toHaveBeenCalledWith(
+        expect.any(Function),
+        { manager: { id: 'user-1' } }
+      );
+      expect(result).toEqual(mockPods);
+    });
+
+    it('should return empty array when user manages no pods', async () => {
+      mockEntityManager.find.mockResolvedValue([]);
+
+      const result = await UserRepository.getUserPods('user-1');
+
+      expect(result).toEqual([]);
+    });
+  });
 });

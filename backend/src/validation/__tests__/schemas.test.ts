@@ -50,11 +50,11 @@ describe('Validation Schemas', () => {
         expect(result.success).toBe(true);
       });
 
-      it('should fail with empty refresh token', () => {
+      it('should pass with empty body since refresh token comes from cookies', () => {
         const result = refreshSchema.safeParse({
-          body: { refreshToken: '' },
+          body: {},
         });
-        expect(result.success).toBe(false);
+        expect(result.success).toBe(true);
       });
     });
 
@@ -189,6 +189,55 @@ describe('Validation Schemas', () => {
         });
         expect(result.success).toBe(true);
       });
+
+      // Multiple statement validation tests
+      it('should pass QUERY with single statement ending with semicolon', () => {
+        const result = submitQuerySchema.safeParse({
+          body: { ...validBody, submissionType: 'QUERY', queryText: 'SELECT * FROM users;', comments: 'Valid comment' },
+        });
+        expect(result.success).toBe(true);
+      });
+
+      it('should pass QUERY with single statement ending with semicolon and whitespace', () => {
+        const result = submitQuerySchema.safeParse({
+          body: { ...validBody, submissionType: 'QUERY', queryText: 'SELECT * FROM users;   \n  ', comments: 'Valid comment' },
+        });
+        expect(result.success).toBe(true);
+      });
+
+      it('should pass QUERY with single statement without semicolon', () => {
+        const result = submitQuerySchema.safeParse({
+          body: { ...validBody, submissionType: 'QUERY', queryText: 'SELECT * FROM users', comments: 'Valid comment' },
+        });
+        expect(result.success).toBe(true);
+      });
+
+      it('should fail QUERY with multiple statements (multiple semicolons)', () => {
+        const result = submitQuerySchema.safeParse({
+          body: { ...validBody, submissionType: 'QUERY', queryText: 'SELECT * FROM users; SELECT * FROM orders;', comments: 'Valid comment' },
+        });
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error.issues[0].message).toContain('Query mode supports single statements only');
+        }
+      });
+
+      it('should fail QUERY with semicolon in middle of statement', () => {
+        const result = submitQuerySchema.safeParse({
+          body: { ...validBody, submissionType: 'QUERY', queryText: 'SELECT * FROM users; WHERE id = 1', comments: 'Valid comment' },
+        });
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error.issues[0].message).toContain('Query mode supports single statements only');
+        }
+      });
+
+      it('should pass SCRIPT with multiple statements', () => {
+        const result = submitQuerySchema.safeParse({
+          body: { ...validBody, submissionType: 'SCRIPT', queryText: 'SELECT * FROM users; SELECT * FROM orders;', comments: 'Valid comment' },
+        });
+        expect(result.success).toBe(true);
+      });
     });
 
     describe('queryIdParamSchema', () => {
@@ -232,6 +281,20 @@ describe('Validation Schemas', () => {
           query: { type: 'INVALID' },
         });
         expect(result.success).toBe(false);
+      });
+
+      it('should fail with limit exceeding maximum', () => {
+        const result = getQueriesSchema.safeParse({
+          query: { limit: '101' },
+        });
+        expect(result.success).toBe(false);
+      });
+
+      it('should pass with limit at maximum', () => {
+        const result = getQueriesSchema.safeParse({
+          query: { limit: '100' },
+        });
+        expect(result.success).toBe(true);
       });
     });
   });

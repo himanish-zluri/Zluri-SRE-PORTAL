@@ -5,6 +5,7 @@ jest.mock('mongodb');
 
 // Import after mocking
 import { executeMongoQuery } from '../../execution/mongo-query.executor';
+import { QueryExecutionError, InternalError } from '../../errors';
 
 describe('MongoQueryExecutor', () => {
   let mockDb: any;
@@ -309,6 +310,263 @@ describe('MongoQueryExecutor', () => {
         value: originalAsyncFunction,
         writable: true
       });
+    });
+
+    // Test MongoDB error codes
+    it('should handle duplicate key error (11000)', async () => {
+      const error = new Error('E11000 duplicate key error') as any;
+      error.code = 11000;
+      mockClient.connect.mockRejectedValue(error);
+
+      await expect(executeMongoQuery(
+        'mongodb://localhost:27017',
+        'test_db',
+        'db.users.insertOne({ email: "existing@test.com" })'
+      )).rejects.toThrow(QueryExecutionError);
+
+      expect(mockClient.close).toHaveBeenCalled();
+    });
+
+    it('should handle document validation failure (121)', async () => {
+      const error = new Error('Document failed validation') as any;
+      error.code = 121;
+      mockClient.connect.mockRejectedValue(error);
+
+      await expect(executeMongoQuery(
+        'mongodb://localhost:27017',
+        'test_db',
+        'db.users.insertOne({ invalid: "data" })'
+      )).rejects.toThrow(QueryExecutionError);
+
+      expect(mockClient.close).toHaveBeenCalled();
+    });
+
+    it('should handle bad value error (2)', async () => {
+      const error = new Error('Bad value') as any;
+      error.code = 2;
+      mockClient.connect.mockRejectedValue(error);
+
+      await expect(executeMongoQuery(
+        'mongodb://localhost:27017',
+        'test_db',
+        'db.users.find({ $invalid: "operator" })'
+      )).rejects.toThrow(QueryExecutionError);
+
+      expect(mockClient.close).toHaveBeenCalled();
+    });
+
+    it('should handle failed to parse error (9)', async () => {
+      const error = new Error('Failed to parse query') as any;
+      error.code = 9;
+      mockClient.connect.mockRejectedValue(error);
+
+      await expect(executeMongoQuery(
+        'mongodb://localhost:27017',
+        'test_db',
+        'db.users.find({ invalid json })'
+      )).rejects.toThrow(QueryExecutionError);
+
+      expect(mockClient.close).toHaveBeenCalled();
+    });
+
+    it('should handle type mismatch error (14)', async () => {
+      const error = new Error('Type mismatch') as any;
+      error.code = 14;
+      mockClient.connect.mockRejectedValue(error);
+
+      await expect(executeMongoQuery(
+        'mongodb://localhost:27017',
+        'test_db',
+        'db.users.find({ _id: "invalid_objectid" })'
+      )).rejects.toThrow(QueryExecutionError);
+
+      expect(mockClient.close).toHaveBeenCalled();
+    });
+
+    it('should handle invalid options error (16)', async () => {
+      const error = new Error('Invalid options') as any;
+      error.code = 16;
+      mockClient.connect.mockRejectedValue(error);
+
+      await expect(executeMongoQuery(
+        'mongodb://localhost:27017',
+        'test_db',
+        'db.users.find({}, { invalidOption: true })'
+      )).rejects.toThrow(QueryExecutionError);
+
+      expect(mockClient.close).toHaveBeenCalled();
+    });
+
+    it('should handle unauthorized error (13)', async () => {
+      const error = new Error('Unauthorized') as any;
+      error.code = 13;
+      mockClient.connect.mockRejectedValue(error);
+
+      await expect(executeMongoQuery(
+        'mongodb://localhost:27017',
+        'test_db',
+        'db.users.find({})'
+      )).rejects.toThrow(QueryExecutionError);
+
+      expect(mockClient.close).toHaveBeenCalled();
+    });
+
+    it('should handle authentication failed error (18)', async () => {
+      const error = new Error('Authentication failed') as any;
+      error.code = 18;
+      mockClient.connect.mockRejectedValue(error);
+
+      await expect(executeMongoQuery(
+        'mongodb://localhost:27017',
+        'test_db',
+        'db.users.find({})'
+      )).rejects.toThrow(QueryExecutionError);
+
+      expect(mockClient.close).toHaveBeenCalled();
+    });
+
+    it('should handle namespace not found error (26)', async () => {
+      const error = new Error('Namespace not found') as any;
+      error.code = 26;
+      mockClient.connect.mockRejectedValue(error);
+
+      await expect(executeMongoQuery(
+        'mongodb://localhost:27017',
+        'nonexistent_db',
+        'db.users.find({})'
+      )).rejects.toThrow(QueryExecutionError);
+
+      expect(mockClient.close).toHaveBeenCalled();
+    });
+
+    it('should handle unknown MongoDB error code', async () => {
+      const error = new Error('Unknown MongoDB error') as any;
+      error.code = 99999;
+      mockClient.connect.mockRejectedValue(error);
+
+      await expect(executeMongoQuery(
+        'mongodb://localhost:27017',
+        'test_db',
+        'db.users.find({})'
+      )).rejects.toThrow(QueryExecutionError);
+
+      expect(mockClient.close).toHaveBeenCalled();
+    });
+
+    // Test network errors
+    it('should handle MongoNetworkError', async () => {
+      const error = new Error('Network error');
+      error.name = 'MongoNetworkError';
+      mockClient.connect.mockRejectedValue(error);
+
+      await expect(executeMongoQuery(
+        'mongodb://localhost:27017',
+        'test_db',
+        'db.users.find({})'
+      )).rejects.toThrow(InternalError);
+
+      expect(mockClient.close).toHaveBeenCalled();
+    });
+
+    it('should handle MongoServerSelectionError', async () => {
+      const error = new Error('Server selection error');
+      error.name = 'MongoServerSelectionError';
+      mockClient.connect.mockRejectedValue(error);
+
+      await expect(executeMongoQuery(
+        'mongodb://localhost:27017',
+        'test_db',
+        'db.users.find({})'
+      )).rejects.toThrow(InternalError);
+
+      expect(mockClient.close).toHaveBeenCalled();
+    });
+
+    // Test JavaScript syntax errors
+    it('should handle SyntaxError', async () => {
+      const error = new SyntaxError('Unexpected token');
+      mockClient.connect.mockRejectedValue(error);
+
+      await expect(executeMongoQuery(
+        'mongodb://localhost:27017',
+        'test_db',
+        'db.users.find({ invalid syntax }'
+      )).rejects.toThrow(QueryExecutionError);
+
+      expect(mockClient.close).toHaveBeenCalled();
+    });
+
+    // Test MongoDB query failed error
+    it('should handle MongoDB query failed error', async () => {
+      const error = new Error('MongoDB query failed: Some specific error');
+      mockClient.connect.mockRejectedValue(error);
+
+      await expect(executeMongoQuery(
+        'mongodb://localhost:27017',
+        'test_db',
+        'db.users.find({})'
+      )).rejects.toThrow(QueryExecutionError);
+
+      expect(mockClient.close).toHaveBeenCalled();
+    });
+
+    // Test generic error
+    it('should handle generic error', async () => {
+      const error = new Error('Some generic error');
+      mockClient.connect.mockRejectedValue(error);
+
+      await expect(executeMongoQuery(
+        'mongodb://localhost:27017',
+        'test_db',
+        'db.users.find({})'
+      )).rejects.toThrow(QueryExecutionError);
+
+      expect(mockClient.close).toHaveBeenCalled();
+    });
+
+    // Test timeout error with specific message
+    it('should handle timeout error with timed out message', async () => {
+      const error = new Error('Operation timed out after 30 seconds');
+      mockClient.connect.mockRejectedValue(error);
+
+      await expect(executeMongoQuery(
+        'mongodb://localhost:27017',
+        'test_db',
+        'db.users.find({})'
+      )).rejects.toThrow(QueryExecutionError);
+
+      expect(mockClient.close).toHaveBeenCalled();
+    });
+
+    // Test query text cleaning (removing trailing semicolons)
+    it('should remove trailing semicolons from query text', async () => {
+      const result = await executeMongoQuery(
+        'mongodb://localhost:27017',
+        'test_db',
+        'db.users.find({});'
+      );
+
+      expect(result).toEqual([{ id: 1, name: 'test' }]);
+    });
+
+    it('should remove multiple trailing semicolons from query text', async () => {
+      const result = await executeMongoQuery(
+        'mongodb://localhost:27017',
+        'test_db',
+        'db.users.find({});;;'
+      );
+
+      expect(result).toEqual([{ id: 1, name: 'test' }]);
+    });
+
+    it('should handle query text with only semicolons', async () => {
+      const result = await executeMongoQuery(
+        'mongodb://localhost:27017',
+        'test_db',
+        'db.users.find({}); ; ;'
+      );
+
+      expect(result).toEqual([{ id: 1, name: 'test' }]);
     });
   });
 });

@@ -369,6 +369,98 @@ describe('API Services', () => {
       expect(result).toEqual(mockResponse);
     });
 
+    it('should get approval stats', async () => {
+      // Clear any previous calls
+      mockAxiosInstance.get.mockClear();
+      
+      // Mock the initial stats call and the individual status calls
+      mockAxiosInstance.get
+        .mockResolvedValueOnce({ data: {} }) // Initial statsOnly call
+        .mockResolvedValueOnce({ data: { pagination: { total: 5 } } }) // PENDING
+        .mockResolvedValueOnce({ data: { pagination: { total: 10 } } }) // EXECUTED
+        .mockResolvedValueOnce({ data: { pagination: { total: 2 } } }) // FAILED
+        .mockResolvedValueOnce({ data: { pagination: { total: 3 } } }); // REJECTED
+
+      const result = await queriesApi.getApprovalStats();
+
+      expect(mockAxiosInstance.get).toHaveBeenCalledTimes(5);
+      expect(mockAxiosInstance.get).toHaveBeenNthCalledWith(1, '/queries', { params: { limit: 1, offset: 0, statsOnly: true } });
+      expect(mockAxiosInstance.get).toHaveBeenNthCalledWith(2, '/queries', { params: { status: 'PENDING', limit: 1 } });
+      expect(mockAxiosInstance.get).toHaveBeenNthCalledWith(3, '/queries', { params: { status: 'EXECUTED', limit: 1 } });
+      expect(mockAxiosInstance.get).toHaveBeenNthCalledWith(4, '/queries', { params: { status: 'FAILED', limit: 1 } });
+      expect(mockAxiosInstance.get).toHaveBeenNthCalledWith(5, '/queries', { params: { status: 'REJECTED', limit: 1 } });
+
+      expect(result.data).toEqual({
+        PENDING: 5,
+        EXECUTED: 10,
+        FAILED: 2,
+        REJECTED: 3,
+      });
+    });
+
+    it('should get approval stats with fallback when pagination is missing', async () => {
+      // Mock responses without pagination
+      mockAxiosInstance.get
+        .mockResolvedValueOnce({ data: {} }) // PENDING - no pagination
+        .mockResolvedValueOnce({ data: {} }) // EXECUTED - no pagination
+        .mockResolvedValueOnce({ data: {} }) // FAILED - no pagination
+        .mockResolvedValueOnce({ data: {} }); // REJECTED - no pagination
+
+      const result = await queriesApi.getApprovalStats();
+
+      expect(result.data).toEqual({
+        PENDING: 0,
+        EXECUTED: 0,
+        FAILED: 0,
+        REJECTED: 0,
+      });
+    });
+
+    it('should get my submissions stats', async () => {
+      // Clear any previous calls
+      mockAxiosInstance.get.mockClear();
+      
+      // Mock the individual status calls
+      mockAxiosInstance.get
+        .mockResolvedValueOnce({ data: { pagination: { total: 3 } } }) // PENDING
+        .mockResolvedValueOnce({ data: { pagination: { total: 7 } } }) // EXECUTED
+        .mockResolvedValueOnce({ data: { pagination: { total: 1 } } }) // FAILED
+        .mockResolvedValueOnce({ data: { pagination: { total: 2 } } }); // REJECTED
+
+      const result = await queriesApi.getMySubmissionsStats();
+
+      expect(mockAxiosInstance.get).toHaveBeenCalledTimes(4);
+      expect(mockAxiosInstance.get).toHaveBeenNthCalledWith(1, '/queries/my-submissions', { params: { status: 'PENDING', limit: 1 } });
+      expect(mockAxiosInstance.get).toHaveBeenNthCalledWith(2, '/queries/my-submissions', { params: { status: 'EXECUTED', limit: 1 } });
+      expect(mockAxiosInstance.get).toHaveBeenNthCalledWith(3, '/queries/my-submissions', { params: { status: 'FAILED', limit: 1 } });
+      expect(mockAxiosInstance.get).toHaveBeenNthCalledWith(4, '/queries/my-submissions', { params: { status: 'REJECTED', limit: 1 } });
+
+      expect(result.data).toEqual({
+        PENDING: 3,
+        EXECUTED: 7,
+        FAILED: 1,
+        REJECTED: 2,
+      });
+    });
+
+    it('should get my submissions stats with fallback when pagination is missing', async () => {
+      // Mock responses without pagination
+      mockAxiosInstance.get
+        .mockResolvedValueOnce({ data: {} }) // PENDING - no pagination
+        .mockResolvedValueOnce({ data: {} }) // EXECUTED - no pagination
+        .mockResolvedValueOnce({ data: {} }) // FAILED - no pagination
+        .mockResolvedValueOnce({ data: {} }); // REJECTED - no pagination
+
+      const result = await queriesApi.getMySubmissionsStats();
+
+      expect(result.data).toEqual({
+        PENDING: 0,
+        EXECUTED: 0,
+        FAILED: 0,
+        REJECTED: 0,
+      });
+    });
+
     it('should get query by id', async () => {
       const mockResponse = { data: { id: '1', status: 'PENDING', query_text: 'SELECT * FROM users' } };
       mockAxiosInstance.get.mockResolvedValue(mockResponse);
@@ -476,6 +568,51 @@ describe('API Services', () => {
 
       expect(mockAxiosInstance.get).toHaveBeenCalledWith('/audit', { params });
       expect(result).toEqual(mockResponse);
+    });
+
+    it('should get audit stats', async () => {
+      // Clear any previous calls
+      mockAxiosInstance.get.mockClear();
+      
+      // Mock the individual action calls
+      mockAxiosInstance.get
+        .mockResolvedValueOnce({ data: { pagination: { total: 15 } } }) // SUBMITTED
+        .mockResolvedValueOnce({ data: { pagination: { total: 12 } } }) // EXECUTED
+        .mockResolvedValueOnce({ data: { pagination: { total: 2 } } }) // FAILED
+        .mockResolvedValueOnce({ data: { pagination: { total: 1 } } }); // REJECTED
+
+      const result = await auditApi.getStats();
+
+      expect(mockAxiosInstance.get).toHaveBeenCalledTimes(4);
+      expect(mockAxiosInstance.get).toHaveBeenNthCalledWith(1, '/audit', { params: { action: 'SUBMITTED', limit: 1 } });
+      expect(mockAxiosInstance.get).toHaveBeenNthCalledWith(2, '/audit', { params: { action: 'EXECUTED', limit: 1 } });
+      expect(mockAxiosInstance.get).toHaveBeenNthCalledWith(3, '/audit', { params: { action: 'FAILED', limit: 1 } });
+      expect(mockAxiosInstance.get).toHaveBeenNthCalledWith(4, '/audit', { params: { action: 'REJECTED', limit: 1 } });
+
+      expect(result.data).toEqual({
+        SUBMITTED: 15,
+        EXECUTED: 12,
+        FAILED: 2,
+        REJECTED: 1,
+      });
+    });
+
+    it('should get audit stats with fallback when pagination is missing', async () => {
+      // Mock responses with different fallback scenarios
+      mockAxiosInstance.get
+        .mockResolvedValueOnce({ data: { length: 8 } }) // SUBMITTED - use length fallback
+        .mockResolvedValueOnce({ data: {} }) // EXECUTED - no pagination or length
+        .mockResolvedValueOnce({ data: { pagination: { total: 3 } } }) // FAILED - has pagination
+        .mockResolvedValueOnce({ data: { length: 2 } }); // REJECTED - use length fallback
+
+      const result = await auditApi.getStats();
+
+      expect(result.data).toEqual({
+        SUBMITTED: 8,
+        EXECUTED: 0,
+        FAILED: 3,
+        REJECTED: 2,
+      });
     });
 
     it('should get audit logs by query', async () => {

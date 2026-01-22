@@ -38,7 +38,7 @@ export function ApprovalDashboardPage() {
 
   // Clean up processing queries that are no longer pending
   useEffect(() => {
-    if (queries.length > 0) {
+    if (Array.isArray(queries) && queries.length > 0) {
       queries.forEach(query => {
         if (query.status !== 'PENDING' && isQueryProcessing(query.id)) {
           removeProcessingQuery(query.id);
@@ -68,6 +68,17 @@ export function ApprovalDashboardPage() {
 
   // Remove risk filtering to eliminate bugs
   const filteredQueries = Array.isArray(queries) ? queries : [];
+
+  // Calculate status counts
+  const statusCounts = filteredQueries.reduce((counts, query) => {
+    counts[query.status] = (counts[query.status] || 0) + 1;
+    return counts;
+  }, {} as Record<string, number>);
+
+  const pendingCount = statusCounts.PENDING || 0;
+  const executedCount = statusCounts.EXECUTED || 0;
+  const failedCount = statusCounts.FAILED || 0;
+  const rejectedCount = statusCounts.REJECTED || 0;
 
   const handleApprove = async (query: Query) => {
     addProcessingQuery(query.id);
@@ -164,6 +175,22 @@ export function ApprovalDashboardPage() {
         <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
           Approval Dashboard
         </h2>
+      </div>
+
+      {/* Status Overview */}
+      <div className="grid grid-cols-4 gap-4 mb-6">
+        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-4">
+          <div className="text-sm text-gray-600 dark:text-gray-400">Pending: {pendingCount}</div>
+        </div>
+        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-4">
+          <div className="text-sm text-gray-600 dark:text-gray-400">Executed: {executedCount}</div>
+        </div>
+        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-4">
+          <div className="text-sm text-gray-600 dark:text-gray-400">Failed: {failedCount}</div>
+        </div>
+        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-4">
+          <div className="text-sm text-gray-600 dark:text-gray-400">Rejected: {rejectedCount}</div>
+        </div>
       </div>
 
       {/* Filters */}

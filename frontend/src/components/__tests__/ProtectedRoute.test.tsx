@@ -28,6 +28,7 @@ describe('ProtectedRoute', () => {
     mockUseAuth.mockReturnValue({
       user: null,
       isLoading: true,
+      isLoggingOut: false,
       login: jest.fn(),
       logout: jest.fn(),
     });
@@ -46,6 +47,7 @@ describe('ProtectedRoute', () => {
     mockUseAuth.mockReturnValue({
       user: null,
       isLoading: false,
+      isLoggingOut: false,
       login: jest.fn(),
       logout: jest.fn(),
     });
@@ -68,6 +70,7 @@ describe('ProtectedRoute', () => {
         role: 'DEVELOPER',
       },
       isLoading: false,
+      isLoggingOut: false,
       login: jest.fn(),
       logout: jest.fn(),
     });
@@ -90,6 +93,7 @@ describe('ProtectedRoute', () => {
         role: 'ADMIN',
       },
       isLoading: false,
+      isLoggingOut: false,
       login: jest.fn(),
       logout: jest.fn(),
     });
@@ -112,6 +116,7 @@ describe('ProtectedRoute', () => {
         role: 'MANAGER',
       },
       isLoading: false,
+      isLoggingOut: false,
       login: jest.fn(),
       logout: jest.fn(),
     });
@@ -134,6 +139,7 @@ describe('ProtectedRoute', () => {
         role: 'DEVELOPER',
       },
       isLoading: false,
+      isLoggingOut: false,
       login: jest.fn(),
       logout: jest.fn(),
     });
